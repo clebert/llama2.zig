@@ -6,6 +6,15 @@
     "https://raw.githubusercontent.com/clebert/onecfg-lib/main/lib/onecfg-vscode.json"
   ],
   "patches": {
-    ".gitignore": [{"value": ["/zig-cache", "/zig-out"]}]
+    ".gitignore": [
+      {
+        "value": ["/zig-cache", "/zig-out"]
+      }
+    ],
+    ".vscode/settings.json": [
+      {
+        "value": {"[zig]": {"editor.defaultFormatter": "ziglang.vscode-zig"}}
+      }
+    ]
   }
 }

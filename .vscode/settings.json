@@ -23,6 +23,9 @@
   "[yaml]": {
     "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
+  "[zig]": {
+    "editor.defaultFormatter": "ziglang.vscode-zig"
+  },
   "editor.formatOnSave": true,
   "editor.rulers": [
     100
