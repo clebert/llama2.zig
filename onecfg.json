@@ -13,7 +13,10 @@
     ],
     ".vscode/settings.json": [
       {
-        "value": {"[zig]": {"editor.defaultFormatter": "ziglang.vscode-zig"}}
+        "value": {
+          "[zig]": {"editor.defaultFormatter": "ziglang.vscode-zig"},
+          "zig.zls.enableInlayHints": false
+        }
       }
     ]
   }

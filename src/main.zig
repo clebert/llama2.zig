@@ -1,24 +1,19 @@
 const std = @import("std");
+const tokenizer = @import("tokenizer.zig");
 
 pub fn main() !void {
-    // Prints to stderr (it's a shortcut based on `std.io.getStdErr()`)
-    std.debug.print("All your {s} are belong to us.\n", .{"codebase"});
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
 
-    // stdout is for the actual output of your application, for example if you
-    // are implementing gzip, then only the compressed bytes should be sent to
-    // stdout, not any debugging messages.
-    const stdout_file = std.io.getStdOut().writer();
-    var bw = std.io.bufferedWriter(stdout_file);
-    const stdout = bw.writer();
+    defer arena.deinit();
 
-    try stdout.print("Run `zig build test` to run the tests.\n", .{});
+    const allocator = arena.allocator();
+    const stdout = std.io.getStdOut().writer();
+    const vocab_size = 32000;
 
-    try bw.flush(); // don't forget to flush!
-}
+    var vocab: [][]u8 = try allocator.alloc([]u8, vocab_size);
+    var word_scores: []f32 = try allocator.alloc(f32, vocab_size);
 
-test "simple test" {
-    var list = std.ArrayList(i32).init(std.testing.allocator);
-    defer list.deinit(); // try commenting this out and see if zig detects the memory leak!
-    try list.append(42);
-    try std.testing.expectEqual(@as(i32, 42), list.pop());
+    const max_word_length = try tokenizer.loadVocab(allocator, "tokenizer.bin", vocab, word_scores);
+
+    try stdout.print("{}\n", .{max_word_length});
 }

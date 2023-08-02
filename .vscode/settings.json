@@ -47,5 +47,6 @@
       ],
       "url": "https://raw.githubusercontent.com/clebert/onecfg-rust/main/schema.json"
     }
-  ]
+  ],
+  "zig.zls.enableInlayHints": false
 }
