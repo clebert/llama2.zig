@@ -28,3 +28,7 @@ pub fn main() !void {
 
     try transformer.allocRunState(allocator, config, &run_state);
 }
+
+test {
+    std.testing.refAllDecls(@This());
+}

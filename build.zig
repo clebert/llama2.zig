@@ -50,27 +50,18 @@ pub fn build(b: *std.Build) void {
     // and can be selected like this: `zig build run`
     // This will evaluate the `run` step rather than the default, which is "install".
     const run_step = b.step("run", "Run the app");
+
     run_step.dependOn(&run_cmd.step);
 
     const test_step = b.step("test", "Run unit tests");
 
-    const checkpoint_test = b.addTest(.{
-        .root_source_file = .{ .path = "src/checkpoint.zig" },
+    const tests = b.addTest(.{
+        .root_source_file = .{ .path = "src/main.zig" },
         .target = target,
         .optimize = optimize,
     });
 
-    const run_checkpoint_test = b.addRunArtifact(checkpoint_test);
+    const run_tests = b.addRunArtifact(tests);
 
-    test_step.dependOn(&run_checkpoint_test.step);
-
-    const tokenizer_test = b.addTest(.{
-        .root_source_file = .{ .path = "src/tokenizer.zig" },
-        .target = target,
-        .optimize = optimize,
-    });
-
-    const run_tokenizer_test = b.addRunArtifact(tokenizer_test);
-
-    test_step.dependOn(&run_tokenizer_test.step);
+    test_step.dependOn(&run_tests.step);
 }
