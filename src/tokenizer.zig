@@ -1,6 +1,6 @@
 const std = @import("std");
 
-pub fn loadVocab(allocator: std.mem.Allocator, path: []const u8, vocab: [][]u8, word_scores: []f32) !usize {
+pub fn readFile(allocator: std.mem.Allocator, path: []const u8, vocab: [][]u8, word_scores: []f32) !usize {
     const file = try std.fs.cwd().openFile(path, .{});
 
     defer file.close();
@@ -95,7 +95,7 @@ test "encode multiple words" {
     var vocab: [][]u8 = try allocator.alloc([]u8, vocab_size);
     var word_scores: []f32 = try allocator.alloc(f32, vocab_size);
 
-    const max_word_length = try loadVocab(allocator, "tokenizer.bin", vocab, word_scores);
+    const max_word_length = try readFile(allocator, "tokenizer.bin", vocab, word_scores);
     const expected = [_]usize{ 6716, 2462, 47, 365, 2354, 1539, 263, 1383, 468, 106, 720 };
     const actual = try encodeWords(allocator, text, vocab, word_scores, max_word_length);
 
@@ -125,7 +125,7 @@ test "encode empty string" {
     var vocab: [][]u8 = try allocator.alloc([]u8, vocab_size);
     var word_scores: []f32 = try allocator.alloc(f32, vocab_size);
 
-    const max_word_length = try loadVocab(allocator, "tokenizer.bin", vocab, word_scores);
+    const max_word_length = try readFile(allocator, "tokenizer.bin", vocab, word_scores);
     const actual = try encodeWords(allocator, text, vocab, word_scores, max_word_length);
 
     try std.testing.expectEqual(@as(usize, 0), actual.len);
@@ -143,7 +143,7 @@ test "encode single character" {
     var vocab: [][]u8 = try allocator.alloc([]u8, vocab_size);
     var word_scores: []f32 = try allocator.alloc(f32, vocab_size);
 
-    const max_word_length = try loadVocab(allocator, "tokenizer.bin", vocab, word_scores);
+    const max_word_length = try readFile(allocator, "tokenizer.bin", vocab, word_scores);
     const expected = [_]usize{68};
     const actual = try encodeWords(allocator, text, vocab, word_scores, max_word_length);
 

@@ -8,7 +8,7 @@
   "patches": {
     ".gitignore": [
       {
-        "value": ["/zig-cache", "/zig-out"]
+        "value": ["/zig-cache", "/zig-out", "/*.bin"]
       }
     ],
     ".vscode/settings.json": [

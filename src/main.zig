@@ -1,3 +1,4 @@
+const checkpoint = @import("checkpoint.zig");
 const std = @import("std");
 const tokenizer = @import("tokenizer.zig");
 
@@ -8,12 +9,16 @@ pub fn main() !void {
 
     const allocator = arena.allocator();
     const stdout = std.io.getStdOut().writer();
-    const vocab_size = 32000;
 
-    var vocab: [][]u8 = try allocator.alloc([]u8, vocab_size);
-    var word_scores: []f32 = try allocator.alloc(f32, vocab_size);
+    var config: checkpoint.Config = undefined;
+    var weights: checkpoint.Weights = undefined;
 
-    const max_word_length = try tokenizer.loadVocab(allocator, "tokenizer.bin", vocab, word_scores);
+    try checkpoint.readFile(allocator, "stories15M.bin", &config, &weights);
+    try stdout.print("{}\n", .{config});
 
-    try stdout.print("{}\n", .{max_word_length});
+    var vocab: [][]u8 = try allocator.alloc([]u8, config.vocab_size);
+    var word_scores: []f32 = try allocator.alloc(f32, config.vocab_size);
+
+    const max_word_length = try tokenizer.readFile(allocator, "tokenizer.bin", vocab, word_scores);
+    _ = max_word_length; // TODO
 }
