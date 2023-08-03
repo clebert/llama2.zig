@@ -1,4 +1,5 @@
 const std = @import("std");
+
 const reader = @import("reader.zig");
 
 pub const Config = struct {
@@ -79,4 +80,6 @@ pub fn readFile(allocator: std.mem.Allocator, path: []const u8, config: *Config,
         .freq_cis_imag = try reader.readFloatSlice(allocator, config.seq_len * head_size / 2, &offset, data),
         .wcls = if (shared_weights) token_embedding_table else try reader.readFloatSlice(allocator, config.vocab_size * config.dim, &offset, data),
     };
+
+    std.debug.assert(offset == data.len);
 }

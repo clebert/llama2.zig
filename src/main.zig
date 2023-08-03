@@ -1,5 +1,6 @@
-const checkpoint = @import("checkpoint.zig");
 const std = @import("std");
+
+const checkpoint = @import("checkpoint.zig");
 const tokenizer = @import("tokenizer.zig");
 
 pub fn main() !void {

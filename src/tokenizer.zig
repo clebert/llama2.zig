@@ -1,18 +1,28 @@
 const std = @import("std");
 
+const reader = @import("reader.zig");
+
 pub fn readFile(allocator: std.mem.Allocator, path: []const u8, vocab: [][]u8, word_scores: []f32) !usize {
     const file = try std.fs.cwd().openFile(path, .{});
 
     defer file.close();
 
-    const reader = file.reader();
-    const max_word_length = try reader.readIntLittle(u32);
+    const stat = try file.stat();
+    const data = try allocator.alloc(u8, stat.size);
 
-    for (word_scores, 0..) |*word_score, i| {
-        word_score.* = @as(f32, @bitCast(try reader.readIntLittle(u32)));
-        vocab[i] = try allocator.alloc(u8, try reader.readIntLittle(u32));
+    _ = try file.readAll(data);
 
-        try reader.readNoEof(vocab[i]);
+    var offset: usize = 0;
+
+    const max_word_length = reader.readInt(u32, &offset, data);
+
+    for (word_scores, 0..) |*word_score, word_index| {
+        word_score.* = reader.readFloat(&offset, data);
+
+        const word_length = reader.readInt(u32, &offset, data);
+
+        vocab[word_index] = data[offset..(offset + word_length)];
+        offset += word_length;
     }
 
     return max_word_length;
