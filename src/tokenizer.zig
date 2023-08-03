@@ -88,8 +88,8 @@ fn mergeBestWordPair(
         const word_1 = vocab[tokens[token_index]];
         const word_2 = vocab[tokens[token_index + 1]];
 
-        std.mem.copy(u8, double_word_buffer[0..word_1.len], word_1);
-        std.mem.copy(u8, double_word_buffer[word_1.len..(word_1.len + word_2.len)], word_2);
+        @memcpy(double_word_buffer[0..word_1.len], word_1);
+        @memcpy(double_word_buffer[word_1.len..(word_1.len + word_2.len)], word_2);
 
         const token = lookupToken(
             double_word_buffer[0..(word_1.len + word_2.len)],
@@ -106,7 +106,11 @@ fn mergeBestWordPair(
     }
 
     if (best_token_index) |token_index| {
-        std.mem.copy(usize, tokens[token_index + 1 .. tokens.len - 1], tokens[token_index + 2 ..]);
+        std.mem.copyForwards(
+            usize,
+            tokens[token_index + 1 .. tokens.len - 1],
+            tokens[token_index + 2 ..],
+        );
 
         tokens[token_index] = best_token.?;
 

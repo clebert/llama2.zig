@@ -37,7 +37,6 @@ pub fn allocRunState(
         .value_cache = try allocator.alloc(f32, config.n_layers * config.seq_len * config.dim),
     };
 
-    // TODO: remove?
     @memset(run_state.x, 0);
     @memset(run_state.xb, 0);
     @memset(run_state.xb2, 0);
