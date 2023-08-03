@@ -2,6 +2,7 @@ const std = @import("std");
 
 const checkpoint = @import("checkpoint.zig");
 const tokenizer = @import("tokenizer.zig");
+const transformer = @import("transformer.zig");
 
 pub fn main() !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
@@ -22,4 +23,8 @@ pub fn main() !void {
 
     const max_word_length = try tokenizer.readFile(allocator, "tokenizer.bin", vocab, word_scores);
     _ = max_word_length; // TODO
+
+    var run_state: transformer.RunState = undefined;
+
+    try transformer.allocRunState(allocator, config, &run_state);
 }

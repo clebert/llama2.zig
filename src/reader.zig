@@ -1,6 +1,11 @@
 const std = @import("std");
 
-pub fn readFloatSlice(allocator: std.mem.Allocator, size: usize, offset: *usize, data: []const u8) ![]f32 {
+pub fn readFloatSlice(
+    allocator: std.mem.Allocator,
+    size: usize,
+    offset: *usize,
+    data: []const u8,
+) ![]f32 {
     var slice = try allocator.alloc(f32, size);
 
     for (0..slice.len) |index| {

@@ -26,10 +26,15 @@ pub const Weights = struct {
     rms_final_weight: []f32, // dim
     freq_cis_real: []f32, // seq_len * (dim / n_heads) / 2
     freq_cis_imag: []f32, // seq_len * (dim / n_heads) / 2
-    wcls: []f32, // TODO: vocab_size * dim
+    wcls: []f32, // vocab_size * dim
 };
 
-pub fn readFile(allocator: std.mem.Allocator, path: []const u8, config: *Config, weights: *Weights) !void {
+pub fn readFile(
+    allocator: std.mem.Allocator,
+    path: []const u8,
+    config: *Config,
+    weights: *Weights,
+) !void {
     const file = try std.fs.cwd().openFile(path, .{});
 
     defer file.close();
@@ -59,26 +64,111 @@ pub fn readFile(allocator: std.mem.Allocator, path: []const u8, config: *Config,
         .seq_len = seq_len,
     };
 
-    // https://github.com/karpathy/llama2.c/commit/c3e0d73bd294e1f5e4d17425fac09aaec536400d#diff-8935a7a088435e2ddf7315451f07fae16810932fb3a0a5d706a2eead1618af26R402
+    // https://github.com/karpathy/llama2.c/commit/c3e0d73bd294e1f5e4d17425fac09aaec536400d
     const shared_weights = vocab_size > 0;
-    const token_embedding_table = try reader.readFloatSlice(allocator, config.vocab_size * config.dim, &offset, data);
+
+    const token_embedding_table = try reader.readFloatSlice(
+        allocator,
+        config.vocab_size * config.dim,
+        &offset,
+        data,
+    );
+
     const head_size = config.dim / config.n_heads;
 
     weights.* = Weights{
         .token_embedding_table = token_embedding_table,
-        .rms_att_weight = try reader.readFloatSlice(allocator, config.n_layers * config.dim, &offset, data),
-        .wq = try reader.readFloatSlice(allocator, config.n_layers * config.dim * config.dim, &offset, data),
-        .wk = try reader.readFloatSlice(allocator, config.n_layers * config.dim * config.dim, &offset, data),
-        .wv = try reader.readFloatSlice(allocator, config.n_layers * config.dim * config.dim, &offset, data),
-        .wo = try reader.readFloatSlice(allocator, config.n_layers * config.dim * config.dim, &offset, data),
-        .rms_ffn_weight = try reader.readFloatSlice(allocator, config.n_layers * config.dim, &offset, data),
-        .w1 = try reader.readFloatSlice(allocator, config.n_layers * config.dim * config.hidden_dim, &offset, data),
-        .w2 = try reader.readFloatSlice(allocator, config.n_layers * config.hidden_dim * config.dim, &offset, data),
-        .w3 = try reader.readFloatSlice(allocator, config.n_layers * config.dim * config.hidden_dim, &offset, data),
-        .rms_final_weight = try reader.readFloatSlice(allocator, config.dim, &offset, data),
-        .freq_cis_real = try reader.readFloatSlice(allocator, config.seq_len * head_size / 2, &offset, data),
-        .freq_cis_imag = try reader.readFloatSlice(allocator, config.seq_len * head_size / 2, &offset, data),
-        .wcls = if (shared_weights) token_embedding_table else try reader.readFloatSlice(allocator, config.vocab_size * config.dim, &offset, data),
+
+        .rms_att_weight = try reader.readFloatSlice(
+            allocator,
+            config.n_layers * config.dim,
+            &offset,
+            data,
+        ),
+
+        .wq = try reader.readFloatSlice(
+            allocator,
+            config.n_layers * config.dim * config.dim,
+            &offset,
+            data,
+        ),
+
+        .wk = try reader.readFloatSlice(
+            allocator,
+            config.n_layers * config.dim * config.dim,
+            &offset,
+            data,
+        ),
+
+        .wv = try reader.readFloatSlice(
+            allocator,
+            config.n_layers * config.dim * config.dim,
+            &offset,
+            data,
+        ),
+
+        .wo = try reader.readFloatSlice(
+            allocator,
+            config.n_layers * config.dim * config.dim,
+            &offset,
+            data,
+        ),
+
+        .rms_ffn_weight = try reader.readFloatSlice(
+            allocator,
+            config.n_layers * config.dim,
+            &offset,
+            data,
+        ),
+
+        .w1 = try reader.readFloatSlice(
+            allocator,
+            config.n_layers * config.dim * config.hidden_dim,
+            &offset,
+            data,
+        ),
+
+        .w2 = try reader.readFloatSlice(
+            allocator,
+            config.n_layers * config.hidden_dim * config.dim,
+            &offset,
+            data,
+        ),
+
+        .w3 = try reader.readFloatSlice(
+            allocator,
+            config.n_layers * config.dim * config.hidden_dim,
+            &offset,
+            data,
+        ),
+
+        .rms_final_weight = try reader.readFloatSlice(
+            allocator,
+            config.dim,
+            &offset,
+            data,
+        ),
+
+        .freq_cis_real = try reader.readFloatSlice(
+            allocator,
+            config.seq_len * head_size / 2,
+            &offset,
+            data,
+        ),
+
+        .freq_cis_imag = try reader.readFloatSlice(
+            allocator,
+            config.seq_len * head_size / 2,
+            &offset,
+            data,
+        ),
+
+        .wcls = if (shared_weights) token_embedding_table else try reader.readFloatSlice(
+            allocator,
+            config.vocab_size * config.dim, // TODO: validate
+            &offset,
+            data,
+        ),
     };
 
     std.debug.assert(offset == data.len);

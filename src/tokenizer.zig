@@ -2,7 +2,12 @@ const std = @import("std");
 
 const reader = @import("reader.zig");
 
-pub fn readFile(allocator: std.mem.Allocator, path: []const u8, vocab: [][]u8, word_scores: []f32) !usize {
+pub fn readFile(
+    allocator: std.mem.Allocator,
+    path: []const u8,
+    vocab: [][]u8,
+    word_scores: []f32,
+) !usize {
     const file = try std.fs.cwd().openFile(path, .{});
 
     defer file.close();
@@ -28,7 +33,13 @@ pub fn readFile(allocator: std.mem.Allocator, path: []const u8, vocab: [][]u8, w
     return max_word_length;
 }
 
-pub fn encodeWords(allocator: std.mem.Allocator, text: []const u8, vocab: []const []const u8, word_scores: []const f32, max_word_length: usize) ![]usize {
+pub fn encodeWords(
+    allocator: std.mem.Allocator,
+    text: []const u8,
+    vocab: []const []const u8,
+    word_scores: []const f32,
+    max_word_length: usize,
+) ![]usize {
     var tokens = try allocator.alloc(usize, text.len);
 
     try encodeCharacters(text, vocab, tokens);
@@ -44,7 +55,10 @@ pub fn encodeWords(allocator: std.mem.Allocator, text: []const u8, vocab: []cons
 
 fn encodeCharacters(text: []const u8, vocab: []const []const u8, tokens: []usize) !void {
     for (text, 0..) |char, token_index| {
-        tokens[token_index] = lookupToken(([_]u8{char})[0..], vocab) orelse return error.UnknownCharacter;
+        tokens[token_index] = lookupToken(
+            ([_]u8{char})[0..],
+            vocab,
+        ) orelse return error.UnknownCharacter;
     }
 }
 
@@ -56,7 +70,12 @@ fn lookupToken(word: []const u8, vocab: []const []const u8) ?usize {
     return null;
 }
 
-fn mergeBestWordPair(vocab: []const []const u8, word_scores: []const f32, tokens: []usize, double_word_buffer: []u8) bool {
+fn mergeBestWordPair(
+    vocab: []const []const u8,
+    word_scores: []const f32,
+    tokens: []usize,
+    double_word_buffer: []u8,
+) bool {
     if (tokens.len < 1) {
         return false;
     }
@@ -72,7 +91,11 @@ fn mergeBestWordPair(vocab: []const []const u8, word_scores: []const f32, tokens
         std.mem.copy(u8, double_word_buffer[0..word_1.len], word_1);
         std.mem.copy(u8, double_word_buffer[word_1.len..(word_1.len + word_2.len)], word_2);
 
-        const token = lookupToken(double_word_buffer[0..(word_1.len + word_2.len)], vocab) orelse continue;
+        const token = lookupToken(
+            double_word_buffer[0..(word_1.len + word_2.len)],
+            vocab,
+        ) orelse continue;
+
         const word_score = word_scores[token];
 
         if (word_score > best_word_score) {
