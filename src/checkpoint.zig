@@ -173,3 +173,28 @@ pub fn readFile(
 
     std.debug.assert(offset == data.len);
 }
+
+test "read TinyStories 15M checkpoint file" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+
+    defer arena.deinit();
+
+    const allocator = arena.allocator();
+
+    var config: Config = undefined;
+    var weights: Weights = undefined;
+
+    readFile(allocator, "stories15M.bin", &config, &weights) catch |err| {
+        if (err == error.FileNotFound) return else return err;
+    };
+
+    try std.testing.expectEqualDeep(config, Config{
+        .dim = 288,
+        .hidden_dim = 768,
+        .n_layers = 6,
+        .n_heads = 6,
+        .n_kv_heads = 6,
+        .vocab_size = 32000,
+        .seq_len = 256,
+    });
+}

@@ -52,20 +52,25 @@ pub fn build(b: *std.Build) void {
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);
 
-    // Creates a step for unit testing. This only builds the test executable
-    // but does not run it.
-    const tokenizer_tests = b.addTest(.{
+    const test_step = b.step("test", "Run unit tests");
+
+    const checkpoint_test = b.addTest(.{
+        .root_source_file = .{ .path = "src/checkpoint.zig" },
+        .target = target,
+        .optimize = optimize,
+    });
+
+    const run_checkpoint_test = b.addRunArtifact(checkpoint_test);
+
+    test_step.dependOn(&run_checkpoint_test.step);
+
+    const tokenizer_test = b.addTest(.{
         .root_source_file = .{ .path = "src/tokenizer.zig" },
         .target = target,
         .optimize = optimize,
     });
 
-    const run_tokenizer_tests = b.addRunArtifact(tokenizer_tests);
+    const run_tokenizer_test = b.addRunArtifact(tokenizer_test);
 
-    // Similar to creating the run step earlier, this exposes a `test` step to
-    // the `zig build --help` menu, providing a way for the user to request
-    // running the unit tests.
-    const test_step = b.step("test", "Run unit tests");
-
-    test_step.dependOn(&run_tokenizer_tests.step);
+    test_step.dependOn(&run_tokenizer_test.step);
 }
