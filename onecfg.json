@@ -11,6 +11,11 @@
         "value": ["/zig-cache", "/zig-out", "/*.bin"]
       }
     ],
+    ".vscode/extensions.json": [
+      {
+        "value": {"recommendations": ["ziglang.vscode-zig"]}
+      }
+    ],
     ".vscode/settings.json": [
       {
         "value": {
