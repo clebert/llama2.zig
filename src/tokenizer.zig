@@ -1,7 +1,5 @@
 const std = @import("std");
 
-const reader = @import("reader.zig");
-
 pub fn readFile(
     allocator: std.mem.Allocator,
     path: []const u8,
@@ -12,24 +10,18 @@ pub fn readFile(
 
     defer file.close();
 
-    const stat = try file.stat();
-    const data = try allocator.alloc(u8, stat.size);
-
-    std.debug.print("read file {s}\n", .{path});
-
-    _ = try file.readAll(data);
-
-    var offset: usize = 0;
-
-    const max_word_length = reader.readInt(u32, &offset, data);
+    const reader = file.reader();
+    const max_word_length = try reader.readIntLittle(u32);
 
     for (word_scores, 0..) |*word_score, word_index| {
-        word_score.* = reader.readFloat(&offset, data);
+        word_score.* = @bitCast(try reader.readIntLittle(u32));
 
-        const word_length = reader.readInt(u32, &offset, data);
+        const word_length = try reader.readIntLittle(u32);
+        const word = try allocator.alloc(u8, word_length);
 
-        vocab[word_index] = data[offset..(offset + word_length)];
-        offset += word_length;
+        try reader.readNoEof(word);
+
+        vocab[word_index] = word;
     }
 
     return max_word_length;
