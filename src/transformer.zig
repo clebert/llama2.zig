@@ -133,13 +133,33 @@ test "compute softmax" {
 }
 
 fn matmul(xout: []f32, x: []const f32, w: []const f32) void {
+    @setFloatMode(.Optimized);
+
     std.debug.assert(w.len >= xout.len * x.len);
 
     for (0..xout.len) |i| {
         xout[i] = 0;
 
-        for (0..x.len) |j| {
-            xout[i] += w[i * x.len + j] * x[j];
+        const i_n = i * x.len;
+        var j: usize = 0;
+
+        // https://github.com/karpathy/llama2.c/pull/95
+        while (j < x.len) : (j += 4) {
+            const a = @Vector(4, f32){
+                w[i_n + j],
+                w[i_n + j + 1],
+                w[i_n + j + 2],
+                w[i_n + j + 3],
+            };
+
+            const b = @Vector(4, f32){
+                x[j],
+                x[j + 1],
+                x[j + 2],
+                x[j + 3],
+            };
+
+            xout[i] += @reduce(.Add, a * b);
         }
     }
 }
