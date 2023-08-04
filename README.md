@@ -1,10 +1,12 @@
 ## llama2.zig
 
+> Inference Llama 2 in pure Zig
+
 This is an implementation of the excellent [llama2.c](https://github.com/karpathy/llama2.c) by
 Andrej Karpathy, translated into Zig.
 
 My goal is to learn Zig while simultaneously gaining a better understanding of LLMs. Admittedly, I
-don't have much expertise in either of these topics :)
+don't have much expertise in either of these topics.
 
 If anyone takes the time to read through my code, I'd appreciate any feedback that can improve my
 Zig programming skills. Admittedly, the code is a bit rough around the edges at the moment. My
@@ -21,7 +23,7 @@ Some deviations from the original include:
 - No OpenMP support; therefore, it runs only on one core
 - SIMD optimization of the matmul function using `@Vector`
 - No mmap support; the checkpoint file is instead fully loaded into the RAM
-  - which I suspect explains the relatively good performance of LLaMA2 7B compared to the C
+  - which I suspect explains the relatively good performance of Llama 2 7B compared to the C
     implementation
 - Utilization of slices instead of many-item pointers
 
@@ -29,7 +31,7 @@ Some deviations from the original include:
 
 - Currently, the temperature cannot be adjusted, the next token is deterministically selected via
   `argmax`
-- The first transformer run (`pos=0`) takes disproportionately long (observed with LLaMA2 7B)
+- The first transformer run (`pos=0`) takes disproportionately long (observed with Llama 2 7B)
 
 ## performance
 
