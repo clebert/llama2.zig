@@ -33,12 +33,12 @@ Testing performed on system Apple M1 Pro 32 GB
 ### build command
 
 - Zig: `zig build run -Doptimize=ReleaseFast -- stories15M.bin 0.9 256`
-- C: `make runfast && ./run stories15M.bin 0.9`
+- C: `make runfast && ./run stories15M.bin 0.9 256`
 
 ### stories15M.bin
 
 - Zig: 559 tokens/sec
-- C: 614 tokens/sec
+- C: 620 tokens/sec
 
 ### stories42M.bin
 
