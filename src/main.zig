@@ -17,7 +17,7 @@ pub fn main() !void {
     var config: checkpoint.Config = undefined;
     var weights: checkpoint.Weights = undefined;
 
-    try checkpoint.readFile(allocator, "stories15M.bin", &config, &weights);
+    try checkpoint.readFile(allocator, "stories110M.bin", &config, &weights);
     // try stdout.print("{}\n", .{config});
 
     var vocab: [][]u8 = try allocator.alloc([]u8, config.vocab_size);

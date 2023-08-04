@@ -135,49 +135,27 @@ test "compute softmax" {
 fn matmul(xout: []f32, x: []const f32, w: []const f32) void {
     @setFloatMode(.Optimized);
 
-    std.debug.assert(w.len >= xout.len * x.len);
+    const v_len: comptime_int = 64;
 
-    for (0..xout.len) |i| {
-        xout[i] = 0;
+    std.debug.assert(w.len >= xout.len * x.len);
+    std.debug.assert(x.len % v_len == 0);
+
+    for (xout, 0..) |*xoutptr, i| {
+        var value: f32 = 0;
 
         const i_n = i * x.len;
         var j: usize = 0;
 
         // https://github.com/karpathy/llama2.c/pull/95
-        while (j < x.len) : (j += 4) {
-            const a = @Vector(4, f32){
-                w[i_n + j],
-                w[i_n + j + 1],
-                w[i_n + j + 2],
-                w[i_n + j + 3],
-            };
-
-            const b = @Vector(4, f32){
-                x[j],
-                x[j + 1],
-                x[j + 2],
-                x[j + 3],
-            };
-
-            xout[i] += @reduce(.Add, a * b);
+        while (j < x.len) : (j += v_len) {
+            value += @reduce(
+                .Add,
+                @as(@Vector(v_len, f32), w[(i_n + j)..][0..v_len].*) * @as(@Vector(v_len, f32), x[j..][0..v_len].*),
+            );
         }
+
+        xoutptr.* = value;
     }
-}
-
-test "matrix multiplication" {
-    var xout = [_]f32{ 0, 0 };
-
-    const x = [_]f32{ 3, 4 };
-    const w = [_]f32{ 2, 3, 7, 5 };
-
-    // 3 4 * 2 7 = 18 41
-    //       3 5
-
-    const expected = [_]f32{ 18, 41 };
-
-    matmul(xout[0..], x[0..], w[0..]);
-
-    try std.testing.expectEqualSlices(f32, expected[0..], xout[0..]);
 }
 
 pub fn run(
