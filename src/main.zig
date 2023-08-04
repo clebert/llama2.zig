@@ -36,7 +36,7 @@ pub fn main() !void {
     try stdout.print("<s>\n", .{}); // explicit print the initial BOS token for stylistic symmetry reasons
 
     const start = std.time.milliTimestamp();
-    const steps = config.seq_len;
+    const steps = 256; // config.seq_len;
 
     for (0..steps) |pos| {
         // forward the transformer to get logits for the next token
