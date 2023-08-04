@@ -15,6 +15,8 @@ pub fn readFile(
     const stat = try file.stat();
     const data = try allocator.alloc(u8, stat.size);
 
+    std.debug.print("read file {s}\n", .{path});
+
     _ = try file.readAll(data);
 
     var offset: usize = 0;

@@ -17,8 +17,9 @@ pub fn main() !void {
     var config: checkpoint.Config = undefined;
     var weights: checkpoint.Weights = undefined;
 
-    try checkpoint.readFile(allocator, "stories110M.bin", &config, &weights);
-    // try stdout.print("{}\n", .{config});
+    try checkpoint.readFile(allocator, "llama2_7b.bin", &config, &weights);
+    // try checkpoint.readFile(allocator, "stories110M.bin", &config, &weights);
+    try stdout.print("{}\n", .{config});
 
     var vocab: [][]u8 = try allocator.alloc([]u8, config.vocab_size);
     var word_scores: []f32 = try allocator.alloc(f32, config.vocab_size);
@@ -35,8 +36,8 @@ pub fn main() !void {
 
     try stdout.print("<s>\n", .{}); // explicit print the initial BOS token for stylistic symmetry reasons
 
-    const start = std.time.milliTimestamp();
-    const steps = 256; // config.seq_len;
+    var start: i64 = 0;
+    const steps = 128; // config.seq_len;
 
     for (0..steps) |pos| {
         // forward the transformer to get logits for the next token
@@ -50,6 +51,10 @@ pub fn main() !void {
         try stdout.print("{s}", .{word});
 
         token = next;
+
+        if (start == 0) {
+            start = std.time.milliTimestamp();
+        }
     }
 
     // report achieved tok/s

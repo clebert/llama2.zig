@@ -135,7 +135,7 @@ test "compute softmax" {
 fn matmul(xout: []f32, x: []const f32, w: []const f32) void {
     @setFloatMode(.Optimized);
 
-    const v_len: comptime_int = 64;
+    const v_len: comptime_int = 32;
 
     std.debug.assert(w.len >= xout.len * x.len);
     std.debug.assert(x.len % v_len == 0);
@@ -169,6 +169,7 @@ pub fn run(
     @memcpy(s.x, w.token_embedding_table[(token * p.dim)..][0..s.x.len]);
 
     const head_size = p.dim / p.n_heads;
+    const head_size_sqrt = std.math.sqrt(@as(f32, @floatFromInt(head_size)));
 
     // pluck out the "pos" row of freq_cis_real and freq_cis_imag
     const freq_cis_real_row = w.freq_cis_real[(pos * head_size / 2)..];
@@ -235,7 +236,7 @@ pub fn run(
                     score += q[i] * k[i];
                 }
 
-                score /= std.math.sqrt(@as(f32, @floatFromInt(head_size)));
+                score /= head_size_sqrt;
 
                 // save the score to the attention buffer
                 att[t] = score;

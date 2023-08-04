@@ -42,6 +42,8 @@ pub fn readFile(
     const stat = try file.stat();
     const data = try allocator.alloc(u8, stat.size);
 
+    std.debug.print("read file {s}\n", .{path});
+
     _ = try file.readAll(data);
 
     var offset: usize = 0;
@@ -66,112 +68,81 @@ pub fn readFile(
 
     // https://github.com/karpathy/llama2.c/commit/c3e0d73bd294e1f5e4d17425fac09aaec536400d
     const shared_weights = vocab_size > 0;
-
-    const token_embedding_table = try reader.readFloatSlice(
-        allocator,
-        config.vocab_size * config.dim,
-        &offset,
-        data,
-    );
-
     const head_size = config.dim / config.n_heads;
+
+    var weights_data: [*]f32 = @alignCast(@ptrCast(data[offset..]));
+
+    var slice_len = config.vocab_size * config.dim;
+    const token_embedding_table = weights_data[0..slice_len];
+    weights_data += slice_len;
+
+    slice_len = config.n_layers * config.dim;
+    const rms_att_weight = weights_data[0..slice_len];
+    weights_data += slice_len;
+
+    slice_len = config.n_layers * config.dim * config.dim;
+    const wq = weights_data[0..slice_len];
+    weights_data += slice_len;
+
+    slice_len = config.n_layers * config.dim * config.dim;
+    const wk = weights_data[0..slice_len];
+    weights_data += slice_len;
+
+    slice_len = config.n_layers * config.dim * config.dim;
+    const wv = weights_data[0..slice_len];
+    weights_data += slice_len;
+
+    slice_len = config.n_layers * config.dim * config.dim;
+    const wo = weights_data[0..slice_len];
+    weights_data += slice_len;
+
+    slice_len = config.n_layers * config.dim;
+    const rms_ffn_weight = weights_data[0..slice_len];
+    weights_data += slice_len;
+
+    slice_len = config.n_layers * config.dim * config.hidden_dim;
+    const w1 = weights_data[0..slice_len];
+    weights_data += slice_len;
+
+    slice_len = config.n_layers * config.hidden_dim * config.dim;
+    const w2 = weights_data[0..slice_len];
+    weights_data += slice_len;
+
+    slice_len = config.n_layers * config.dim * config.hidden_dim;
+    const w3 = weights_data[0..slice_len];
+    weights_data += slice_len;
+
+    slice_len = config.dim;
+    const rms_final_weight = weights_data[0..slice_len];
+    weights_data += slice_len;
+
+    slice_len = config.seq_len * head_size / 2;
+    const freq_cis_real = weights_data[0..slice_len];
+    weights_data += slice_len;
+
+    slice_len = config.seq_len * head_size / 2;
+    const freq_cis_imag = weights_data[0..slice_len];
+    weights_data += slice_len;
+
+    slice_len = config.vocab_size * config.dim;
+    const wcls = if (shared_weights) token_embedding_table else weights_data[0..slice_len];
 
     weights.* = Weights{
         .token_embedding_table = token_embedding_table,
-
-        .rms_att_weight = try reader.readFloatSlice(
-            allocator,
-            config.n_layers * config.dim,
-            &offset,
-            data,
-        ),
-
-        .wq = try reader.readFloatSlice(
-            allocator,
-            config.n_layers * config.dim * config.dim,
-            &offset,
-            data,
-        ),
-
-        .wk = try reader.readFloatSlice(
-            allocator,
-            config.n_layers * config.dim * config.dim,
-            &offset,
-            data,
-        ),
-
-        .wv = try reader.readFloatSlice(
-            allocator,
-            config.n_layers * config.dim * config.dim,
-            &offset,
-            data,
-        ),
-
-        .wo = try reader.readFloatSlice(
-            allocator,
-            config.n_layers * config.dim * config.dim,
-            &offset,
-            data,
-        ),
-
-        .rms_ffn_weight = try reader.readFloatSlice(
-            allocator,
-            config.n_layers * config.dim,
-            &offset,
-            data,
-        ),
-
-        .w1 = try reader.readFloatSlice(
-            allocator,
-            config.n_layers * config.dim * config.hidden_dim,
-            &offset,
-            data,
-        ),
-
-        .w2 = try reader.readFloatSlice(
-            allocator,
-            config.n_layers * config.hidden_dim * config.dim,
-            &offset,
-            data,
-        ),
-
-        .w3 = try reader.readFloatSlice(
-            allocator,
-            config.n_layers * config.dim * config.hidden_dim,
-            &offset,
-            data,
-        ),
-
-        .rms_final_weight = try reader.readFloatSlice(
-            allocator,
-            config.dim,
-            &offset,
-            data,
-        ),
-
-        .freq_cis_real = try reader.readFloatSlice(
-            allocator,
-            config.seq_len * head_size / 2,
-            &offset,
-            data,
-        ),
-
-        .freq_cis_imag = try reader.readFloatSlice(
-            allocator,
-            config.seq_len * head_size / 2,
-            &offset,
-            data,
-        ),
-
-        .wcls = if (shared_weights) token_embedding_table else try reader.readFloatSlice(
-            allocator,
-            config.vocab_size * config.dim, // TODO: validate
-            &offset,
-            data,
-        ),
+        .rms_att_weight = rms_att_weight,
+        .wq = wq,
+        .wk = wk,
+        .wv = wv,
+        .wo = wo,
+        .rms_ffn_weight = rms_ffn_weight,
+        .w1 = w1,
+        .w2 = w2,
+        .w3 = w3,
+        .rms_final_weight = rms_final_weight,
+        .freq_cis_real = freq_cis_real,
+        .freq_cis_imag = freq_cis_imag,
+        .wcls = wcls,
     };
-
-    std.debug.assert(offset == data.len);
 }
 
 test "read TinyStories 15M checkpoint file" {
