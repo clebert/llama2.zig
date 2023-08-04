@@ -1,7 +1,5 @@
 const std = @import("std");
 
-const reader = @import("reader.zig");
-
 pub const Config = struct {
     dim: usize,
     hidden_dim: usize,
@@ -46,103 +44,55 @@ pub fn readFile(
 
     _ = try file.readAll(data);
 
-    var offset: usize = 0;
+    var config_data: [*]i32 = @alignCast(@ptrCast(data[0..28]));
 
-    const dim = reader.readInt(u32, &offset, data);
-    const hidden_dim = reader.readInt(u32, &offset, data);
-    const n_layers = reader.readInt(u32, &offset, data);
-    const n_heads = reader.readInt(u32, &offset, data);
-    const n_kv_heads = reader.readInt(u32, &offset, data);
-    const vocab_size = reader.readInt(i32, &offset, data);
-    const seq_len = reader.readInt(u32, &offset, data);
+    const vocab_size: i32 = config_data[5];
 
     config.* = Config{
-        .dim = dim,
-        .hidden_dim = hidden_dim,
-        .n_layers = n_layers,
-        .n_heads = n_heads,
-        .n_kv_heads = n_kv_heads,
+        .dim = @intCast(config_data[0]),
+        .hidden_dim = @intCast(config_data[1]),
+        .n_layers = @intCast(config_data[2]),
+        .n_heads = @intCast(config_data[3]),
+        .n_kv_heads = @intCast(config_data[4]),
         .vocab_size = std.math.absCast(vocab_size),
-        .seq_len = seq_len,
+        .seq_len = @intCast(config_data[6]),
     };
+
+    var weights_data: [*]f32 = @alignCast(@ptrCast(data[28..]));
 
     // https://github.com/karpathy/llama2.c/commit/c3e0d73bd294e1f5e4d17425fac09aaec536400d
     const shared_weights = vocab_size > 0;
     const head_size = config.dim / config.n_heads;
-
-    var weights_data: [*]f32 = @alignCast(@ptrCast(data[offset..]));
-
-    var slice_len = config.vocab_size * config.dim;
-    const token_embedding_table = weights_data[0..slice_len];
-    weights_data += slice_len;
-
-    slice_len = config.n_layers * config.dim;
-    const rms_att_weight = weights_data[0..slice_len];
-    weights_data += slice_len;
-
-    slice_len = config.n_layers * config.dim * config.dim;
-    const wq = weights_data[0..slice_len];
-    weights_data += slice_len;
-
-    slice_len = config.n_layers * config.dim * config.dim;
-    const wk = weights_data[0..slice_len];
-    weights_data += slice_len;
-
-    slice_len = config.n_layers * config.dim * config.dim;
-    const wv = weights_data[0..slice_len];
-    weights_data += slice_len;
-
-    slice_len = config.n_layers * config.dim * config.dim;
-    const wo = weights_data[0..slice_len];
-    weights_data += slice_len;
-
-    slice_len = config.n_layers * config.dim;
-    const rms_ffn_weight = weights_data[0..slice_len];
-    weights_data += slice_len;
-
-    slice_len = config.n_layers * config.dim * config.hidden_dim;
-    const w1 = weights_data[0..slice_len];
-    weights_data += slice_len;
-
-    slice_len = config.n_layers * config.hidden_dim * config.dim;
-    const w2 = weights_data[0..slice_len];
-    weights_data += slice_len;
-
-    slice_len = config.n_layers * config.dim * config.hidden_dim;
-    const w3 = weights_data[0..slice_len];
-    weights_data += slice_len;
-
-    slice_len = config.dim;
-    const rms_final_weight = weights_data[0..slice_len];
-    weights_data += slice_len;
-
-    slice_len = config.seq_len * head_size / 2;
-    const freq_cis_real = weights_data[0..slice_len];
-    weights_data += slice_len;
-
-    slice_len = config.seq_len * head_size / 2;
-    const freq_cis_imag = weights_data[0..slice_len];
-    weights_data += slice_len;
-
-    slice_len = config.vocab_size * config.dim;
-    const wcls = if (shared_weights) token_embedding_table else weights_data[0..slice_len];
+    const token_embedding_table = readFloatSlice(&weights_data, config.vocab_size * config.dim);
 
     weights.* = Weights{
         .token_embedding_table = token_embedding_table,
-        .rms_att_weight = rms_att_weight,
-        .wq = wq,
-        .wk = wk,
-        .wv = wv,
-        .wo = wo,
-        .rms_ffn_weight = rms_ffn_weight,
-        .w1 = w1,
-        .w2 = w2,
-        .w3 = w3,
-        .rms_final_weight = rms_final_weight,
-        .freq_cis_real = freq_cis_real,
-        .freq_cis_imag = freq_cis_imag,
-        .wcls = wcls,
+        .rms_att_weight = readFloatSlice(&weights_data, config.n_layers * config.dim),
+        .wq = readFloatSlice(&weights_data, config.n_layers * config.dim * config.dim),
+        .wk = readFloatSlice(&weights_data, config.n_layers * config.dim * config.dim),
+        .wv = readFloatSlice(&weights_data, config.n_layers * config.dim * config.dim),
+        .wo = readFloatSlice(&weights_data, config.n_layers * config.dim * config.dim),
+        .rms_ffn_weight = readFloatSlice(&weights_data, config.n_layers * config.dim),
+        .w1 = readFloatSlice(&weights_data, config.n_layers * config.dim * config.hidden_dim),
+        .w2 = readFloatSlice(&weights_data, config.n_layers * config.hidden_dim * config.dim),
+        .w3 = readFloatSlice(&weights_data, config.n_layers * config.dim * config.hidden_dim),
+        .rms_final_weight = readFloatSlice(&weights_data, config.dim),
+        .freq_cis_real = readFloatSlice(&weights_data, config.seq_len * head_size / 2),
+        .freq_cis_imag = readFloatSlice(&weights_data, config.seq_len * head_size / 2),
+
+        .wcls = if (shared_weights)
+            token_embedding_table
+        else
+            readFloatSlice(&weights_data, config.vocab_size * config.dim),
     };
+}
+
+fn readFloatSlice(data: *[*]f32, len: usize) []f32 {
+    const slice = data.*[0..len];
+
+    data.* += len;
+
+    return slice;
 }
 
 test "read TinyStories 15M checkpoint file" {
