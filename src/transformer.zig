@@ -99,7 +99,7 @@ test "rms normalization" {
     try std.testing.expectApproxEqAbs(@as(f32, 0.5) * ((1.0 / std.math.sqrt(13.0 / 2.0 + 1e-5)) * 3), o[1], 1e-5);
 }
 
-fn softmax(x: []f32) void {
+pub fn softmax(x: []f32) void {
     var max_val = std.mem.max(f32, x);
 
     // exp and sum

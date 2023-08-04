@@ -13,9 +13,10 @@ pub fn main() !void {
 
     const allocator = arena.allocator();
 
-    // zig build run -Doptimize=ReleaseFast -- <checkpoint_file_path> <steps>=seq_len <prompt>=""
+    // zig build run -Doptimize=ReleaseFast -- <checkpoint_file_path> <temperature>=0.9 <steps>=seq_len <prompt>=""
     var args = try std.process.argsWithAllocator(allocator);
     var checkpoint_file_path: ?[]const u8 = null;
+    var temperature: f32 = 0.9;
     var steps: usize = 0;
     var prompt: []const u8 = "";
     var arg_index: usize = 0;
@@ -24,8 +25,10 @@ pub fn main() !void {
         if (arg_index == 1) {
             checkpoint_file_path = arg;
         } else if (arg_index == 2) {
-            steps = try std.fmt.parseInt(usize, arg, 10);
+            temperature = try std.fmt.parseFloat(f32, arg);
         } else if (arg_index == 3) {
+            steps = try std.fmt.parseInt(usize, arg, 10);
+        } else if (arg_index == 4) {
             prompt = arg;
         }
 
@@ -61,6 +64,8 @@ pub fn main() !void {
 
     var start: i64 = 0;
 
+    var rng = std.rand.DefaultPrng.init(@intCast(std.time.milliTimestamp()));
+
     for (0..steps) |pos| {
         // forward the transformer to get logits for the next token
         transformer.run(token, pos, config, &run_state, &weights);
@@ -69,8 +74,19 @@ pub fn main() !void {
             next = prompt_tokens[0];
 
             prompt_tokens = prompt_tokens[1..];
-        } else {
+        } else if (temperature == 0) {
             next = argmax(run_state.logits);
+        } else {
+            // apply the temperature to the logits
+            for (run_state.logits) |*logit| {
+                logit.* /= temperature;
+            }
+
+            // apply softmax to the logits to get the probabilities for next token
+            transformer.softmax(run_state.logits);
+
+            // we sample from this distribution to get the next token
+            next = sample(&rng, run_state.logits);
         }
 
         // following BOS token (1), sentencepiece decoder strips any leading whitespace
@@ -106,6 +122,21 @@ fn argmax(v: []f32) usize {
     }
 
     return max_i;
+}
+
+fn sample(rng: *std.rand.DefaultPrng, probabilities: []f32) usize {
+    var r = rng.random().float(f32);
+    var cdf: f32 = 0.0;
+
+    for (probabilities, 0..) |probability, i| {
+        cdf += probability;
+
+        if (r < cdf) {
+            return i;
+        }
+    }
+
+    return probabilities.len - 1;
 }
 
 test {
