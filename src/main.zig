@@ -3,9 +3,8 @@ const std = @import("std");
 const checkpoint = @import("checkpoint.zig");
 const tokenizer = @import("tokenizer.zig");
 const transformer = @import("transformer.zig");
+const utils = @import("utils.zig");
 
-// https://github.com/karpathy/llama2.c/blob/af8708d87bcda7fda97b93f6c135dd43ea78106c/run.c
-// without omp support
 pub fn main() !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
 
@@ -75,7 +74,7 @@ pub fn main() !void {
 
             prompt_tokens = prompt_tokens[1..];
         } else if (temperature == 0) {
-            next = argmax(run_state.logits);
+            next = utils.argmax(run_state.logits);
         } else {
             // apply the temperature to the logits
             for (run_state.logits) |*logit| {
@@ -83,10 +82,10 @@ pub fn main() !void {
             }
 
             // apply softmax to the logits to get the probabilities for next token
-            transformer.softmax(run_state.logits);
+            utils.softmax(run_state.logits);
 
             // we sample from this distribution to get the next token
-            next = sample(&rng, run_state.logits);
+            next = utils.sample(&rng, run_state.logits);
         }
 
         // following BOS token (1), sentencepiece decoder strips any leading whitespace
@@ -107,36 +106,6 @@ pub fn main() !void {
     const tokps: i64 = @divFloor(step_cast * 1000, end - start);
 
     try stdout.print("\nachieved tok/s: {}\n", .{tokps});
-}
-
-fn argmax(v: []f32) usize {
-    // return argmax of v in elements 0..n
-    var max_i: usize = 0;
-    var max_p: f32 = v[0];
-
-    for (1..v.len) |i| {
-        if (v[i] > max_p) {
-            max_i = i;
-            max_p = v[i];
-        }
-    }
-
-    return max_i;
-}
-
-fn sample(rng: *std.rand.DefaultPrng, probabilities: []f32) usize {
-    var r = rng.random().float(f32);
-    var cdf: f32 = 0.0;
-
-    for (probabilities, 0..) |probability, i| {
-        cdf += probability;
-
-        if (r < cdf) {
-            return i;
-        }
-    }
-
-    return probabilities.len - 1;
 }
 
 test {
