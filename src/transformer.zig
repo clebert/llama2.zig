@@ -46,6 +46,8 @@ pub fn run(
     run_state: *RunState,
     weights: *const checkpoint.Weights,
 ) !void {
+    @setFloatMode(.Optimized);
+
     // copy the token embedding into x
     @memcpy(run_state.x, weights.token_embedding_table[(token * config.dim)..][0..run_state.x.len]);
 

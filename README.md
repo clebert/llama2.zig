@@ -46,15 +46,15 @@ Testing performed on system Apple M1 Pro 32 GB
 
 ### stories15M.bin
 
-- Zig: 564 token/sec
+- Zig: 571 token/sec
 - C: 620 token/sec
 
 ### stories42M.bin
 
-- Zig: 235 token/sec
+- Zig: 237 token/sec
 - C: 246 token/sec
 
 ### stories110M.bin
 
-- Zig: 92 token/sec
+- Zig: 93 token/sec
 - C: 95 token/sec

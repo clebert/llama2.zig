@@ -1,6 +1,8 @@
 const std = @import("std");
 
 pub fn argmax(v: []f32) usize {
+    @setFloatMode(.Optimized);
+
     // return argmax of v in elements 0..n
     var max_i: usize = 0;
     var max_p: f32 = v[0];
@@ -16,6 +18,8 @@ pub fn argmax(v: []f32) usize {
 }
 
 pub fn sample(rng: *std.rand.DefaultPrng, probabilities: []f32) usize {
+    @setFloatMode(.Optimized);
+
     var r = rng.random().float(f32);
     var cdf: f32 = 0.0;
 
@@ -57,6 +61,8 @@ pub fn matmul(xout: []f32, x: []const f32, w: []const f32) void {
 }
 
 pub fn softmax(x: []f32) void {
+    @setFloatMode(.Optimized);
+
     var max_val = std.mem.max(f32, x);
 
     // exp and sum
@@ -90,6 +96,8 @@ test "compute softmax" {
 }
 
 pub fn rmsnorm(o: []f32, x: []const f32, weight: []const f32) void {
+    @setFloatMode(.Optimized);
+
     std.debug.assert(o.len == x.len);
     std.debug.assert(weight.len >= o.len);
 
@@ -120,6 +128,8 @@ test "rms normalization" {
 }
 
 pub fn accum(a: []f32, b: []const f32) void {
+    @setFloatMode(.Optimized);
+
     std.debug.assert(a.len == b.len);
 
     for (a, 0..) |*item, index| {
