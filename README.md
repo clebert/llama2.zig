@@ -19,7 +19,7 @@ Some deviations from the original include:
 - SIMD optimization of the matmul function using `@Vector`
 - No mmap support; the checkpoint file is instead fully loaded into the RAM
 - Utilization of slices instead of many-item pointers
-- For models with more than 4096 dimensions, I divide two sentences of matrix multiplications across
+- For models with more than 4096 dimensions, I divide two sets of matrix multiplications across
   multiple threads
 
 ## todos
