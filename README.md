@@ -25,6 +25,10 @@ Some deviations from the original include:
 ## todos
 
 - The first transformer run (`pos=0`) takes disproportionately long (observed with Llama 2 7B)
+- Identification of further opportunities for multithreading
+- The variable `v_len` in the `matmul` function is currently set to a static 32. This value defines
+  the size of the SIMD vectors. A value below 8 or above 64 leads to significantly worse results in
+  my tests. Perhaps a different value would be beneficial for Intel/AMD processors?
 
 ## performance
 
