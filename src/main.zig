@@ -67,7 +67,7 @@ pub fn main() !void {
 
     for (0..steps) |pos| {
         // forward the transformer to get logits for the next token
-        transformer.run(token, pos, config, &run_state, &weights);
+        try transformer.run(token, pos, config, &run_state, &weights);
 
         if (prompt_tokens.len > 0) {
             next = prompt_tokens[0];

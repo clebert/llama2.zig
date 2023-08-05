@@ -37,19 +37,6 @@ pub fn allocRunState(
         .key_cache = try allocator.alloc(f32, config.n_layers * config.seq_len * config.dim),
         .value_cache = try allocator.alloc(f32, config.n_layers * config.seq_len * config.dim),
     };
-
-    @memset(run_state.x, 0);
-    @memset(run_state.xb, 0);
-    @memset(run_state.xb2, 0);
-    @memset(run_state.hb, 0);
-    @memset(run_state.hb2, 0);
-    @memset(run_state.q, 0);
-    @memset(run_state.k, 0);
-    @memset(run_state.v, 0);
-    @memset(run_state.att, 0);
-    @memset(run_state.logits, 0);
-    @memset(run_state.key_cache, 0);
-    @memset(run_state.value_cache, 0);
 }
 
 pub fn run(
@@ -58,7 +45,7 @@ pub fn run(
     config: checkpoint.Config,
     run_state: *RunState,
     weights: *const checkpoint.Weights,
-) void {
+) !void {
     // copy the token embedding into x
     @memcpy(run_state.x, weights.token_embedding_table[(token * config.dim)..][0..run_state.x.len]);
 
@@ -74,10 +61,36 @@ pub fn run(
         // attention rmsnorm
         utils.rmsnorm(run_state.xb, run_state.x, weights.rms_att_weight[(layer * config.dim)..]);
 
+        const dim_multithreading_threshold = 4096;
+
         // qkv matmuls for this position
-        utils.matmul(run_state.q, run_state.xb, weights.wq[(layer * config.dim * config.dim)..]);
-        utils.matmul(run_state.k, run_state.xb, weights.wk[(layer * config.dim * config.dim)..]);
-        utils.matmul(run_state.v, run_state.xb, weights.wv[(layer * config.dim * config.dim)..]);
+        if (config.dim >= dim_multithreading_threshold) {
+            var thread1 = try std.Thread.spawn(.{}, utils.matmul, .{
+                run_state.q,
+                run_state.xb,
+                weights.wq[(layer * config.dim * config.dim)..],
+            });
+
+            var thread2 = try std.Thread.spawn(.{}, utils.matmul, .{
+                run_state.k,
+                run_state.xb,
+                weights.wk[(layer * config.dim * config.dim)..],
+            });
+
+            var thread3 = try std.Thread.spawn(.{}, utils.matmul, .{
+                run_state.v,
+                run_state.xb,
+                weights.wv[(layer * config.dim * config.dim)..],
+            });
+
+            thread1.join();
+            thread2.join();
+            thread3.join();
+        } else {
+            utils.matmul(run_state.q, run_state.xb, weights.wq[(layer * config.dim * config.dim)..]);
+            utils.matmul(run_state.k, run_state.xb, weights.wk[(layer * config.dim * config.dim)..]);
+            utils.matmul(run_state.v, run_state.xb, weights.wv[(layer * config.dim * config.dim)..]);
+        }
 
         // apply RoPE rotation to the q and k vectors for each head
         for (0..config.n_heads) |head| {
@@ -169,17 +182,34 @@ pub fn run(
 
         // Now for FFN in PyTorch we have: self.w2(F.silu(self.w1(x)) * self.w3(x))
         // first calculate self.w1(x) and self.w3(x)
-        utils.matmul(
-            run_state.hb,
-            run_state.xb,
-            weights.w1[(layer * config.dim * config.hidden_dim)..],
-        );
+        if (config.dim >= dim_multithreading_threshold) {
+            var thread4 = try std.Thread.spawn(.{}, utils.matmul, .{
+                run_state.hb,
+                run_state.xb,
+                weights.w1[(layer * config.dim * config.hidden_dim)..],
+            });
 
-        utils.matmul(
-            run_state.hb2,
-            run_state.xb,
-            weights.w3[(layer * config.dim * config.hidden_dim)..],
-        );
+            var thread5 = try std.Thread.spawn(.{}, utils.matmul, .{
+                run_state.hb2,
+                run_state.xb,
+                weights.w3[(layer * config.dim * config.hidden_dim)..],
+            });
+
+            thread4.join();
+            thread5.join();
+        } else {
+            utils.matmul(
+                run_state.hb,
+                run_state.xb,
+                weights.w1[(layer * config.dim * config.hidden_dim)..],
+            );
+
+            utils.matmul(
+                run_state.hb2,
+                run_state.xb,
+                weights.w3[(layer * config.dim * config.hidden_dim)..],
+            );
+        }
 
         // F.silu; silu(x)=x*σ(x),where σ(x) is the logistic sigmoid
         for (0..config.hidden_dim) |i| {

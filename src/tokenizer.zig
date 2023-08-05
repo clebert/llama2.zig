@@ -79,14 +79,14 @@ fn mergeBestWordPair(
     var best_word_score = -std.math.floatMax(f32);
 
     for (0..tokens.len - 1) |token_index| {
-        const word_1 = vocab[tokens[token_index]];
-        const word_2 = vocab[tokens[token_index + 1]];
+        const word1 = vocab[tokens[token_index]];
+        const word2 = vocab[tokens[token_index + 1]];
 
-        @memcpy(double_word_buffer[0..word_1.len], word_1);
-        @memcpy(double_word_buffer[word_1.len..(word_1.len + word_2.len)], word_2);
+        @memcpy(double_word_buffer[0..word1.len], word1);
+        @memcpy(double_word_buffer[word1.len..(word1.len + word2.len)], word2);
 
         const token = lookupToken(
-            double_word_buffer[0..(word_1.len + word_2.len)],
+            double_word_buffer[0..(word1.len + word2.len)],
             vocab,
         ) orelse continue;
 

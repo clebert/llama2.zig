@@ -15,7 +15,10 @@ I have attempted to stay true to the philosophy of the original. The only depend
 
 Some deviations from the original include:
 
-- No OpenMP support; therefore, it runs only on one core
+- No OpenMP support
+  - **Update**: For models with more than 4096 dimensions, I divide two sentences of matrix
+    multiplications across multiple threads. However, for smaller models, this tends to reduce
+    throughput due to multithreading overhead.
 - SIMD optimization of the matmul function using `@Vector`
 - No mmap support; the checkpoint file is instead fully loaded into the RAM
   - which I suspect explains the relatively good performance of Llama 2 7B compared to the C
@@ -35,6 +38,11 @@ Testing performed on system Apple M1 Pro 32 GB
 - Zig: `zig build run -Doptimize=ReleaseFast -- stories15M.bin 0.9 256`
 - C: `make runfast && ./run stories15M.bin 0.9 256`
 
+### llama2_7b.bin
+
+- Zig: **2 token/sec** 🎉
+- C: slow...
+
 ### stories15M.bin
 
 - Zig: 564 tokens/sec
@@ -49,8 +57,3 @@ Testing performed on system Apple M1 Pro 32 GB
 
 - Zig: 92 tokens/sec
 - C: 95 tokens/sec
-
-### llama2_7b.bin
-
-- Zig: 1 token/sec
-- C: slow...
