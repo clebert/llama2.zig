@@ -37,20 +37,20 @@ Testing performed on system Apple M1 Pro 32 GB
 
 ### llama2_7b.bin
 
-- Zig: **2 tokens/sec** 🎉
+- Zig: **2 token/sec** 🎉
 - C: slow...
 
 ### stories15M.bin
 
-- Zig: 564 tokens/sec
-- C: 620 tokens/sec
+- Zig: 564 token/sec
+- C: 620 token/sec
 
 ### stories42M.bin
 
-- Zig: 235 tokens/sec
-- C: 246 tokens/sec
+- Zig: 235 token/sec
+- C: 246 token/sec
 
 ### stories110M.bin
 
-- Zig: 92 tokens/sec
-- C: 95 tokens/sec
+- Zig: 92 token/sec
+- C: 95 token/sec
