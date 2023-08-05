@@ -94,28 +94,21 @@ pub fn run(
             utils.matmul(run_state.v, run_state.xb, weights.wv[(layer * config.dim * config.dim)..]);
         }
 
-        // apply RoPE rotation to the q and k vectors for each head
-        for (0..config.n_heads) |head| {
-            // get the q and k vectors for this head
-            const q = run_state.q[(head * head_size)..];
-            const k = run_state.k[(head * head_size)..];
+        var dim_i: usize = 0;
 
-            // rotate q and k by the freq_cis_real and freq_cis_imag
-            var i: usize = 0;
+        // RoPE relative positional encoding: complex-valued rotate q and k by freq_cis in each head
+        while (dim_i < config.dim) : (dim_i += 2) {
+            const q0 = run_state.q[dim_i];
+            const q1 = run_state.q[dim_i + 1];
+            const k0 = run_state.k[dim_i];
+            const k1 = run_state.k[dim_i + 1];
+            const fcr = freq_cis_real_row[(dim_i % head_size) / 2];
+            const fci = freq_cis_imag_row[(dim_i % head_size) / 2];
 
-            while (i < head_size) : (i += 2) {
-                const q0 = q[i];
-                const q1 = q[i + 1];
-                const k0 = k[i];
-                const k1 = k[i + 1];
-                const fcr = freq_cis_real_row[i / 2];
-                const fci = freq_cis_imag_row[i / 2];
-
-                q[i] = q0 * fcr - q1 * fci;
-                q[i + 1] = q0 * fci + q1 * fcr;
-                k[i] = k0 * fcr - k1 * fci;
-                k[i + 1] = k0 * fci + k1 * fcr;
-            }
+            run_state.q[dim_i] = q0 * fcr - q1 * fci;
+            run_state.q[dim_i + 1] = q0 * fci + q1 * fcr;
+            run_state.k[dim_i] = k0 * fcr - k1 * fci;
+            run_state.k[dim_i + 1] = k0 * fci + k1 * fcr;
         }
 
         // save key,value at this time step (pos) to our kv cache

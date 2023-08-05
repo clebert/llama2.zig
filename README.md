@@ -8,7 +8,7 @@ Andrej Karpathy, translated into Zig.
 My goal is to learn Zig while simultaneously gaining a better understanding of LLMs.
 
 The current code is based on
-https://github.com/karpathy/llama2.c/blob/af8708d87bcda7fda97b93f6c135dd43ea78106c/run.c
+https://github.com/karpathy/llama2.c/blob/d1a59a9ca8a07756ffdb7036bbfed83cc0179a3e/run.c
 
 I have attempted to stay true to the philosophy of the original. The only dependency is the Zig
 `std` library. I have, however, divided it into several files for better clarity.
@@ -36,7 +36,7 @@ Testing performed on system Apple M1 Pro 32 GB
 ### build command
 
 - Zig: `zig build run -Doptimize=ReleaseFast -- llama2_7b.bin 0.9 256`
-- C: `make runfast && ./run llama2_7b.bin 0.9 256`
+- C: `make runfast && ./run llama2_7b.bin -t 0.9 -n 256`
 
 ### llama2_7b.bin
 
@@ -45,15 +45,15 @@ Testing performed on system Apple M1 Pro 32 GB
 
 ### stories15M.bin
 
-- Zig: 571 token/sec
-- C: 620 token/sec
+- Zig: 578 token/sec
+- C: 632 token/sec
 
 ### stories42M.bin
 
-- Zig: 237 token/sec
-- C: 246 token/sec
+- Zig: 235 token/sec
+- C: 252 token/sec
 
 ### stories110M.bin
 
 - Zig: 93 token/sec
-- C: 95 token/sec
+- C: 96 token/sec

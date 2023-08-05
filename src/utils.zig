@@ -50,10 +50,10 @@ pub fn matmul(xout: []f32, x: []const f32, w: []const f32) void {
 
         // https://github.com/karpathy/llama2.c/pull/95
         while (j < x.len) : (j += v_len) {
-            value += @reduce(
-                .Add,
-                @as(@Vector(v_len, f32), w[(i_n + j)..][0..v_len].*) * @as(@Vector(v_len, f32), x[j..][0..v_len].*),
-            );
+            const a = @as(@Vector(v_len, f32), w[(i_n + j)..][0..v_len].*);
+            const b = @as(@Vector(v_len, f32), x[j..][0..v_len].*);
+
+            value += @reduce(.Add, a * b);
         }
 
         xoutptr.* = value;
