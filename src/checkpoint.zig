@@ -53,7 +53,7 @@ pub fn readFile(
         .n_heads = @intCast(config_data[3]),
         .n_kv_heads = @intCast(config_data[4]),
         .vocab_size = std.math.absCast(vocab_size),
-        .seq_len = @intCast(config_data[6]),
+        .seq_len = @intCast(config_data[6]), // max_seq_len
     };
 
     var weights_data: [*]f32 = @alignCast(@ptrCast(data[28..]));

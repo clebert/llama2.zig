@@ -1,6 +1,7 @@
 const std = @import("std");
 
 const checkpoint = @import("checkpoint.zig");
+const cli = @import("cli.zig");
 const tokenizer = @import("tokenizer.zig");
 const transformer = @import("transformer.zig");
 const utils = @import("utils.zig");
@@ -11,46 +12,31 @@ pub fn main() !void {
     defer arena.deinit();
 
     const allocator = arena.allocator();
-
-    // zig build run -Doptimize=ReleaseFast -- <checkpoint_file_path> <temperature>=0.9 <steps>=seq_len <prompt>=""
-    var args = try std.process.argsWithAllocator(allocator);
-    var checkpoint_file_path: ?[]const u8 = null;
-    var temperature: f32 = 0.9;
-    var steps: usize = 0;
-    var prompt: []const u8 = "";
-    var arg_index: usize = 0;
-
-    while (args.next()) |arg| {
-        if (arg_index == 1) {
-            checkpoint_file_path = arg;
-        } else if (arg_index == 2) {
-            temperature = try std.fmt.parseFloat(f32, arg);
-        } else if (arg_index == 3) {
-            steps = try std.fmt.parseInt(usize, arg, 10);
-        } else if (arg_index == 4) {
-            prompt = arg;
-        }
-
-        arg_index += 1;
-    }
-
     const stdout = std.io.getStdOut().writer();
 
+    var args = try cli.parseArgs(allocator);
     var config: checkpoint.Config = undefined;
     var weights: checkpoint.Weights = undefined;
 
-    try checkpoint.readFile(allocator, checkpoint_file_path orelse return error.MissingCheckpointFile, &config, &weights);
+    try checkpoint.readFile(allocator, args.checkpoint_path, &config, &weights);
     try stdout.print("{}\n", .{config});
 
-    if (steps == 0) {
-        steps = config.seq_len;
+    if (args.n_steps == 0) {
+        args.n_steps = config.seq_len;
     }
 
     var vocab: [][]u8 = try allocator.alloc([]u8, config.vocab_size);
     var word_scores: []f32 = try allocator.alloc(f32, config.vocab_size);
 
     const max_word_length = try tokenizer.readFile(allocator, "tokenizer.bin", vocab, word_scores);
-    var prompt_tokens = try tokenizer.encodeWords(allocator, prompt, vocab, word_scores, max_word_length);
+
+    var prompt_tokens = try tokenizer.encodeWords(
+        allocator,
+        args.input_prompt,
+        vocab,
+        word_scores,
+        max_word_length,
+    );
 
     var run_state: transformer.RunState = undefined;
 
@@ -62,10 +48,9 @@ pub fn main() !void {
     try stdout.print("<s>\n", .{}); // explicit print the initial BOS token for stylistic symmetry reasons
 
     var start: i64 = 0;
+    var rng = std.rand.DefaultPrng.init(args.random_seed);
 
-    var rng = std.rand.DefaultPrng.init(@intCast(std.time.milliTimestamp()));
-
-    for (0..steps) |pos| {
+    for (0..args.n_steps) |pos| {
         // forward the transformer to get logits for the next token
         try transformer.run(token, pos, config, &run_state, &weights);
 
@@ -73,12 +58,12 @@ pub fn main() !void {
             next = prompt_tokens[0];
 
             prompt_tokens = prompt_tokens[1..];
-        } else if (temperature == 0) {
+        } else if (args.temperature == 0) {
             next = utils.argmax(run_state.logits);
         } else {
             // apply the temperature to the logits
             for (run_state.logits) |*logit| {
-                logit.* /= temperature;
+                logit.* /= args.temperature;
             }
 
             // apply softmax to the logits to get the probabilities for next token
@@ -102,7 +87,7 @@ pub fn main() !void {
 
     // report achieved tok/s
     const end = std.time.milliTimestamp();
-    const step_cast: i64 = @intCast(steps - 1);
+    const step_cast: i64 = @intCast(args.n_steps - 1);
     const tokps: i64 = @divFloor(step_cast * 1000, end - start);
 
     try stdout.print("\nachieved tok/s: {}\n", .{tokps});

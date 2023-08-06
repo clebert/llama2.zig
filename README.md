@@ -33,27 +33,26 @@ Some deviations from the original include:
 
 Testing performed on system Apple M1 Pro 32 GB
 
-### build command
+### run command
 
-- Zig: `zig build run -Doptimize=ReleaseFast -- llama2_7b.bin 0.9 256`
-- C: `make runfast && ./run llama2_7b.bin -t 0.9 -n 256`
-
-### llama2_7b.bin
-
-- Zig: **2 token/sec** 🎉
-- C: slow...
+- Zig: `zig build run -Doptimize=ReleaseFast -- stories15M.bin -t 0.9 -n 256`
+- C: `make runfast && ./run stories15M.bin -t 0.9 -p 0 -n 256`
 
 ### stories15M.bin
 
-- Zig: 578 token/sec
-- C: 632 token/sec
+- Zig: 605 token/sec
+- C: 668 token/sec
 
 ### stories42M.bin
 
-- Zig: 235 token/sec
-- C: 252 token/sec
+- Zig: 246 token/sec
+- C: 263 token/sec
 
 ### stories110M.bin
 
-- Zig: 93 token/sec
-- C: 96 token/sec
+- Zig: 98 token/sec
+- C: 100 token/sec
+
+### llama2_7b.bin
+
+- Zig: 2 token/sec
