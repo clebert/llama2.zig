@@ -37,13 +37,13 @@ pub fn sample(rng: *std.rand.DefaultPrng, probabilities: []f32) usize {
 pub fn matmul(xout: []f32, x: []const f32, w: []const f32) void {
     @setFloatMode(.Optimized);
 
-    const v_len: comptime_int = 32;
+    const v_len: comptime_int = 16;
 
     std.debug.assert(w.len >= xout.len * x.len);
     std.debug.assert(x.len % v_len == 0);
 
     for (xout, 0..) |*xoutptr, i| {
-        var value: f32 = 0;
+        var value: @Vector(v_len, f32) = @splat(0.0);
 
         const i_n = i * x.len;
         var j: usize = 0;
@@ -53,10 +53,10 @@ pub fn matmul(xout: []f32, x: []const f32, w: []const f32) void {
             const a = @as(@Vector(v_len, f32), w[(i_n + j)..][0..v_len].*);
             const b = @as(@Vector(v_len, f32), x[j..][0..v_len].*);
 
-            value += @reduce(.Add, a * b);
+            value += a * b;
         }
 
-        xoutptr.* = value;
+        xoutptr.* = @reduce(.Add, value);
     }
 }
 
