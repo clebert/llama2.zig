@@ -13,10 +13,10 @@ const Option = enum { temperature, random_seed, n_steps, input_prompt };
 pub fn parseArgs(allocator: std.mem.Allocator) !Args {
     var args = try std.process.argsWithAllocator(allocator);
     var current_option: ?Option = null;
-    var temperature: f32 = 1.0;
-    var random_seed: u64 = @intCast(std.time.milliTimestamp());
-    var n_steps: usize = 256;
-    var input_prompt: []const u8 = "";
+    var temperature: ?f32 = null;
+    var random_seed: ?u64 = null;
+    var n_steps: ?usize = null;
+    var input_prompt: ?[]const u8 = null;
 
     _ = args.next().?;
 
@@ -27,14 +27,17 @@ pub fn parseArgs(allocator: std.mem.Allocator) !Args {
 
     while (args.next()) |arg| {
         if (current_option) |option| {
-            if (option == .temperature) {
+            if (option == .temperature and temperature == null) {
                 temperature = try std.fmt.parseFloat(f32, arg);
-            } else if (option == .random_seed) {
+            } else if (option == .random_seed and random_seed == null) {
                 random_seed = try std.fmt.parseInt(u64, arg, 10);
-            } else if (option == .n_steps) {
+            } else if (option == .n_steps and n_steps == null) {
                 n_steps = try std.fmt.parseInt(usize, arg, 10);
-            } else if (option == .input_prompt) {
+            } else if (option == .input_prompt and input_prompt == null) {
                 input_prompt = arg;
+            } else {
+                try printHelp();
+                std.process.exit(1);
             }
 
             current_option = null;
@@ -59,10 +62,10 @@ pub fn parseArgs(allocator: std.mem.Allocator) !Args {
 
     return Args{
         .checkpoint_path = checkpoint_path,
-        .temperature = temperature,
-        .random_seed = random_seed,
-        .n_steps = n_steps,
-        .input_prompt = input_prompt,
+        .temperature = temperature orelse 1.0,
+        .random_seed = random_seed orelse @intCast(std.time.milliTimestamp()),
+        .n_steps = n_steps orelse 256,
+        .input_prompt = input_prompt orelse "",
     };
 }
 
