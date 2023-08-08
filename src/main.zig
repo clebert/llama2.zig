@@ -19,7 +19,7 @@ pub fn main() !void {
     var weights: checkpoint.Weights = undefined;
 
     try checkpoint.readFile(allocator, args.checkpoint_path, &config, &weights);
-    try stdout.print("{}\n", .{config});
+    try stdout.print("{}\n\n", .{config});
 
     if (args.n_steps == 0) {
         args.n_steps = config.seq_len;
@@ -44,13 +44,12 @@ pub fn main() !void {
 
     var token: usize = 1; // init with token 1 (=BOS), as done in Llama-2 sentencepiece tokenizer
     var next: usize = 1; // TODO
-
-    try stdout.print("<s>\n", .{}); // explicit print the initial BOS token for stylistic symmetry reasons
-
     var start: i64 = 0;
     var rng = std.rand.DefaultPrng.init(args.random_seed);
     var prob_indices: []utils.ProbIndex = try allocator.alloc(utils.ProbIndex, config.vocab_size);
+    var n_steps: usize = 0;
 
+    // advance the state state machine
     for (0..args.n_steps) |pos| {
         // forward the transformer to get logits for the next token
         try transformer.run(token, pos, config, &run_state, &weights);
@@ -79,24 +78,36 @@ pub fn main() !void {
             }
         }
 
-        // following BOS token (1), sentencepiece decoder strips any leading whitespace
+        n_steps += 1;
+
+        // data-dependent terminating condition: the BOS (1) token delimits sequences
+        if (next == 1) {
+            break;
+        }
+
+        // following BOS (1) token, sentencepiece decoder strips any leading whitespace
         const word = if (token == 1 and vocab[next][0] == ' ') vocab[next][1..] else vocab[next];
 
         try stdout.print("{s}", .{word});
 
         token = next;
 
+        // init the timer here because the first iteration can be slower
         if (start == 0) {
             start = std.time.milliTimestamp();
         }
     }
 
-    // report achieved tok/s
-    const end = std.time.milliTimestamp();
-    const step_cast: i64 = @intCast(args.n_steps - 1);
-    const tokps: i64 = @divFloor(step_cast * 1000, end - start);
+    // report achieved tok/s (n_steps-1 because the timer starts after first iteration)
+    if (n_steps > 1) {
+        const end = std.time.milliTimestamp();
+        const step_cast: i64 = @intCast(n_steps - 1);
+        const tokps: i64 = @divFloor(step_cast * 1000, end - start);
 
-    try stdout.print("\nachieved tok/s: {}\n", .{tokps});
+        try stdout.print("\n\nachieved tok/s: {}\n", .{tokps});
+    } else {
+        try stdout.print("\n", .{});
+    }
 }
 
 test {
