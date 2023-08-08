@@ -20,10 +20,7 @@ pub fn parseArgs(allocator: std.mem.Allocator) !Args {
 
     _ = args.next().?;
 
-    const checkpoint_path = args.next() orelse {
-        try printHelp();
-        std.process.exit(1);
-    };
+    const checkpoint_path = args.next() orelse try exit();
 
     while (args.next()) |arg| {
         if (current_option) |option| {
@@ -36,8 +33,7 @@ pub fn parseArgs(allocator: std.mem.Allocator) !Args {
             } else if (option == .input_prompt and input_prompt == null) {
                 input_prompt = arg;
             } else {
-                try printHelp();
-                std.process.exit(1);
+                try exit();
             }
 
             current_option = null;
@@ -50,14 +46,12 @@ pub fn parseArgs(allocator: std.mem.Allocator) !Args {
         } else if (std.mem.eql(u8, arg, "-i")) {
             current_option = .input_prompt;
         } else {
-            try printHelp();
-            std.process.exit(1);
+            try exit();
         }
     }
 
     if (current_option != null) {
-        try printHelp();
-        std.process.exit(1);
+        try exit();
     }
 
     return Args{
@@ -69,7 +63,7 @@ pub fn parseArgs(allocator: std.mem.Allocator) !Args {
     };
 }
 
-fn printHelp() !void {
+fn exit() !noreturn {
     const stderr = std.io.getStdErr().writer();
 
     try stderr.print("Usage: llama2 <checkpoint_path> [options]\n\n", .{});
@@ -80,4 +74,6 @@ fn printHelp() !void {
     try stderr.print("  -n <int>    n_steps      = 256; 0 == max_seq_len\n", .{});
     try stderr.print("  -i <string> input_prompt = \"\"\n\n", .{});
     try stderr.print("Example: llama2 model.bin -i \"Once upon a time\"\n", .{});
+
+    std.process.exit(1);
 }
