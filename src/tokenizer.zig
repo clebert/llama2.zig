@@ -49,10 +49,13 @@ pub fn encodeWords(
 
 fn encodeCharacters(text: []const u8, vocab: []const []const u8, tokens: []usize) !void {
     for (text, 0..) |char, token_index| {
-        tokens[token_index] = lookupToken(
-            ([_]u8{char})[0..],
-            vocab,
-        ) orelse return error.UnknownCharacter;
+        const word = ([_]u8{char})[0..];
+
+        tokens[token_index] = lookupToken(word, vocab) orelse {
+            std.debug.print("{}: \"{s}\" ({})\n", .{ token_index, word, char });
+
+            return error.UnknownCharacter;
+        };
     }
 }
 
