@@ -34,6 +34,60 @@ pub fn sample(rng: *std.rand.DefaultPrng, probabilities: []f32) usize {
     return probabilities.len - 1;
 }
 
+// struct used when sorting probabilities during top-p sampling
+pub const ProbIndex = struct { prob: f32, index: usize };
+
+pub fn sampleTopP(rng: *std.rand.DefaultPrng, probabilities: []f32, top_p: f32, prob_indices_buffer: []ProbIndex) usize {
+    @setFloatMode(.Optimized);
+
+    // top-p sampling (or "nucleus sampling") samples from the smallest set of
+    // tokens that exceed probability topp. This way we never sample tokens that
+    // have very low probabilities and are less likely to go "off the rails".
+
+    var prob_indices = prob_indices_buffer;
+
+    // quicksort indices in descending order of probabilities
+    for (probabilities, 0..) |prob, index| {
+        prob_indices[index].prob = prob;
+        prob_indices[index].index = index;
+    }
+
+    std.sort.block(ProbIndex, prob_indices, {}, desc);
+
+    // truncate the list where cumulative probability exceeds topp
+    var cumulative_prob: f32 = 0;
+
+    for (prob_indices, 0..) |prob_index, index| {
+        cumulative_prob += prob_index.prob;
+
+        if (cumulative_prob > top_p) {
+            prob_indices = prob_indices[0..(index + 1)];
+
+            break; // we've exceeded topp by including last_idx
+        }
+    }
+
+    // sample from the truncated list
+    var r = rng.random().float(f32) * cumulative_prob;
+    var cdf: f32 = 0.0;
+
+    for (prob_indices) |prob_index| {
+        cdf += prob_index.prob;
+
+        if (r < cdf) {
+            return prob_index.index;
+        }
+    }
+
+    return prob_indices[prob_indices.len - 1].index;
+}
+
+fn desc(context: void, a: ProbIndex, b: ProbIndex) bool {
+    _ = context;
+
+    return a.prob < b.prob;
+}
+
 pub fn matmul(xout: []f32, x: []const f32, w: []const f32) void {
     @setFloatMode(.Optimized);
 

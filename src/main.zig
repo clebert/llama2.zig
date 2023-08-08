@@ -49,6 +49,7 @@ pub fn main() !void {
 
     var start: i64 = 0;
     var rng = std.rand.DefaultPrng.init(args.random_seed);
+    var prob_indices: []utils.ProbIndex = try allocator.alloc(utils.ProbIndex, config.vocab_size);
 
     for (0..args.n_steps) |pos| {
         // forward the transformer to get logits for the next token
@@ -69,8 +70,13 @@ pub fn main() !void {
             // apply softmax to the logits to get the probabilities for next token
             utils.softmax(run_state.logits);
 
-            // we sample from this distribution to get the next token
-            next = utils.sample(&rng, run_state.logits);
+            if (args.top_p == 0) {
+                // we sample from this distribution to get the next token
+                next = utils.sample(&rng, run_state.logits);
+            } else {
+                // top-p (nucleus) sampling, clamping the least likely tokens to zero
+                next = utils.sampleTopP(&rng, run_state.logits, args.top_p, prob_indices);
+            }
         }
 
         // following BOS token (1), sentencepiece decoder strips any leading whitespace
