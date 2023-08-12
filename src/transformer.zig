@@ -39,7 +39,7 @@ pub fn allocRunState(
     };
 }
 
-pub fn run(
+pub fn decode(
     allocator: std.mem.Allocator,
     token: usize,
     pos: usize,

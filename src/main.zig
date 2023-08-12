@@ -18,7 +18,7 @@ pub fn main() !void {
     var config: checkpoint.Config = undefined;
     var weights: checkpoint.Weights = undefined;
 
-    try checkpoint.readFile(allocator, args.checkpoint_path, &config, &weights);
+    try checkpoint.readFile(args.checkpoint_path, &config, &weights);
     try stdout.print("{}\n\n", .{config});
 
     if (args.n_steps == 0) {
@@ -44,15 +44,30 @@ pub fn main() !void {
 
     var token: usize = 1; // init with token 1 (=BOS), as done in Llama-2 sentencepiece tokenizer
     var next: usize = 1; // TODO
-    var start: i64 = 0;
     var rng = std.rand.DefaultPrng.init(args.random_seed);
     var prob_indices: []utils.ProbIndex = try allocator.alloc(utils.ProbIndex, config.vocab_size);
     var n_steps: usize = 0;
 
+    var start_time: i64 = 0;
+    var first_decoding_time: i64 = 0;
+    var total_decoding_time: i64 = 0;
+    var total_sampling_time: i64 = 0;
+
     // advance the state state machine
     for (0..args.n_steps) |pos| {
+        start_time = std.time.milliTimestamp();
+
         // forward the transformer to get logits for the next token
-        try transformer.run(allocator, token, pos, config, &run_state, &weights);
+        try transformer.decode(allocator, token, pos, config, &run_state, &weights);
+
+        if (pos == 0) {
+            first_decoding_time = std.time.milliTimestamp() - start_time;
+            total_decoding_time = first_decoding_time;
+        } else {
+            total_decoding_time += std.time.milliTimestamp() - start_time;
+        }
+
+        start_time = std.time.milliTimestamp();
 
         if (prompt_tokens.len > 0) {
             next = prompt_tokens[0];
@@ -78,6 +93,7 @@ pub fn main() !void {
             }
         }
 
+        total_sampling_time += std.time.milliTimestamp() - start_time;
         n_steps += 1;
 
         // data-dependent terminating condition: the BOS (1) token delimits sequences
@@ -91,20 +107,27 @@ pub fn main() !void {
         try stdout.print("{s}", .{word});
 
         token = next;
-
-        // init the timer here because the first iteration can be slower
-        if (start == 0) {
-            start = std.time.milliTimestamp();
-        }
     }
 
-    // report achieved tok/s (n_steps-1 because the timer starts after first iteration)
     if (n_steps > 1) {
-        const end = std.time.milliTimestamp();
-        const step_cast: i64 = @intCast(n_steps - 1);
-        const tokps: i64 = @divFloor(step_cast * 1000, end - start);
+        const total_time = total_decoding_time + total_sampling_time;
 
-        try stdout.print("\n\nachieved tok/s: {}\n", .{tokps});
+        const average_decoding_time: f32 =
+            @as(f32, @floatFromInt(total_decoding_time - first_decoding_time)) /
+            @as(f32, @floatFromInt(n_steps - 1));
+
+        const average_sampling_time: f32 =
+            @as(f32, @floatFromInt(total_sampling_time)) / @as(f32, @floatFromInt(n_steps));
+
+        const tokens_per_second: f32 = 1000 / (average_decoding_time + average_sampling_time);
+
+        try stdout.print("\n\nachieved: {d:.3} tok/s\n\n", .{tokens_per_second});
+        try stdout.print("total time: {} ms\n", .{total_time});
+        try stdout.print("total decoding time: {} ms\n", .{total_decoding_time});
+        try stdout.print("average decoding time: {d:.3} ms\n", .{average_decoding_time});
+        try stdout.print("first decoding time: {} ms\n", .{first_decoding_time});
+        try stdout.print("total sampling time: {} ms\n", .{total_sampling_time});
+        try stdout.print("average sampling time: {d:.3} ms\n", .{average_sampling_time});
     } else {
         try stdout.print("\n", .{});
     }

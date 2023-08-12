@@ -28,7 +28,6 @@ pub const Weights = struct {
 };
 
 pub fn readFile(
-    allocator: std.mem.Allocator,
     path: []const u8,
     config: *Config,
     weights: *Weights,
@@ -38,9 +37,17 @@ pub fn readFile(
     defer file.close();
 
     const stat = try file.stat();
-    const data = try allocator.alloc(u8, stat.size);
 
-    _ = try file.readAll(data);
+    const data: []align(std.mem.page_size) u8 = try std.os.mmap(
+        null,
+        stat.size,
+        std.os.PROT.READ,
+        std.os.MAP.PRIVATE,
+        file.handle,
+        0,
+    );
+
+    errdefer std.os.munmap(data);
 
     var config_data: [*]i32 = @alignCast(@ptrCast(data[0..28]));
 

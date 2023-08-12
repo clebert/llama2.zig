@@ -17,15 +17,9 @@ Some deviations from the original include:
 
 - No OpenMP support
 - SIMD optimization of the matmul function using `@Vector`
-- No mmap support; the checkpoint file is instead fully loaded into the RAM
 - Utilization of slices instead of many-item pointers
-- For models of 4096+ dimensions, I utilize thread pools to parallelize independent matrix
-  multiplication operations
-
-## todos
-
-- The first transformer run (`pos=0`) takes disproportionately long (observed with Llama 2 7B)
-- Identification of further opportunities for multithreading
+- For models of 4096+ dimensions, thread pools are utilized to parallelize independent matrix
+  multiplications
 
 ## performance
 
@@ -38,19 +32,19 @@ Testing performed on system Apple M1 Pro 32 GB
 
 ### stories15M.bin
 
-- Zig: 673 token/sec
-- C: 692 token/sec
+- Zig: 673 tok/s
+- C: 701 tok/s
 
 ### stories42M.bin
 
-- Zig: 266 token/sec
-- C: 266 token/sec
+- Zig: 242 tok/s
+- C: 271 tok/s
 
 ### stories110M.bin
 
-- Zig: 102 token/sec
-- C: 99 token/sec
+- Zig: 102 tok/s
+- C: 102 tok/s
 
 ### llama2_7b.bin
 
-- Zig: 2 token/sec
+- Zig: 2 tok/s
