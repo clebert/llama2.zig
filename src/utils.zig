@@ -88,30 +88,32 @@ fn desc(context: void, a: ProbIndex, b: ProbIndex) bool {
     return a.prob < b.prob;
 }
 
-pub fn matmul(xout: []f32, x: []const f32, w: []const f32) void {
+pub fn matmul(result: []f32, a: []const f32, b: []const f32) void {
+    std.debug.assert(b.len >= result.len * a.len);
+
+    for (result, 0..) |*scalar, i| {
+        scalar.* = scalarProduct(a, b[(i * a.len)..][0..a.len]);
+    }
+}
+
+fn scalarProduct(a: []const f32, b: []const f32) f32 {
     @setFloatMode(.Optimized);
 
-    const v_len: comptime_int = 16;
+    const vector_len: comptime_int = 16;
 
-    std.debug.assert(w.len >= xout.len * x.len);
-    std.debug.assert(x.len % v_len == 0);
+    std.debug.assert(a.len == b.len);
+    std.debug.assert(a.len % vector_len == 0);
 
-    for (xout, 0..) |*xoutptr, i| {
-        var value: @Vector(v_len, f32) = @splat(0.0);
+    var accu: @Vector(vector_len, f32) = @splat(0.0);
+    var i: usize = 0;
 
-        const i_n = i * x.len;
-        var j: usize = 0;
-
-        // https://github.com/karpathy/llama2.c/pull/95
-        while (j < x.len) : (j += v_len) {
-            const a = @as(@Vector(v_len, f32), w[(i_n + j)..][0..v_len].*);
-            const b = @as(@Vector(v_len, f32), x[j..][0..v_len].*);
-
-            value += a * b;
-        }
-
-        xoutptr.* = @reduce(.Add, value);
+    while (i < a.len) : (i += vector_len) {
+        accu +=
+            @as(@Vector(vector_len, f32), a[i..][0..vector_len].*) *
+            @as(@Vector(vector_len, f32), b[i..][0..vector_len].*);
     }
+
+    return @reduce(.Add, accu);
 }
 
 pub fn softmax(x: []f32) void {
