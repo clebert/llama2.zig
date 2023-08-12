@@ -8,7 +8,7 @@ Andrej Karpathy, translated into Zig.
 My goal is to learn Zig while simultaneously gaining a better understanding of LLMs.
 
 The current code is based on
-https://github.com/karpathy/llama2.c/blob/3c3b19b14c3d5fbfbe15ad4ff3ff0cc9cb510595/run.c
+https://github.com/karpathy/llama2.c/blob/c42641205ffe17871af3464f35f51b201e58ebeb/run.c
 
 I have attempted to stay true to the philosophy of the original. The only dependency is the Zig
 `std` library. I have, however, divided it into several files for better clarity.
@@ -19,7 +19,8 @@ Some deviations from the original include:
 - SIMD optimization of the matmul function using `@Vector`
 - No mmap support; the checkpoint file is instead fully loaded into the RAM
 - Utilization of slices instead of many-item pointers
-- For models of 4096+ dimensions, I divide two matrix multiplication sets across threads
+- For models of 4096+ dimensions, I utilize thread pools to parallelize independent matrix
+  multiplication operations
 
 ## todos
 
