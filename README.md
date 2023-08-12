@@ -32,8 +32,8 @@ Testing performed on system Apple M1 Pro 32 GB
 
 ### run command
 
-- Zig: `zig build -Doptimize=ReleaseFast && ./zig-out/bin/llama2 stories15M.bin -t 0 -p 0 -n 256`
-- C: `make runfast && ./run stories15M.bin -t 0 -p 0 -n 256`
+- Zig: `zig build -Doptimize=ReleaseFast && ./zig-out/bin/llama2 stories15M.bin -t 0`
+- C: `make runfast && ./run stories15M.bin -t 0`
 
 ### stories15M.bin
 
