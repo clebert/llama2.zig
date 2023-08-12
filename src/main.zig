@@ -69,7 +69,7 @@ pub fn main() !void {
             // apply softmax to the logits to get the probabilities for next token
             utils.softmax(run_state.logits);
 
-            if (args.top_p == 0) {
+            if (args.top_p <= 0 or args.top_p >= 1) {
                 // we sample from this distribution to get the next token
                 next = utils.sample(&rng, run_state.logits);
             } else {

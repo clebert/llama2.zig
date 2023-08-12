@@ -22,7 +22,7 @@ pub fn parseArgs(allocator: std.mem.Allocator) !Args {
 
     _ = arg_iterator.next().?;
 
-    const checkpoint_path = arg_iterator.next() orelse try exit(null);
+    const checkpoint_path = arg_iterator.next() orelse try exit();
 
     while (arg_iterator.next()) |arg| {
         if (current_option) |option| {
@@ -37,7 +37,7 @@ pub fn parseArgs(allocator: std.mem.Allocator) !Args {
             } else if (option == .input_prompt and input_prompt == null) {
                 input_prompt = arg;
             } else {
-                try exit(null);
+                try exit();
             }
 
             current_option = null;
@@ -52,44 +52,34 @@ pub fn parseArgs(allocator: std.mem.Allocator) !Args {
         } else if (std.mem.eql(u8, arg, "-i")) {
             current_option = .input_prompt;
         } else {
-            try exit(null);
+            try exit();
         }
     }
 
     if (current_option != null) {
-        try exit(null);
+        try exit();
     }
 
     const args = Args{
         .checkpoint_path = checkpoint_path,
-        .temperature = temperature orelse 1,
-        .top_p = top_p orelse 0.9,
+        .temperature = @max(@min(temperature orelse 1, 1), 0),
+        .top_p = @max(@min(top_p orelse 1, 1), 0),
         .random_seed = random_seed orelse @intCast(std.time.milliTimestamp()),
         .n_steps = n_steps orelse 256,
         .input_prompt = input_prompt orelse "",
     };
 
-    if (args.top_p > 0 and args.temperature != 1) {
-        try exit(
-            "To control the diversity of samples use either the temperature or the top-p value, but not both.",
-        );
-    }
-
     return args;
 }
 
-fn exit(error_message: ?[]const u8) !noreturn {
+fn exit() !noreturn {
     const stderr = std.io.getStdErr().writer();
-
-    if (error_message) |message| {
-        try stderr.print("Error: {s}\n\n", .{message});
-    }
 
     try stderr.print("Usage: llama2 <checkpoint_path> [options]\n\n", .{});
 
     try stderr.print("Options:\n", .{});
     try stderr.print("  -t <float>  temperature  = 1\n", .{});
-    try stderr.print("  -p <float>  top_p        = 0.9; 0 == off\n", .{});
+    try stderr.print("  -p <float>  top_p        = 1; 1 == off\n", .{});
     try stderr.print("  -s <int>    random_seed  = milli_timestamp\n", .{});
     try stderr.print("  -n <int>    n_steps      = 256; 0 == max_seq_len\n", .{});
     try stderr.print("  -i <string> input_prompt = \"\"\n\n", .{});
