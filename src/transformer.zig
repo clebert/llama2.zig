@@ -40,6 +40,7 @@ pub fn allocRunState(
 }
 
 pub fn run(
+    allocator: std.mem.Allocator,
     token: usize,
     pos: usize,
     config: checkpoint.Config,
@@ -65,29 +66,31 @@ pub fn run(
 
         const dim_multithreading_threshold = 4096;
 
+        var pool: std.Thread.Pool = undefined;
+
         // qkv matmuls for this position
         if (config.dim >= dim_multithreading_threshold) {
-            var thread1 = try std.Thread.spawn(.{}, utils.matmul, .{
+            try pool.init(std.Thread.Pool.Options{ .allocator = allocator });
+
+            defer pool.deinit();
+
+            try pool.spawn(utils.matmul, .{
                 run_state.q,
                 run_state.xb,
                 weights.wq[(layer * config.dim * config.dim)..],
             });
 
-            var thread2 = try std.Thread.spawn(.{}, utils.matmul, .{
+            try pool.spawn(utils.matmul, .{
                 run_state.k,
                 run_state.xb,
                 weights.wk[(layer * config.dim * config.dim)..],
             });
 
-            var thread3 = try std.Thread.spawn(.{}, utils.matmul, .{
+            try pool.spawn(utils.matmul, .{
                 run_state.v,
                 run_state.xb,
                 weights.wv[(layer * config.dim * config.dim)..],
             });
-
-            thread1.join();
-            thread2.join();
-            thread3.join();
         } else {
             utils.matmul(run_state.q, run_state.xb, weights.wq[(layer * config.dim * config.dim)..]);
             utils.matmul(run_state.k, run_state.xb, weights.wk[(layer * config.dim * config.dim)..]);
@@ -178,20 +181,21 @@ pub fn run(
         // Now for FFN in PyTorch we have: self.w2(F.silu(self.w1(x)) * self.w3(x))
         // first calculate self.w1(x) and self.w3(x)
         if (config.dim >= dim_multithreading_threshold) {
-            var thread4 = try std.Thread.spawn(.{}, utils.matmul, .{
+            try pool.init(std.Thread.Pool.Options{ .allocator = allocator });
+
+            defer pool.deinit();
+
+            try pool.spawn(utils.matmul, .{
                 run_state.hb,
                 run_state.xb,
                 weights.w1[(layer * config.dim * config.hidden_dim)..],
             });
 
-            var thread5 = try std.Thread.spawn(.{}, utils.matmul, .{
+            try pool.spawn(utils.matmul, .{
                 run_state.hb2,
                 run_state.xb,
                 weights.w3[(layer * config.dim * config.hidden_dim)..],
             });
-
-            thread4.join();
-            thread5.join();
         } else {
             utils.matmul(
                 run_state.hb,

@@ -52,7 +52,7 @@ pub fn main() !void {
     // advance the state state machine
     for (0..args.n_steps) |pos| {
         // forward the transformer to get logits for the next token
-        try transformer.run(token, pos, config, &run_state, &weights);
+        try transformer.run(allocator, token, pos, config, &run_state, &weights);
 
         if (prompt_tokens.len > 0) {
             next = prompt_tokens[0];
