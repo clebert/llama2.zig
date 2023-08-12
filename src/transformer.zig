@@ -70,7 +70,10 @@ pub fn run(
 
         // qkv matmuls for this position
         if (config.dim >= dim_multithreading_threshold) {
-            try pool.init(std.Thread.Pool.Options{ .allocator = allocator });
+            try pool.init(std.Thread.Pool.Options{
+                .allocator = allocator,
+                .n_jobs = @max(1, @min(3, std.Thread.getCpuCount() catch 1)),
+            });
 
             defer pool.deinit();
 
@@ -181,7 +184,10 @@ pub fn run(
         // Now for FFN in PyTorch we have: self.w2(F.silu(self.w1(x)) * self.w3(x))
         // first calculate self.w1(x) and self.w3(x)
         if (config.dim >= dim_multithreading_threshold) {
-            try pool.init(std.Thread.Pool.Options{ .allocator = allocator });
+            try pool.init(std.Thread.Pool.Options{
+                .allocator = allocator,
+                .n_jobs = @max(1, @min(2, std.Thread.getCpuCount() catch 1)),
+            });
 
             defer pool.deinit();
 
