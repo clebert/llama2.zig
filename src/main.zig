@@ -18,7 +18,13 @@ pub fn main() !void {
     var config: checkpoint.Config = undefined;
     var weights: checkpoint.Weights = undefined;
 
-    try checkpoint.readFile(args.checkpoint_path, &config, &weights);
+    try checkpoint.readFile(
+        if (args.mmap) null else allocator,
+        args.checkpoint_path,
+        &config,
+        &weights,
+    );
+
     try stdout.print("{}\n\n", .{config});
 
     if (args.n_steps == 0) {
