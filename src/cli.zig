@@ -9,6 +9,7 @@ pub const Args = struct {
     input_prompt: []const u8,
     tokenizer_path: []const u8,
     mmap: bool,
+    test_mode: bool,
 };
 
 const Option = enum { temperature, top_p, random_seed, n_steps, input_prompt, tokenizer_path };
@@ -23,6 +24,7 @@ pub fn parseArgs(allocator: std.mem.Allocator) !Args {
     var input_prompt: ?[]const u8 = null;
     var tokenizer_path: ?[]const u8 = null;
     var mmap: bool = true;
+    var test_mode: bool = false;
 
     _ = arg_iterator.next().?;
 
@@ -61,6 +63,8 @@ pub fn parseArgs(allocator: std.mem.Allocator) !Args {
             current_option = .tokenizer_path;
         } else if (std.mem.eql(u8, arg, "--no-mmap") and mmap) {
             mmap = false;
+        } else if (std.mem.eql(u8, arg, "--test") and !test_mode) {
+            test_mode = true;
         } else {
             try exit();
         }
@@ -79,6 +83,7 @@ pub fn parseArgs(allocator: std.mem.Allocator) !Args {
         .input_prompt = input_prompt orelse "",
         .tokenizer_path = tokenizer_path orelse "tokenizer.bin",
         .mmap = mmap,
+        .test_mode = test_mode,
     };
 
     return args;

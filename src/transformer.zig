@@ -23,6 +23,8 @@ pub fn allocRunState(
     config: checkpoint.Config,
     run_state: *RunState,
 ) !void {
+    const kv_dim = (config.dim * config.n_kv_heads) / config.n_heads;
+
     run_state.* = RunState{
         .x = try allocator.alloc(f32, config.dim),
         .xb = try allocator.alloc(f32, config.dim),
@@ -30,12 +32,12 @@ pub fn allocRunState(
         .hb = try allocator.alloc(f32, config.hidden_dim),
         .hb2 = try allocator.alloc(f32, config.hidden_dim),
         .q = try allocator.alloc(f32, config.dim),
-        .k = try allocator.alloc(f32, config.dim),
-        .v = try allocator.alloc(f32, config.dim),
+        .k = try allocator.alloc(f32, kv_dim),
+        .v = try allocator.alloc(f32, kv_dim),
         .att = try allocator.alloc(f32, config.n_heads * config.seq_len),
         .logits = try allocator.alloc(f32, config.vocab_size),
-        .key_cache = try allocator.alloc(f32, config.n_layers * config.seq_len * config.dim),
-        .value_cache = try allocator.alloc(f32, config.n_layers * config.seq_len * config.dim),
+        .key_cache = try allocator.alloc(f32, config.n_layers * config.seq_len * kv_dim),
+        .value_cache = try allocator.alloc(f32, config.n_layers * config.seq_len * kv_dim),
     };
 }
 
@@ -52,6 +54,9 @@ pub fn decode(
     // copy the token embedding into x
     @memcpy(run_state.x, weights.token_embedding_table[(token * config.dim)..][0..run_state.x.len]);
 
+    const kv_dim = (config.dim * config.n_kv_heads) / config.n_heads;
+    // integer multiplier of the kv sharing in multiquery
+    const kv_mul = config.n_heads / config.n_kv_heads;
     const head_size = config.dim / config.n_heads;
     const head_size_sqrt = std.math.sqrt(@as(f32, @floatFromInt(head_size)));
 
@@ -86,18 +91,18 @@ pub fn decode(
             try pool.spawn(utils.matmul, .{
                 run_state.k,
                 run_state.xb,
-                weights.wk[(layer * config.dim * config.dim)..],
+                weights.wk[(layer * config.dim * kv_dim)..],
             });
 
             try pool.spawn(utils.matmul, .{
                 run_state.v,
                 run_state.xb,
-                weights.wv[(layer * config.dim * config.dim)..],
+                weights.wv[(layer * config.dim * kv_dim)..],
             });
         } else {
             utils.matmul(run_state.q, run_state.xb, weights.wq[(layer * config.dim * config.dim)..]);
-            utils.matmul(run_state.k, run_state.xb, weights.wk[(layer * config.dim * config.dim)..]);
-            utils.matmul(run_state.v, run_state.xb, weights.wv[(layer * config.dim * config.dim)..]);
+            utils.matmul(run_state.k, run_state.xb, weights.wk[(layer * config.dim * kv_dim)..]);
+            utils.matmul(run_state.v, run_state.xb, weights.wv[(layer * config.dim * kv_dim)..]);
         }
 
         var dim_i: usize = 0;
@@ -106,21 +111,29 @@ pub fn decode(
         while (dim_i < config.dim) : (dim_i += 2) {
             const q0 = run_state.q[dim_i];
             const q1 = run_state.q[dim_i + 1];
-            const k0 = run_state.k[dim_i];
-            const k1 = run_state.k[dim_i + 1];
             const fcr = freq_cis_real_row[(dim_i % head_size) / 2];
             const fci = freq_cis_imag_row[(dim_i % head_size) / 2];
 
             run_state.q[dim_i] = q0 * fcr - q1 * fci;
             run_state.q[dim_i + 1] = q0 * fci + q1 * fcr;
+        }
+
+        dim_i = 0;
+
+        while (dim_i < kv_dim) : (dim_i += 2) {
+            const k0 = run_state.k[dim_i];
+            const k1 = run_state.k[dim_i + 1];
+            const fcr = freq_cis_real_row[(dim_i % head_size) / 2];
+            const fci = freq_cis_imag_row[(dim_i % head_size) / 2];
+
             run_state.k[dim_i] = k0 * fcr - k1 * fci;
             run_state.k[dim_i + 1] = k0 * fci + k1 * fcr;
         }
 
         // save key,value at this time step (pos) to our kv cache
-        const loff = layer * config.seq_len * config.dim; // kv cache layer offset for convenience
-        const key_cache_row = run_state.key_cache[(loff + pos * config.dim)..];
-        const value_cache_row = run_state.value_cache[(loff + pos * config.dim)..];
+        const loff = layer * config.seq_len * kv_dim; // kv cache layer offset for convenience
+        const key_cache_row = run_state.key_cache[(loff + pos * kv_dim)..];
+        const value_cache_row = run_state.value_cache[(loff + pos * kv_dim)..];
 
         @memcpy(key_cache_row[0..run_state.k.len], run_state.k);
         @memcpy(value_cache_row[0..run_state.v.len], run_state.v);
@@ -135,7 +148,7 @@ pub fn decode(
             // iterate over all timesteps, including the current one
             for (0..(pos + 1)) |t| {
                 // get the key vector for this head and at this timestep
-                const k = run_state.key_cache[(loff + t * config.dim + head * head_size)..];
+                const k = run_state.key_cache[(loff + t * kv_dim + (head / kv_mul) * head_size)..];
 
                 // calculate the attention score as the dot product of q and k
                 var score: f32 = 0;
@@ -160,7 +173,7 @@ pub fn decode(
 
             for (0..(pos + 1)) |t| {
                 // get the value vector for this head and at this timestep
-                const v = run_state.value_cache[(loff + t * config.dim + head * head_size)..];
+                const v = run_state.value_cache[(loff + t * kv_dim + (head / kv_mul) * head_size)..];
 
                 // get the attention weight for this timestep
                 const a = att[t];

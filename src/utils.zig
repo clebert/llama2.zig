@@ -117,21 +117,41 @@ pub fn matmul(result: []f32, a: []const f32, b: []const f32) void {
 fn scalarProduct(a: []const f32, b: []const f32) f32 {
     @setFloatMode(.Optimized);
 
-    const vector_len: comptime_int = 16;
+    const big_vector_len: comptime_int = 16;
+    const small_vector_len: comptime_int = 4;
 
     std.debug.assert(a.len == b.len);
-    std.debug.assert(a.len % vector_len == 0);
 
-    var accu: @Vector(vector_len, f32) = @splat(0.0);
+    const rest_len = a.len % big_vector_len;
+
+    std.debug.assert(rest_len % small_vector_len == 0);
+
+    var big_accu: @Vector(big_vector_len, f32) = @splat(0.0);
     var i: usize = 0;
 
-    while (i < a.len) : (i += vector_len) {
-        accu +=
-            @as(@Vector(vector_len, f32), a[i..][0..vector_len].*) *
-            @as(@Vector(vector_len, f32), b[i..][0..vector_len].*);
+    while (i < a.len - rest_len) : (i += big_vector_len) {
+        big_accu +=
+            @as(@Vector(big_vector_len, f32), a[i..][0..big_vector_len].*) *
+            @as(@Vector(big_vector_len, f32), b[i..][0..big_vector_len].*);
     }
 
-    return @reduce(.Add, accu);
+    var scalar_product = @reduce(.Add, big_accu);
+
+    if (rest_len > 0) {
+        var small_accu: @Vector(small_vector_len, f32) = @splat(0.0);
+
+        i = a.len - rest_len;
+
+        while (i < a.len) : (i += small_vector_len) {
+            small_accu +=
+                @as(@Vector(small_vector_len, f32), a[i..][0..small_vector_len].*) *
+                @as(@Vector(small_vector_len, f32), b[i..][0..small_vector_len].*);
+        }
+
+        scalar_product += @reduce(.Add, small_accu);
+    }
+
+    return scalar_product;
 }
 
 pub fn softmax(x: []f32) void {

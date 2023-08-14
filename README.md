@@ -7,7 +7,7 @@ This is a Zig port of [llama2.c](https://github.com/karpathy/llama2.c).
 My goal is to learn Zig while simultaneously gaining a better understanding of LLMs.
 
 The current code is based on
-https://github.com/karpathy/llama2.c/blob/c42641205ffe17871af3464f35f51b201e58ebeb/run.c
+https://github.com/karpathy/llama2.c/blob/94a3a5e0a5f63f06ffbfa7ec5452553eedafc215/run.c
 
 I have attempted to stay true to the philosophy of the original. The only dependency is the Zig
 `std` library. I have, however, divided it into several files for better clarity.

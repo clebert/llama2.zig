@@ -13,17 +13,18 @@ pub const Config = struct {
 pub const Weights = struct {
     token_embedding_table: []f32, // vocab_size * dim
     rms_att_weight: []f32, // n_layers * dim
-    wq: []f32, // n_layers * dim * dim
-    wk: []f32, // n_layers * dim * dim
-    wv: []f32, // n_layers * dim * dim
-    wo: []f32, // n_layers * dim * dim
+    // weights for matmuls. note dim == n_heads * head_size
+    wq: []f32, // n_layers * dim * (n_heads * head_size)
+    wk: []f32, // n_layers * dim * (n_kv_heads * head_size)
+    wv: []f32, // n_layers * dim * (n_kv_heads * head_size)
+    wo: []f32, // n_layers * (n_heads * head_size) * dim
     rms_ffn_weight: []f32, // n_layers * dim
     w1: []f32, // n_layers * dim * hidden_dim
     w2: []f32, // n_layers * hidden_dim * dim
     w3: []f32, // n_layers * dim * hidden_dim
     rms_final_weight: []f32, // dim
-    freq_cis_real: []f32, // seq_len * (dim / n_heads) / 2
-    freq_cis_imag: []f32, // seq_len * (dim / n_heads) / 2
+    freq_cis_real: []f32, // seq_len * head_size / 2
+    freq_cis_imag: []f32, // seq_len * head_size / 2
     wcls: []f32, // vocab_size * dim
 };
 
@@ -82,10 +83,10 @@ pub fn readFile(
     weights.* = Weights{
         .token_embedding_table = token_embedding_table,
         .rms_att_weight = readFloatSlice(&weights_data, config.n_layers * config.dim),
-        .wq = readFloatSlice(&weights_data, config.n_layers * config.dim * config.dim),
-        .wk = readFloatSlice(&weights_data, config.n_layers * config.dim * config.dim),
-        .wv = readFloatSlice(&weights_data, config.n_layers * config.dim * config.dim),
-        .wo = readFloatSlice(&weights_data, config.n_layers * config.dim * config.dim),
+        .wq = readFloatSlice(&weights_data, config.n_layers * config.dim * (config.n_heads * head_size)),
+        .wk = readFloatSlice(&weights_data, config.n_layers * config.dim * (config.n_kv_heads * head_size)),
+        .wv = readFloatSlice(&weights_data, config.n_layers * config.dim * (config.n_kv_heads * head_size)),
+        .wo = readFloatSlice(&weights_data, config.n_layers * (config.n_heads * head_size) * config.dim),
         .rms_ffn_weight = readFloatSlice(&weights_data, config.n_layers * config.dim),
         .w1 = readFloatSlice(&weights_data, config.n_layers * config.dim * config.hidden_dim),
         .w2 = readFloatSlice(&weights_data, config.n_layers * config.hidden_dim * config.dim),

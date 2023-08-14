@@ -25,7 +25,9 @@ pub fn main() !void {
         &weights,
     );
 
-    try stdout.print("{}\n\n", .{config});
+    if (!args.test_mode) {
+        try stdout.print("{}\n\n", .{config});
+    }
 
     if (args.n_steps == 0) {
         args.n_steps = config.seq_len;
@@ -120,7 +122,7 @@ pub fn main() !void {
         token = next;
     }
 
-    if (n_steps > 1) {
+    if (n_steps > 1 and !args.test_mode) {
         const total_time = total_decoding_time + total_sampling_time;
 
         const average_decoding_time: f32 =
