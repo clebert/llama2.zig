@@ -67,7 +67,7 @@ pub fn parseArgs(allocator: std.mem.Allocator) !Args {
     const args = Args{
         .checkpoint_path = checkpoint_path,
         .temperature = @max(@min(temperature orelse 1, 1), 0),
-        .top_p = @max(@min(top_p orelse 1, 1), 0),
+        .top_p = @max(@min(top_p orelse 0.9, 1), 0),
         .random_seed = random_seed orelse @intCast(std.time.milliTimestamp()),
         .n_steps = n_steps orelse 256,
         .input_prompt = input_prompt orelse "",
@@ -84,7 +84,7 @@ fn exit() !noreturn {
 
     try stderr.print("Options:\n", .{});
     try stderr.print("  -t <float>  temperature  = 1\n", .{});
-    try stderr.print("  -p <float>  top_p        = 1; 1 == off\n", .{});
+    try stderr.print("  -p <float>  top_p        = 0.9; 1 == off\n", .{});
     try stderr.print("  -s <int>    random_seed  = milli_timestamp\n", .{});
     try stderr.print("  -n <int>    n_steps      = 256; 0 == max_seq_len\n", .{});
     try stderr.print("  -i <string> input_prompt = \"\"\n", .{});

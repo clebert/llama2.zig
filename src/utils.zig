@@ -37,33 +37,49 @@ pub fn sample(rng: *std.rand.DefaultPrng, probabilities: []f32) usize {
 // struct used when sorting probabilities during top-p sampling
 pub const ProbIndex = struct { prob: f32, index: usize };
 
-pub fn sampleTopP(rng: *std.rand.DefaultPrng, probabilities: []f32, top_p: f32, prob_indices_buffer: []ProbIndex) usize {
+pub fn sampleTopP(
+    rng: *std.rand.DefaultPrng,
+    probabilities: []f32,
+    top_p: f32,
+    prob_indices_buffer: []ProbIndex,
+) usize {
     @setFloatMode(.Optimized);
 
     // top-p sampling (or "nucleus sampling") samples from the smallest set of
     // tokens that exceed probability topp. This way we never sample tokens that
     // have very low probabilities and are less likely to go "off the rails".
 
-    var prob_indices = prob_indices_buffer;
-
     // quicksort indices in descending order of probabilities
+    // elements smaller than (1 - top_p) / (probabilities.len - 1) cannot be part of the result
+    // and can be filtered out directly
+    // https://github.com/karpathy/llama2.c/commit/d421a95b2bfe593b2d9e5c147f3efc8d128afe0e
+    const cutoff: f32 = (1 - top_p) / @as(f32, @floatFromInt(probabilities.len - 1));
+
+    var n0: usize = 0;
+
     for (probabilities, 0..) |prob, index| {
-        prob_indices[index].prob = prob;
-        prob_indices[index].index = index;
+        if (prob >= cutoff) {
+            prob_indices_buffer[n0].prob = prob;
+            prob_indices_buffer[n0].index = index;
+            n0 += 1;
+        }
     }
 
-    std.sort.block(ProbIndex, prob_indices, {}, desc);
+    var filtered_prob_indices = prob_indices_buffer[0..n0];
+
+    std.sort.block(ProbIndex, filtered_prob_indices, {}, desc);
 
     // truncate the list where cumulative probability exceeds topp
     var cumulative_prob: f32 = 0;
+    var truncated_prob_indices: ?[]ProbIndex = null;
 
-    for (prob_indices, 0..) |prob_index, index| {
+    for (filtered_prob_indices, 0..) |prob_index, index| {
         cumulative_prob += prob_index.prob;
 
         if (cumulative_prob > top_p) {
-            prob_indices = prob_indices[0..(index + 1)];
+            truncated_prob_indices = filtered_prob_indices[0..(index + 1)];
 
-            break; // we've exceeded topp by including last_idx
+            break; // we've exceeded topp by including index
         }
     }
 
@@ -71,15 +87,17 @@ pub fn sampleTopP(rng: *std.rand.DefaultPrng, probabilities: []f32, top_p: f32, 
     var r = rng.random().float(f32) * cumulative_prob;
     var cdf: f32 = 0.0;
 
-    for (prob_indices) |prob_index| {
-        cdf += prob_index.prob;
+    if (truncated_prob_indices) |prob_indices| {
+        for (prob_indices) |prob_index| {
+            cdf += prob_index.prob;
 
-        if (r < cdf) {
-            return prob_index.index;
+            if (r < cdf) {
+                return prob_index.index;
+            }
         }
     }
 
-    return prob_indices[prob_indices.len - 1].index;
+    return filtered_prob_indices[filtered_prob_indices.len - 1].index;
 }
 
 fn desc(context: void, a: ProbIndex, b: ProbIndex) bool {
