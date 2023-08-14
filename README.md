@@ -2,8 +2,7 @@
 
 > Inference Llama 2 in pure Zig
 
-This is an implementation of the excellent [llama2.c](https://github.com/karpathy/llama2.c) by
-Andrej Karpathy, translated into Zig.
+This is a Zig port of [llama2.c](https://github.com/karpathy/llama2.c).
 
 My goal is to learn Zig while simultaneously gaining a better understanding of LLMs.
 

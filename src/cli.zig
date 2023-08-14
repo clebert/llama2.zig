@@ -7,10 +7,11 @@ pub const Args = struct {
     random_seed: u64,
     n_steps: usize,
     input_prompt: []const u8,
+    tokenizer_path: []const u8,
     mmap: bool,
 };
 
-const Option = enum { temperature, top_p, random_seed, n_steps, input_prompt };
+const Option = enum { temperature, top_p, random_seed, n_steps, input_prompt, tokenizer_path };
 
 pub fn parseArgs(allocator: std.mem.Allocator) !Args {
     var arg_iterator = try std.process.argsWithAllocator(allocator);
@@ -20,6 +21,7 @@ pub fn parseArgs(allocator: std.mem.Allocator) !Args {
     var random_seed: ?u64 = null;
     var n_steps: ?usize = null;
     var input_prompt: ?[]const u8 = null;
+    var tokenizer_path: ?[]const u8 = null;
     var mmap: bool = true;
 
     _ = arg_iterator.next().?;
@@ -38,6 +40,8 @@ pub fn parseArgs(allocator: std.mem.Allocator) !Args {
                 n_steps = try std.fmt.parseInt(usize, arg, 10);
             } else if (option == .input_prompt and input_prompt == null) {
                 input_prompt = arg;
+            } else if (option == .tokenizer_path and tokenizer_path == null) {
+                tokenizer_path = arg;
             } else {
                 try exit();
             }
@@ -53,6 +57,8 @@ pub fn parseArgs(allocator: std.mem.Allocator) !Args {
             current_option = .n_steps;
         } else if (std.mem.eql(u8, arg, "-i")) {
             current_option = .input_prompt;
+        } else if (std.mem.eql(u8, arg, "-z")) {
+            current_option = .tokenizer_path;
         } else if (std.mem.eql(u8, arg, "--no-mmap") and mmap) {
             mmap = false;
         } else {
@@ -71,6 +77,7 @@ pub fn parseArgs(allocator: std.mem.Allocator) !Args {
         .random_seed = random_seed orelse @intCast(std.time.milliTimestamp()),
         .n_steps = n_steps orelse 256,
         .input_prompt = input_prompt orelse "",
+        .tokenizer_path = tokenizer_path orelse "tokenizer.bin",
         .mmap = mmap,
     };
 
@@ -83,11 +90,12 @@ fn exit() !noreturn {
     try stderr.print("Usage: llama2 <checkpoint_path> [options]\n\n", .{});
 
     try stderr.print("Options:\n", .{});
-    try stderr.print("  -t <float>  temperature  = 1\n", .{});
-    try stderr.print("  -p <float>  top_p        = 0.9; 1 == off\n", .{});
-    try stderr.print("  -s <int>    random_seed  = milli_timestamp\n", .{});
-    try stderr.print("  -n <int>    n_steps      = 256; 0 == max_seq_len\n", .{});
-    try stderr.print("  -i <string> input_prompt = \"\"\n", .{});
+    try stderr.print("  -t <float>  temperature    = 1\n", .{});
+    try stderr.print("  -p <float>  top_p          = 0.9; 1 == off\n", .{});
+    try stderr.print("  -s <int>    random_seed    = milli_timestamp\n", .{});
+    try stderr.print("  -n <int>    n_steps        = 256; 0 == max_seq_len\n", .{});
+    try stderr.print("  -i <string> input_prompt   = \"\"\n", .{});
+    try stderr.print("  -z <string> tokenizer_path = \"tokenizer.bin\"\n", .{});
     try stderr.print("  --no-mmap\n\n", .{});
 
     try stderr.print("Example: llama2 model.bin -i \"Once upon a time\"\n", .{});

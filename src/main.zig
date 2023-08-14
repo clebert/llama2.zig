@@ -34,7 +34,12 @@ pub fn main() !void {
     var vocab: [][]u8 = try allocator.alloc([]u8, config.vocab_size);
     var word_scores: []f32 = try allocator.alloc(f32, config.vocab_size);
 
-    const max_word_length = try tokenizer.readFile(allocator, "tokenizer.bin", vocab, word_scores);
+    const max_word_length = try tokenizer.readFile(
+        allocator,
+        args.tokenizer_path,
+        vocab,
+        word_scores,
+    );
 
     var prompt_tokens = try tokenizer.encodeWords(
         allocator,
