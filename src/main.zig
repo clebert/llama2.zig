@@ -117,7 +117,23 @@ pub fn main() !void {
         // following BOS (1) token, sentencepiece decoder strips any leading whitespace
         const word = if (token == 1 and vocab[next][0] == ' ') vocab[next][1..] else vocab[next];
 
-        try stdout.print("{s}", .{word});
+        // careful, some tokens designate raw bytes, and look like e.g. '<0x01>'
+        if (word.len == 6 and std.mem.eql(u8, word[0..3], "<0x") and word[5] == '>') {
+            const byte: ?u8 = std.fmt.parseInt(u8, word[3..5], 16) catch null;
+
+            if (byte) |char| {
+                // ok this token is a raw byte token, carefuly to only print printable chars or whitespace
+                // some of the other bytes can be various control codes, backspace, etc. => skip
+
+                if (std.ascii.isPrint(char) or std.ascii.isWhitespace(char)) {
+                    try stdout.print("{s}", .{[_]u8{char}});
+                }
+            } else {
+                try stdout.print("{s}", .{word});
+            }
+        } else {
+            try stdout.print("{s}", .{word});
+        }
 
         token = next;
     }
