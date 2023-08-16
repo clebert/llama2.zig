@@ -232,10 +232,6 @@ test "byte fallback" {
 }
 
 test "one char tokens" {
-    if (true) {
-        return error.SkipZigTest; // TODO: sort and bsearch do not work as expected
-    }
-
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
 
     defer arena.deinit();
