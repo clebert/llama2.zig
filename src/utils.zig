@@ -49,7 +49,6 @@ pub fn sampleTopP(
     // tokens that exceed probability topp. This way we never sample tokens that
     // have very low probabilities and are less likely to go "off the rails".
 
-    // quicksort indices in descending order of probabilities
     // elements smaller than (1 - top_p) / (probabilities.len - 1) cannot be part of the result
     // and can be filtered out directly
     // https://github.com/karpathy/llama2.c/commit/d421a95b2bfe593b2d9e5c147f3efc8d128afe0e
@@ -67,7 +66,8 @@ pub fn sampleTopP(
 
     var filtered_prob_indices = prob_indices_buffer[0..n0];
 
-    std.sort.block(ProbIndex, filtered_prob_indices, {}, desc);
+    // sort indices in descending order of probabilities
+    std.sort.block(ProbIndex, filtered_prob_indices, {}, lessThan);
 
     // truncate the list where cumulative probability exceeds topp
     var cumulative_prob: f32 = 0;
@@ -100,10 +100,10 @@ pub fn sampleTopP(
     return filtered_prob_indices[filtered_prob_indices.len - 1].index;
 }
 
-fn desc(context: void, a: ProbIndex, b: ProbIndex) bool {
+fn lessThan(context: void, lhs: ProbIndex, rhs: ProbIndex) bool {
     _ = context;
 
-    return a.prob < b.prob;
+    return rhs.prob < lhs.prob;
 }
 
 pub fn matmul(result: []f32, a: []const f32, b: []const f32) void {

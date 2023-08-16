@@ -57,6 +57,7 @@ fn sortVocab(allocator: std.mem.Allocator, vocab: []const []const u8) ![]VocabEn
 
     var slice = try array.toOwnedSlice();
 
+    // sort entries in ascending order
     std.sort.block(VocabEntry, slice, {}, lessThan);
 
     return slice;
