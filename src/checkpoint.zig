@@ -111,7 +111,7 @@ fn readFloatSlice(data: *[*]f32, len: usize) []f32 {
     return slice;
 }
 
-test "read TinyStories 15M checkpoint file" {
+test "read TinyStories 260K checkpoint file" {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
 
     defer arena.deinit();
@@ -121,17 +121,15 @@ test "read TinyStories 15M checkpoint file" {
     var config: Config = undefined;
     var weights: Weights = undefined;
 
-    readFile(allocator, "stories15M.bin", &config, &weights) catch |err| {
-        if (err == error.FileNotFound) return else return err;
-    };
+    try readFile(allocator, "stories260K.bin", &config, &weights);
 
-    try std.testing.expectEqualDeep(config, Config{
-        .dim = 288,
-        .hidden_dim = 768,
-        .n_layers = 6,
-        .n_heads = 6,
-        .n_kv_heads = 6,
-        .vocab_size = 32000,
-        .seq_len = 256,
-    });
+    try std.testing.expectEqualDeep(Config{
+        .dim = 64,
+        .hidden_dim = 172,
+        .n_layers = 5,
+        .n_heads = 8,
+        .n_kv_heads = 4,
+        .vocab_size = 512,
+        .seq_len = 512,
+    }, config);
 }
