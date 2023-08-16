@@ -43,7 +43,8 @@ pub fn readFile(
     var data: []u8 = undefined;
 
     if (optional_allocator) |allocator| {
-        data = try allocator.alloc(u8, stat.size);
+        // https://github.com/cgbur/llama2.zig/commit/23c0711308cfe52971834b3c5716e497e7d6dc3d
+        data = try allocator.alignedAlloc(u8, std.mem.page_size, stat.size);
 
         _ = try file.readAll(data);
     } else {

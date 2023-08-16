@@ -139,8 +139,6 @@ pub fn main() !void {
     }
 
     if (n_steps > 1 and !args.test_mode) {
-        const total_time = total_decoding_time + total_sampling_time;
-
         const average_decoding_time: f32 =
             @as(f32, @floatFromInt(total_decoding_time - first_decoding_time)) /
             @as(f32, @floatFromInt(n_steps - 1));
@@ -151,7 +149,6 @@ pub fn main() !void {
         const tokens_per_second: f32 = 1000 / (average_decoding_time + average_sampling_time);
 
         try stdout.print("\n\nachieved: {d:.3} tok/s\n\n", .{tokens_per_second});
-        try stdout.print("total time: {} ms\n", .{total_time});
         try stdout.print("total decoding time: {} ms\n", .{total_decoding_time});
         try stdout.print("average decoding time: {d:.3} ms\n", .{average_decoding_time});
         try stdout.print("first decoding time: {} ms\n", .{first_decoding_time});
