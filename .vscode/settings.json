@@ -32,6 +32,8 @@
   ],
   "files.exclude": {
     ".editorconfig": true,
+    ".github": true,
+    ".github/workflows/ci.yml": true,
     ".gitignore": true,
     ".prettierignore": true,
     ".prettierrc.json": true,

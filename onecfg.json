@@ -5,10 +5,39 @@
     "https://raw.githubusercontent.com/clebert/onecfg-lib/main/lib/onecfg-prettier.json",
     "https://raw.githubusercontent.com/clebert/onecfg-lib/main/lib/onecfg-vscode.json"
   ],
+  "defines": {
+    ".github/workflows/ci.yml": {"format": "yaml"}
+  },
   "patches": {
+    ".github/workflows/ci.yml": [
+      {
+        "value": {
+          "name": "CI",
+          "on": {"push": {}, "pull_request": {}},
+          "jobs": {
+            "CI": {
+              "runs-on": "ubuntu-latest",
+              "steps": [
+                {"uses": "actions/checkout@v3"},
+                {"uses": "goto-bus-stop/setup-zig@v2"},
+                {"run": "zig fmt --check src/*.zig"},
+                {"run": "zig build test"},
+                {"run": "./test-inference.sh"}
+              ]
+            }
+          }
+        },
+        "priority": -1
+      }
+    ],
     ".gitignore": [
       {
         "value": ["/zig-cache", "/zig-out", "/*.bin"]
+      }
+    ],
+    ".prettierignore": [
+      {
+        "value": ["/.github/workflows/ci.yml"]
       }
     ],
     ".vscode/extensions.json": [
@@ -19,6 +48,7 @@
     ".vscode/settings.json": [
       {
         "value": {
+          "files.exclude": {".github": true, ".github/workflows/ci.yml": true},
           "[zig]": {"editor.defaultFormatter": "ziglang.vscode-zig"},
           "zig.zls.enableInlayHints": false
         }

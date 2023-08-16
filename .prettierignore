@@ -2,3 +2,4 @@
 /LICENSE*
 /.vscode/extensions.json
 /.vscode/settings.json
+/.github/workflows/ci.yml
