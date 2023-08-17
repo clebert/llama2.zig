@@ -237,6 +237,8 @@ pub fn rope(
     config: *const checkpoint.Config,
     run_state: *RunState,
 ) void {
+    @setFloatMode(.Optimized);
+
     var i: usize = 0;
 
     // RoPE relative positional encoding: complex-valued rotate q and k in each head
