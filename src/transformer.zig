@@ -60,10 +60,6 @@ pub fn decode(
     const head_size = config.dim / config.n_heads;
     const head_size_sqrt = std.math.sqrt(@as(f32, @floatFromInt(head_size)));
 
-    // pluck out the "pos" row of freq_cis_real and freq_cis_imag
-    const freq_cis_real_row = weights.freq_cis_real[(pos * head_size / 2)..];
-    const freq_cis_imag_row = weights.freq_cis_imag[(pos * head_size / 2)..];
-
     // forward all the layers
     for (0..config.n_layers) |layer| {
         // attention rmsnorm
@@ -105,30 +101,7 @@ pub fn decode(
             utils.matmul(run_state.v, run_state.xb, weights.wv[(layer * config.dim * kv_dim)..]);
         }
 
-        var dim_i: usize = 0;
-
-        // RoPE relative positional encoding: complex-valued rotate q and k by freq_cis in each head
-        // https://github.com/karpathy/llama2.c/issues/302#issue-1851956882
-        while (dim_i < config.dim) : (dim_i += 2) {
-            const fcr = freq_cis_real_row[(dim_i % head_size) / 2];
-            const fci = freq_cis_imag_row[(dim_i % head_size) / 2];
-
-            // rotate q
-            const q0 = run_state.q[dim_i];
-            const q1 = run_state.q[dim_i + 1];
-
-            run_state.q[dim_i] = q0 * fcr - q1 * fci;
-            run_state.q[dim_i + 1] = q0 * fci + q1 * fcr;
-
-            // rotate k
-            if (dim_i < kv_dim) {
-                const k0 = run_state.k[dim_i];
-                const k1 = run_state.k[dim_i + 1];
-
-                run_state.k[dim_i] = k0 * fcr - k1 * fci;
-                run_state.k[dim_i + 1] = k0 * fci + k1 * fcr;
-            }
-        }
+        rope(pos, head_size, kv_dim, &config, run_state);
 
         // save key,value at this time step (pos) to our kv cache
         const loff = layer * config.seq_len * kv_dim; // kv cache layer offset for convenience
@@ -255,4 +228,41 @@ pub fn decode(
 
     // classifier into logits
     utils.matmul(run_state.logits, run_state.x, weights.wcls);
+}
+
+pub fn rope(
+    pos: usize,
+    head_size: usize,
+    kv_dim: usize,
+    config: *const checkpoint.Config,
+    run_state: *RunState,
+) void {
+    var i: usize = 0;
+
+    // RoPE relative positional encoding: complex-valued rotate q and k in each head
+    // https://github.com/karpathy/llama2.c/issues/302#issue-1851956882
+    // https://github.com/karpathy/llama2.c/commit/bd182289c596fa6059eb7b3b7c8ccd04b5c90fc3
+    while (i < config.dim) : (i += 2) {
+        const head_dim: f32 = @floatFromInt(i % head_size);
+        const freq: f32 = 1 / std.math.pow(f32, 10000, head_dim / @as(f32, @floatFromInt(head_size)));
+        const value: f32 = @as(f32, @floatFromInt(pos)) * freq;
+        const fcr: f32 = std.math.cos(value);
+        const fci: f32 = std.math.sin(value);
+
+        // rotate q
+        const q0 = run_state.q[i];
+        const q1 = run_state.q[i + 1];
+
+        run_state.q[i] = q0 * fcr - q1 * fci;
+        run_state.q[i + 1] = q0 * fci + q1 * fcr;
+
+        // rotate k
+        if (i < kv_dim) {
+            const k0 = run_state.k[i];
+            const k1 = run_state.k[i + 1];
+
+            run_state.k[i] = k0 * fcr - k1 * fci;
+            run_state.k[i + 1] = k0 * fci + k1 * fcr;
+        }
+    }
 }

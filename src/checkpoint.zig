@@ -93,6 +93,8 @@ pub fn readFile(
         .w2 = readFloatSlice(&weights_data, config.n_layers * config.hidden_dim * config.dim),
         .w3 = readFloatSlice(&weights_data, config.n_layers * config.dim * config.hidden_dim),
         .rms_final_weight = readFloatSlice(&weights_data, config.dim),
+
+        // freq_cis for RoPE relatively positional embeddings (not used anymore)
         .freq_cis_real = readFloatSlice(&weights_data, config.seq_len * head_size / 2),
         .freq_cis_imag = readFloatSlice(&weights_data, config.seq_len * head_size / 2),
 
