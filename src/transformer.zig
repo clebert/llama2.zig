@@ -4,18 +4,22 @@ const checkpoint = @import("checkpoint.zig");
 const utils = @import("utils.zig");
 
 pub const RunState = struct {
-    x: []f32, // dim
-    xb: []f32, // dim
-    xb2: []f32, // dim
-    hb: []f32, // hidden_dim
-    hb2: []f32, // hidden_dim
-    q: []f32, // dim
-    k: []f32, // dim
-    v: []f32, // dim
-    att: []f32, // n_heads * seq_len
-    logits: []f32, // vocab_size
-    key_cache: []f32, // n_layers * seq_len * dim
-    value_cache: []f32, // n_layers * seq_len * dim
+    hidden_state: []f32,
+
+    attention_ffn_input_buffer: []f32,
+    attention_ffn_output_buffer: []f32,
+
+    attention_scores: []f32,
+    query_buffer: []f32,
+    key_buffer: []f32,
+    value_buffer: []f32,
+    key_cache: []f32,
+    value_cache: []f32,
+
+    ffn_weighted_input_buffer_1: []f32,
+    ffn_weighted_input_buffer_2: []f32,
+
+    logits: []f32,
 };
 
 pub fn allocRunState(
@@ -26,18 +30,22 @@ pub fn allocRunState(
     const kv_dim = (config.dim * config.n_kv_heads) / config.n_heads;
 
     run_state.* = RunState{
-        .x = try allocator.alloc(f32, config.dim),
-        .xb = try allocator.alloc(f32, config.dim),
-        .xb2 = try allocator.alloc(f32, config.dim),
-        .hb = try allocator.alloc(f32, config.hidden_dim),
-        .hb2 = try allocator.alloc(f32, config.hidden_dim),
-        .q = try allocator.alloc(f32, config.dim),
-        .k = try allocator.alloc(f32, kv_dim),
-        .v = try allocator.alloc(f32, kv_dim),
-        .att = try allocator.alloc(f32, config.n_heads * config.seq_len),
-        .logits = try allocator.alloc(f32, config.vocab_size),
+        .hidden_state = try allocator.alloc(f32, config.dim),
+
+        .attention_ffn_input_buffer = try allocator.alloc(f32, config.dim),
+        .attention_ffn_output_buffer = try allocator.alloc(f32, config.dim),
+
+        .attention_scores = try allocator.alloc(f32, config.n_heads * config.seq_len),
+        .query_buffer = try allocator.alloc(f32, config.dim),
+        .key_buffer = try allocator.alloc(f32, kv_dim),
+        .value_buffer = try allocator.alloc(f32, kv_dim),
         .key_cache = try allocator.alloc(f32, config.n_layers * config.seq_len * kv_dim),
         .value_cache = try allocator.alloc(f32, config.n_layers * config.seq_len * kv_dim),
+
+        .ffn_weighted_input_buffer_1 = try allocator.alloc(f32, config.hidden_dim),
+        .ffn_weighted_input_buffer_2 = try allocator.alloc(f32, config.hidden_dim),
+
+        .logits = try allocator.alloc(f32, config.vocab_size),
     };
 }
 
@@ -52,7 +60,7 @@ pub fn decode(
     @setFloatMode(.Optimized);
 
     // copy the token embedding into x
-    @memcpy(run_state.x, weights.token_embedding_table[(token * config.dim)..][0..run_state.x.len]);
+    @memcpy(run_state.hidden_state, weights.token_embedding_table[(token * config.dim)..][0..run_state.hidden_state.len]);
 
     const kv_dim = (config.dim * config.n_kv_heads) / config.n_heads;
     // integer multiplier of the kv sharing in multiquery
@@ -63,7 +71,7 @@ pub fn decode(
     // forward all the layers
     for (0..config.n_layers) |layer| {
         // attention rmsnorm
-        utils.rmsnorm(run_state.xb, run_state.x, weights.rms_att_weight[(layer * config.dim)..]);
+        utils.rmsnorm(run_state.attention_ffn_input_buffer, run_state.hidden_state, weights.rms_att_weight[(layer * config.dim)..]);
 
         const dim_multithreading_threshold = 4096;
 
@@ -79,26 +87,40 @@ pub fn decode(
             defer pool.deinit();
 
             try pool.spawn(utils.matmul, .{
-                run_state.q,
-                run_state.xb,
+                run_state.query_buffer,
+                run_state.attention_ffn_input_buffer,
                 weights.wq[(layer * config.dim * config.dim)..],
             });
 
             try pool.spawn(utils.matmul, .{
-                run_state.k,
-                run_state.xb,
+                run_state.key_buffer,
+                run_state.attention_ffn_input_buffer,
                 weights.wk[(layer * config.dim * kv_dim)..],
             });
 
             try pool.spawn(utils.matmul, .{
-                run_state.v,
-                run_state.xb,
+                run_state.value_buffer,
+                run_state.attention_ffn_input_buffer,
                 weights.wv[(layer * config.dim * kv_dim)..],
             });
         } else {
-            utils.matmul(run_state.q, run_state.xb, weights.wq[(layer * config.dim * config.dim)..]);
-            utils.matmul(run_state.k, run_state.xb, weights.wk[(layer * config.dim * kv_dim)..]);
-            utils.matmul(run_state.v, run_state.xb, weights.wv[(layer * config.dim * kv_dim)..]);
+            utils.matmul(
+                run_state.query_buffer,
+                run_state.attention_ffn_input_buffer,
+                weights.wq[(layer * config.dim * config.dim)..],
+            );
+
+            utils.matmul(
+                run_state.key_buffer,
+                run_state.attention_ffn_input_buffer,
+                weights.wk[(layer * config.dim * kv_dim)..],
+            );
+
+            utils.matmul(
+                run_state.value_buffer,
+                run_state.attention_ffn_input_buffer,
+                weights.wv[(layer * config.dim * kv_dim)..],
+            );
         }
 
         rope(pos, head_size, kv_dim, &config, run_state);
@@ -108,15 +130,15 @@ pub fn decode(
         const key_cache_row = run_state.key_cache[(loff + pos * kv_dim)..];
         const value_cache_row = run_state.value_cache[(loff + pos * kv_dim)..];
 
-        @memcpy(key_cache_row[0..run_state.k.len], run_state.k);
-        @memcpy(value_cache_row[0..run_state.v.len], run_state.v);
+        @memcpy(key_cache_row[0..run_state.key_buffer.len], run_state.key_buffer);
+        @memcpy(value_cache_row[0..run_state.value_buffer.len], run_state.value_buffer);
 
         // multihead attention. iterate over all heads
         for (0..config.n_heads) |head| {
             // get the query vector for this head
-            const q = run_state.q[(head * head_size)..];
+            const q = run_state.query_buffer[(head * head_size)..];
             // attention scores for this head
-            const att = run_state.att[(head * config.seq_len)..];
+            const att = run_state.attention_scores[(head * config.seq_len)..];
 
             // iterate over all timesteps, including the current one
             for (0..(pos + 1)) |t| {
@@ -139,10 +161,11 @@ pub fn decode(
             // softmax the scores to get attention weights, from 0..pos inclusively
             utils.softmax(att[0..(pos + 1)]);
 
-            // weighted sum of the values, store back into xb
-            const xb = run_state.xb[(head * head_size)..][0..head_size];
+            // weighted sum of the values, store back into intermediate_buffer
+            const intermediate_buffer =
+                run_state.attention_ffn_input_buffer[(head * head_size)..][0..head_size];
 
-            @memset(xb, 0);
+            @memset(intermediate_buffer, 0);
 
             for (0..(pos + 1)) |t| {
                 // get the value vector for this head and at this timestep
@@ -151,21 +174,29 @@ pub fn decode(
                 // get the attention weight for this timestep
                 const a = att[t];
 
-                // accumulate the weighted value into xb
+                // accumulate the weighted value into intermediate_buffer
                 for (0..head_size) |i| {
-                    xb[i] += a * v[i];
+                    intermediate_buffer[i] += a * v[i];
                 }
             }
         }
 
         // final matmul to get the output of the attention
-        utils.matmul(run_state.xb2, run_state.xb, weights.wo[(layer * config.dim * config.dim)..]);
+        utils.matmul(
+            run_state.attention_ffn_output_buffer,
+            run_state.attention_ffn_input_buffer,
+            weights.wo[(layer * config.dim * config.dim)..],
+        );
 
         // residual connection back into x
-        utils.accum(run_state.x, run_state.xb2);
+        utils.accum(run_state.hidden_state, run_state.attention_ffn_output_buffer);
 
         // ffn rmsnorm
-        utils.rmsnorm(run_state.xb, run_state.x, weights.rms_ffn_weight[(layer * config.dim)..]);
+        utils.rmsnorm(
+            run_state.attention_ffn_input_buffer,
+            run_state.hidden_state,
+            weights.rms_ffn_weight[(layer * config.dim)..],
+        );
 
         // Now for FFN in PyTorch we have: self.w2(F.silu(self.w1(x)) * self.w3(x))
         // first calculate self.w1(x) and self.w3(x)
@@ -178,56 +209,56 @@ pub fn decode(
             defer pool.deinit();
 
             try pool.spawn(utils.matmul, .{
-                run_state.hb,
-                run_state.xb,
+                run_state.ffn_weighted_input_buffer_1,
+                run_state.attention_ffn_input_buffer,
                 weights.w1[(layer * config.dim * config.hidden_dim)..],
             });
 
             try pool.spawn(utils.matmul, .{
-                run_state.hb2,
-                run_state.xb,
+                run_state.ffn_weighted_input_buffer_2,
+                run_state.attention_ffn_input_buffer,
                 weights.w3[(layer * config.dim * config.hidden_dim)..],
             });
         } else {
             utils.matmul(
-                run_state.hb,
-                run_state.xb,
-                weights.w1[(layer * config.dim * config.hidden_dim)..],
+                run_state.ffn_weighted_input_buffer_1,
+                run_state.attention_ffn_input_buffer,
+                weights.w1[(layer * config.dim * config.hidden_dim)..][0..(config.dim * config.hidden_dim)],
             );
 
             utils.matmul(
-                run_state.hb2,
-                run_state.xb,
-                weights.w3[(layer * config.dim * config.hidden_dim)..],
+                run_state.ffn_weighted_input_buffer_2,
+                run_state.attention_ffn_input_buffer,
+                weights.w3[(layer * config.dim * config.hidden_dim)..][0..(config.dim * config.hidden_dim)],
             );
         }
 
         // F.silu; silu(x)=x*σ(x),where σ(x) is the logistic sigmoid
-        for (0..config.hidden_dim) |i| {
-            run_state.hb[i] *= 1.0 / (1.0 + std.math.exp(-run_state.hb[i]));
+        for (run_state.ffn_weighted_input_buffer_1) |*s| {
+            s.* *= 1 / (1 + std.math.exp(-s.*));
         }
 
         // elementwise multiply with w3(x)
         for (0..config.hidden_dim) |i| {
-            run_state.hb[i] *= run_state.hb2[i];
+            run_state.ffn_weighted_input_buffer_1[i] *= run_state.ffn_weighted_input_buffer_2[i];
         }
 
         // final matmul to get the output of the ffn
         utils.matmul(
-            run_state.xb,
-            run_state.hb,
-            weights.w2[(layer * config.dim * config.hidden_dim)..],
+            run_state.attention_ffn_output_buffer,
+            run_state.ffn_weighted_input_buffer_1,
+            weights.w2[(layer * config.dim * config.hidden_dim)..][0..(config.dim * config.hidden_dim)],
         );
 
         // residual connection
-        utils.accum(run_state.x, run_state.xb);
+        utils.accum(run_state.hidden_state, run_state.attention_ffn_output_buffer);
     }
 
     // final rmsnorm
-    utils.rmsnorm(run_state.x, run_state.x, weights.rms_final_weight);
+    utils.rmsnorm(run_state.hidden_state, run_state.hidden_state, weights.rms_final_weight);
 
     // classifier into logits
-    utils.matmul(run_state.logits, run_state.x, weights.wcls);
+    utils.matmul(run_state.logits, run_state.hidden_state, weights.wcls);
 }
 
 pub fn rope(
@@ -252,19 +283,19 @@ pub fn rope(
         const fci: f32 = std.math.sin(value);
 
         // rotate q
-        const q0 = run_state.q[i];
-        const q1 = run_state.q[i + 1];
+        const q0 = run_state.query_buffer[i];
+        const q1 = run_state.query_buffer[i + 1];
 
-        run_state.q[i] = q0 * fcr - q1 * fci;
-        run_state.q[i + 1] = q0 * fci + q1 * fcr;
+        run_state.query_buffer[i] = q0 * fcr - q1 * fci;
+        run_state.query_buffer[i + 1] = q0 * fci + q1 * fcr;
 
         // rotate k
         if (i < kv_dim) {
-            const k0 = run_state.k[i];
-            const k1 = run_state.k[i + 1];
+            const k0 = run_state.key_buffer[i];
+            const k1 = run_state.key_buffer[i + 1];
 
-            run_state.k[i] = k0 * fcr - k1 * fci;
-            run_state.k[i + 1] = k0 * fci + k1 * fcr;
+            run_state.key_buffer[i] = k0 * fcr - k1 * fci;
+            run_state.key_buffer[i + 1] = k0 * fci + k1 * fcr;
         }
     }
 }
