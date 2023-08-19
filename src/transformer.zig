@@ -59,8 +59,11 @@ pub fn decode(
 ) !void {
     @setFloatMode(.Optimized);
 
-    // copy the token embedding into x
-    @memcpy(run_state.hidden_state, weights.token_embedding_table[(token * config.dim)..][0..run_state.hidden_state.len]);
+    // copy the token embedding into hidden_state
+    @memcpy(
+        run_state.hidden_state,
+        weights.token_embedding_table[(token * config.dim)..][0..run_state.hidden_state.len],
+    );
 
     const kv_dim = (config.dim * config.n_kv_heads) / config.n_heads;
     // integer multiplier of the kv sharing in multiquery
@@ -188,7 +191,7 @@ pub fn decode(
             weights.wo[(layer * config.dim * config.dim)..],
         );
 
-        // residual connection back into x
+        // residual connection back into hidden_state
         utils.accum(run_state.hidden_state, run_state.attention_ffn_output_buffer);
 
         // ffn rmsnorm
