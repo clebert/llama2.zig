@@ -11,21 +11,21 @@ pub const Config = struct {
 };
 
 pub const Weights = struct {
-    token_embedding_table: []f32, // vocab_size * dim
-    rms_att_weight: []f32, // n_layers * dim
+    token_embedding: []f32, // vocab_size * dim
+    rms_attention_input: []f32, // n_layers * dim
     // weights for matmuls. note dim == n_heads * head_size
-    wq: []f32, // n_layers * dim * (n_heads * head_size)
-    wk: []f32, // n_layers * dim * (n_kv_heads * head_size)
-    wv: []f32, // n_layers * dim * (n_kv_heads * head_size)
-    wo: []f32, // n_layers * (n_heads * head_size) * dim
-    rms_ffn_weight: []f32, // n_layers * dim
-    w1: []f32, // n_layers * dim * hidden_dim
-    w2: []f32, // n_layers * hidden_dim * dim
-    w3: []f32, // n_layers * dim * hidden_dim
-    rms_final_weight: []f32, // dim
+    query: []f32, // n_layers * dim * (n_heads * head_size)
+    key: []f32, // n_layers * dim * (n_kv_heads * head_size)
+    value: []f32, // n_layers * dim * (n_kv_heads * head_size)
+    attention_output: []f32, // n_layers * (n_heads * head_size) * dim
+    rms_ffn_input: []f32, // n_layers * dim
+    ffn_input: []f32, // n_layers * dim * hidden_dim
+    ffn_hidden: []f32, // n_layers * hidden_dim * dim
+    ffn_residual: []f32, // n_layers * dim * hidden_dim
+    rms_final: []f32, // dim
     freq_cis_real: []f32, // seq_len * head_size / 2
     freq_cis_imag: []f32, // seq_len * head_size / 2
-    wcls: []f32, // vocab_size * dim
+    classifier: []f32, // vocab_size * dim
 };
 
 pub fn readFile(
@@ -79,27 +79,27 @@ pub fn readFile(
     // https://github.com/karpathy/llama2.c/commit/c3e0d73bd294e1f5e4d17425fac09aaec536400d
     const shared_weights = vocab_size > 0;
     const head_size = config.dim / config.n_heads;
-    const token_embedding_table = readFloatSlice(&weights_data, config.vocab_size * config.dim);
+    const token_embedding = readFloatSlice(&weights_data, config.vocab_size * config.dim);
 
     weights.* = Weights{
-        .token_embedding_table = token_embedding_table,
-        .rms_att_weight = readFloatSlice(&weights_data, config.n_layers * config.dim),
-        .wq = readFloatSlice(&weights_data, config.n_layers * config.dim * (config.n_heads * head_size)),
-        .wk = readFloatSlice(&weights_data, config.n_layers * config.dim * (config.n_kv_heads * head_size)),
-        .wv = readFloatSlice(&weights_data, config.n_layers * config.dim * (config.n_kv_heads * head_size)),
-        .wo = readFloatSlice(&weights_data, config.n_layers * (config.n_heads * head_size) * config.dim),
-        .rms_ffn_weight = readFloatSlice(&weights_data, config.n_layers * config.dim),
-        .w1 = readFloatSlice(&weights_data, config.n_layers * config.dim * config.hidden_dim),
-        .w2 = readFloatSlice(&weights_data, config.n_layers * config.hidden_dim * config.dim),
-        .w3 = readFloatSlice(&weights_data, config.n_layers * config.dim * config.hidden_dim),
-        .rms_final_weight = readFloatSlice(&weights_data, config.dim),
+        .token_embedding = token_embedding,
+        .rms_attention_input = readFloatSlice(&weights_data, config.n_layers * config.dim),
+        .query = readFloatSlice(&weights_data, config.n_layers * config.dim * (config.n_heads * head_size)),
+        .key = readFloatSlice(&weights_data, config.n_layers * config.dim * (config.n_kv_heads * head_size)),
+        .value = readFloatSlice(&weights_data, config.n_layers * config.dim * (config.n_kv_heads * head_size)),
+        .attention_output = readFloatSlice(&weights_data, config.n_layers * (config.n_heads * head_size) * config.dim),
+        .rms_ffn_input = readFloatSlice(&weights_data, config.n_layers * config.dim),
+        .ffn_input = readFloatSlice(&weights_data, config.n_layers * config.dim * config.hidden_dim),
+        .ffn_hidden = readFloatSlice(&weights_data, config.n_layers * config.hidden_dim * config.dim),
+        .ffn_residual = readFloatSlice(&weights_data, config.n_layers * config.dim * config.hidden_dim),
+        .rms_final = readFloatSlice(&weights_data, config.dim),
 
         // freq_cis for RoPE relatively positional embeddings (not used anymore)
         .freq_cis_real = readFloatSlice(&weights_data, config.seq_len * head_size / 2),
         .freq_cis_imag = readFloatSlice(&weights_data, config.seq_len * head_size / 2),
 
-        .wcls = if (shared_weights)
-            token_embedding_table
+        .classifier = if (shared_weights)
+            token_embedding
         else
             readFloatSlice(&weights_data, config.vocab_size * config.dim),
     };

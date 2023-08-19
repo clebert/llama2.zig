@@ -16,8 +16,8 @@ pub const RunState = struct {
     key_cache: []f32,
     value_cache: []f32,
 
-    ffn_weighted_input_buffer_1: []f32,
-    ffn_weighted_input_buffer_2: []f32,
+    ffn_hidden_buffer: []f32,
+    ffn_residual_buffer: []f32,
 
     logits: []f32,
 };
@@ -42,8 +42,8 @@ pub fn allocRunState(
         .key_cache = try allocator.alloc(f32, config.n_layers * config.seq_len * kv_dim),
         .value_cache = try allocator.alloc(f32, config.n_layers * config.seq_len * kv_dim),
 
-        .ffn_weighted_input_buffer_1 = try allocator.alloc(f32, config.hidden_dim),
-        .ffn_weighted_input_buffer_2 = try allocator.alloc(f32, config.hidden_dim),
+        .ffn_hidden_buffer = try allocator.alloc(f32, config.hidden_dim),
+        .ffn_residual_buffer = try allocator.alloc(f32, config.hidden_dim),
 
         .logits = try allocator.alloc(f32, config.vocab_size),
     };
@@ -62,7 +62,7 @@ pub fn decode(
     // copy the token embedding into hidden_state
     @memcpy(
         run_state.hidden_state,
-        weights.token_embedding_table[(token * config.dim)..][0..run_state.hidden_state.len],
+        weights.token_embedding[(token * config.dim)..][0..run_state.hidden_state.len],
     );
 
     const kv_dim = (config.dim * config.n_kv_heads) / config.n_heads;
@@ -74,7 +74,11 @@ pub fn decode(
     // forward all the layers
     for (0..config.n_layers) |layer| {
         // attention rmsnorm
-        utils.rmsnorm(run_state.attention_ffn_input_buffer, run_state.hidden_state, weights.rms_att_weight[(layer * config.dim)..]);
+        utils.rmsnorm(
+            run_state.attention_ffn_input_buffer,
+            run_state.hidden_state,
+            weights.rms_attention_input[(layer * config.dim)..],
+        );
 
         const dim_multithreading_threshold = 4096;
 
@@ -92,37 +96,37 @@ pub fn decode(
             try pool.spawn(utils.matmul, .{
                 run_state.query_buffer,
                 run_state.attention_ffn_input_buffer,
-                weights.wq[(layer * config.dim * config.dim)..],
+                weights.query[(layer * config.dim * config.dim)..],
             });
 
             try pool.spawn(utils.matmul, .{
                 run_state.key_buffer,
                 run_state.attention_ffn_input_buffer,
-                weights.wk[(layer * config.dim * kv_dim)..],
+                weights.key[(layer * config.dim * kv_dim)..],
             });
 
             try pool.spawn(utils.matmul, .{
                 run_state.value_buffer,
                 run_state.attention_ffn_input_buffer,
-                weights.wv[(layer * config.dim * kv_dim)..],
+                weights.value[(layer * config.dim * kv_dim)..],
             });
         } else {
             utils.matmul(
                 run_state.query_buffer,
                 run_state.attention_ffn_input_buffer,
-                weights.wq[(layer * config.dim * config.dim)..],
+                weights.query[(layer * config.dim * config.dim)..],
             );
 
             utils.matmul(
                 run_state.key_buffer,
                 run_state.attention_ffn_input_buffer,
-                weights.wk[(layer * config.dim * kv_dim)..],
+                weights.key[(layer * config.dim * kv_dim)..],
             );
 
             utils.matmul(
                 run_state.value_buffer,
                 run_state.attention_ffn_input_buffer,
-                weights.wv[(layer * config.dim * kv_dim)..],
+                weights.value[(layer * config.dim * kv_dim)..],
             );
         }
 
@@ -188,7 +192,7 @@ pub fn decode(
         utils.matmul(
             run_state.attention_ffn_output_buffer,
             run_state.attention_ffn_input_buffer,
-            weights.wo[(layer * config.dim * config.dim)..],
+            weights.attention_output[(layer * config.dim * config.dim)..],
         );
 
         // residual connection back into hidden_state
@@ -198,7 +202,7 @@ pub fn decode(
         utils.rmsnorm(
             run_state.attention_ffn_input_buffer,
             run_state.hidden_state,
-            weights.rms_ffn_weight[(layer * config.dim)..],
+            weights.rms_ffn_input[(layer * config.dim)..],
         );
 
         // Now for FFN in PyTorch we have: self.w2(F.silu(self.w1(x)) * self.w3(x))
@@ -212,45 +216,45 @@ pub fn decode(
             defer pool.deinit();
 
             try pool.spawn(utils.matmul, .{
-                run_state.ffn_weighted_input_buffer_1,
+                run_state.ffn_hidden_buffer,
                 run_state.attention_ffn_input_buffer,
-                weights.w1[(layer * config.dim * config.hidden_dim)..],
+                weights.ffn_input[(layer * config.dim * config.hidden_dim)..],
             });
 
             try pool.spawn(utils.matmul, .{
-                run_state.ffn_weighted_input_buffer_2,
+                run_state.ffn_residual_buffer,
                 run_state.attention_ffn_input_buffer,
-                weights.w3[(layer * config.dim * config.hidden_dim)..],
+                weights.ffn_residual[(layer * config.dim * config.hidden_dim)..],
             });
         } else {
             utils.matmul(
-                run_state.ffn_weighted_input_buffer_1,
+                run_state.ffn_hidden_buffer,
                 run_state.attention_ffn_input_buffer,
-                weights.w1[(layer * config.dim * config.hidden_dim)..][0..(config.dim * config.hidden_dim)],
+                weights.ffn_input[(layer * config.dim * config.hidden_dim)..][0..(config.dim * config.hidden_dim)],
             );
 
             utils.matmul(
-                run_state.ffn_weighted_input_buffer_2,
+                run_state.ffn_residual_buffer,
                 run_state.attention_ffn_input_buffer,
-                weights.w3[(layer * config.dim * config.hidden_dim)..][0..(config.dim * config.hidden_dim)],
+                weights.ffn_residual[(layer * config.dim * config.hidden_dim)..][0..(config.dim * config.hidden_dim)],
             );
         }
 
         // F.silu; silu(x)=x*σ(x),where σ(x) is the logistic sigmoid
-        for (run_state.ffn_weighted_input_buffer_1) |*s| {
+        for (run_state.ffn_hidden_buffer) |*s| {
             s.* *= 1 / (1 + std.math.exp(-s.*));
         }
 
         // elementwise multiply with w3(x)
         for (0..config.hidden_dim) |i| {
-            run_state.ffn_weighted_input_buffer_1[i] *= run_state.ffn_weighted_input_buffer_2[i];
+            run_state.ffn_hidden_buffer[i] *= run_state.ffn_residual_buffer[i];
         }
 
         // final matmul to get the output of the ffn
         utils.matmul(
             run_state.attention_ffn_output_buffer,
-            run_state.ffn_weighted_input_buffer_1,
-            weights.w2[(layer * config.dim * config.hidden_dim)..][0..(config.dim * config.hidden_dim)],
+            run_state.ffn_hidden_buffer,
+            weights.ffn_hidden[(layer * config.dim * config.hidden_dim)..][0..(config.dim * config.hidden_dim)],
         );
 
         // residual connection
@@ -258,10 +262,10 @@ pub fn decode(
     }
 
     // final rmsnorm
-    utils.rmsnorm(run_state.hidden_state, run_state.hidden_state, weights.rms_final_weight);
+    utils.rmsnorm(run_state.hidden_state, run_state.hidden_state, weights.rms_final);
 
     // classifier into logits
-    utils.matmul(run_state.logits, run_state.hidden_state, weights.wcls);
+    utils.matmul(run_state.logits, run_state.hidden_state, weights.classifier);
 }
 
 pub fn rope(
