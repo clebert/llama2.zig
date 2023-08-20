@@ -19,9 +19,9 @@ pub const Weights = struct {
     value: []f32, // n_layers * dim * (n_kv_heads * head_size)
     attention_output: []f32, // n_layers * (n_heads * head_size) * dim
     rms_ffn_input: []f32, // n_layers * dim
-    ffn_input: []f32, // n_layers * dim * hidden_dim
-    ffn_hidden: []f32, // n_layers * hidden_dim * dim
-    ffn_residual: []f32, // n_layers * dim * hidden_dim
+    ffn_hidden: []f32, // w1; n_layers * dim * hidden_dim
+    ffn_output: []f32, // w2; n_layers * hidden_dim * dim
+    ffn_residual: []f32, // w3; n_layers * dim * hidden_dim
     rms_final: []f32, // dim
     freq_cis_real: []f32, // seq_len * head_size / 2
     freq_cis_imag: []f32, // seq_len * head_size / 2
@@ -89,8 +89,8 @@ pub fn readFile(
         .value = readFloatSlice(&weights_data, config.n_layers * config.dim * (config.n_kv_heads * head_size)),
         .attention_output = readFloatSlice(&weights_data, config.n_layers * (config.n_heads * head_size) * config.dim),
         .rms_ffn_input = readFloatSlice(&weights_data, config.n_layers * config.dim),
-        .ffn_input = readFloatSlice(&weights_data, config.n_layers * config.dim * config.hidden_dim),
-        .ffn_hidden = readFloatSlice(&weights_data, config.n_layers * config.hidden_dim * config.dim),
+        .ffn_hidden = readFloatSlice(&weights_data, config.n_layers * config.dim * config.hidden_dim),
+        .ffn_output = readFloatSlice(&weights_data, config.n_layers * config.hidden_dim * config.dim),
         .ffn_residual = readFloatSlice(&weights_data, config.n_layers * config.dim * config.hidden_dim),
         .rms_final = readFloatSlice(&weights_data, config.dim),
 

@@ -2,6 +2,7 @@ const std = @import("std");
 
 const checkpoint = @import("checkpoint.zig");
 const cli = @import("cli.zig");
+const FeedForward = @import("feed_forward.zig").FeedForward;
 const tokenizer = @import("tokenizer.zig");
 const transformer = @import("transformer.zig");
 const utils = @import("utils.zig");
@@ -66,12 +67,16 @@ pub fn main() !void {
     var total_decoding_time: i64 = 0;
     var total_sampling_time: i64 = 0;
 
+    var feed_forward: FeedForward = undefined;
+
+    try feed_forward.init(allocator, &config);
+
     // advance the state state machine
     for (0..args.n_steps) |pos| {
         start_time = std.time.milliTimestamp();
 
         // forward the transformer to get logits for the next token
-        try transformer.decode(allocator, token, pos, config, &run_state, &weights);
+        try transformer.decode(allocator, token, pos, config, &run_state, &weights, &feed_forward);
 
         if (pos == 0) {
             first_decoding_time = std.time.milliTimestamp() - start_time;
