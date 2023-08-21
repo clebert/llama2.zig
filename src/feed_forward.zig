@@ -44,13 +44,13 @@ pub const FeedForward = struct {
         const hidden_dim = hidden_buffer.len;
         const weights_size = dim * hidden_dim;
         const weights_offset = layer * weights_size;
-        const hidden_weights = weights.ffn_hidden[weights_offset..][0..weights_size];
-        const residual_weights = weights.ffn_residual[weights_offset..][0..weights_size];
-        const output_weights = weights.ffn_output[weights_offset..][0..weights_size];
+        const input_to_hidden = weights.ffn_input_to_hidden[weights_offset..][0..weights_size];
+        const input_to_residual = weights.ffn_input_to_residual[weights_offset..][0..weights_size];
+        const hidden_to_output = weights.ffn_hidden_to_output[weights_offset..][0..weights_size];
 
         try matmul2(
-            .{ hidden_buffer, input_buffer, hidden_weights },
-            .{ residual_buffer, input_buffer, residual_weights },
+            .{ hidden_buffer, input_buffer, input_to_hidden },
+            .{ residual_buffer, input_buffer, input_to_residual },
             dim >= 4096,
         );
 
@@ -58,7 +58,7 @@ pub const FeedForward = struct {
             hidden_buffer[i] = silu(hidden_buffer[i]) * residual_buffer[i];
         }
 
-        utils.matmul(output_buffer, hidden_buffer, output_weights);
+        utils.matmul(output_buffer, hidden_buffer, hidden_to_output);
     }
 };
 

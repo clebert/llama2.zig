@@ -114,7 +114,7 @@ pub fn matmul(result: []f32, a: []const f32, b: []const f32) void {
     }
 }
 
-fn scalarProduct(a: []const f32, b: []const f32) f32 {
+inline fn scalarProduct(a: []const f32, b: []const f32) f32 {
     @setFloatMode(.Optimized);
 
     const big_vector_len: comptime_int = 16;
