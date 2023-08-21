@@ -1,6 +1,7 @@
 const std = @import("std");
 
 const checkpoint = @import("checkpoint.zig");
+const lib = @import("lib.zig");
 const utils = @import("utils.zig");
 
 pub const FeedForward = struct {
@@ -32,56 +33,35 @@ pub const FeedForward = struct {
     ) !void {
         @setFloatMode(.Optimized);
 
-        const input_buffer = self.input_buffer;
-        const hidden_buffer = self.hidden_buffer;
-        const residual_buffer = self.residual_buffer;
-        const output_buffer = self.output_buffer;
+        const dim = self.input_buffer.len;
+        const hidden_dim = self.hidden_buffer.len;
 
-        std.debug.assert(input_buffer.len == output_buffer.len);
-        std.debug.assert(hidden_buffer.len == residual_buffer.len);
-
-        const dim = input_buffer.len;
-        const hidden_dim = hidden_buffer.len;
         const weights_size = dim * hidden_dim;
         const weights_offset = layer * weights_size;
+
         const input_to_hidden = weights.ffn_input_to_hidden[weights_offset..][0..weights_size];
         const input_to_residual = weights.ffn_input_to_residual[weights_offset..][0..weights_size];
         const hidden_to_output = weights.ffn_hidden_to_output[weights_offset..][0..weights_size];
 
-        try matmul2(
-            .{ hidden_buffer, input_buffer, input_to_hidden },
-            .{ residual_buffer, input_buffer, input_to_residual },
+        try lib.matmul2(
+            .{ self.hidden_buffer, self.input_buffer, input_to_hidden },
+            .{ self.residual_buffer, self.input_buffer, input_to_residual },
             dim >= 4096,
         );
 
         for (0..hidden_dim) |i| {
-            hidden_buffer[i] = silu(hidden_buffer[i]) * residual_buffer[i];
+            self.hidden_buffer[i] = silu(self.hidden_buffer[i]) * self.residual_buffer[i];
         }
 
-        utils.matmul(output_buffer, hidden_buffer, hidden_to_output);
+        lib.matmul(self.output_buffer, self.hidden_buffer, hidden_to_output);
     }
 };
 
-// https://pytorch.org/docs/stable/generated/torch.nn.SiLU.html
+// GLU Variants Improve Transformer (https://arxiv.org/abs/2002.05202)
 inline fn silu(x: f32) f32 {
     return x * sigmoid(x);
 }
 
 inline fn sigmoid(x: f32) f32 {
     return 1 / (1 + @exp(-x));
-}
-
-fn matmul2(args_1: anytype, args_2: anytype, multi_threaded: bool) !void {
-    const cpu_count = std.Thread.getCpuCount() catch 1;
-
-    if (multi_threaded and cpu_count > 2) {
-        const thread_1 = try std.Thread.spawn(.{}, utils.matmul, args_1);
-        const thread_2 = try std.Thread.spawn(.{}, utils.matmul, args_2);
-
-        thread_1.join();
-        thread_2.join();
-    } else {
-        @call(.auto, utils.matmul, args_1);
-        @call(.auto, utils.matmul, args_2);
-    }
 }

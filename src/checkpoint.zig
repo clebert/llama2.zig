@@ -84,10 +84,12 @@ pub fn readFile(
     weights.* = Weights{
         .token_embedding = token_embedding,
         .rms_attention_input = readFloatSlice(&weights_data, config.n_layers * config.dim),
+
         .query = readFloatSlice(&weights_data, config.n_layers * config.dim * (config.n_heads * head_size)),
         .key = readFloatSlice(&weights_data, config.n_layers * config.dim * (config.n_kv_heads * head_size)),
         .value = readFloatSlice(&weights_data, config.n_layers * config.dim * (config.n_kv_heads * head_size)),
         .attention_output = readFloatSlice(&weights_data, config.n_layers * (config.n_heads * head_size) * config.dim),
+
         .rms_ffn_input = readFloatSlice(&weights_data, config.n_layers * config.dim),
         .ffn_input_to_hidden = readFloatSlice(&weights_data, config.n_layers * config.dim * config.hidden_dim),
         .ffn_hidden_to_output = readFloatSlice(&weights_data, config.n_layers * config.hidden_dim * config.dim),

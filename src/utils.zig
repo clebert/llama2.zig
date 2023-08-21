@@ -106,54 +106,6 @@ fn lessThan(context: void, lhs: ProbIndex, rhs: ProbIndex) bool {
     return rhs.prob < lhs.prob;
 }
 
-pub fn matmul(result: []f32, a: []const f32, b: []const f32) void {
-    std.debug.assert(b.len >= result.len * a.len);
-
-    for (result, 0..) |*scalar, i| {
-        scalar.* = scalarProduct(a, b[(i * a.len)..][0..a.len]);
-    }
-}
-
-inline fn scalarProduct(a: []const f32, b: []const f32) f32 {
-    @setFloatMode(.Optimized);
-
-    const big_vector_len: comptime_int = 16;
-    const small_vector_len: comptime_int = 4;
-
-    std.debug.assert(a.len == b.len);
-
-    const rest_len = a.len % big_vector_len;
-
-    std.debug.assert(rest_len % small_vector_len == 0);
-
-    var big_accu: @Vector(big_vector_len, f32) = @splat(0.0);
-    var i: usize = 0;
-
-    while (i < a.len - rest_len) : (i += big_vector_len) {
-        big_accu +=
-            @as(@Vector(big_vector_len, f32), a[i..][0..big_vector_len].*) *
-            @as(@Vector(big_vector_len, f32), b[i..][0..big_vector_len].*);
-    }
-
-    var scalar_product = @reduce(.Add, big_accu);
-
-    if (rest_len > 0) {
-        var small_accu: @Vector(small_vector_len, f32) = @splat(0.0);
-
-        i = a.len - rest_len;
-
-        while (i < a.len) : (i += small_vector_len) {
-            small_accu +=
-                @as(@Vector(small_vector_len, f32), a[i..][0..small_vector_len].*) *
-                @as(@Vector(small_vector_len, f32), b[i..][0..small_vector_len].*);
-        }
-
-        scalar_product += @reduce(.Add, small_accu);
-    }
-
-    return scalar_product;
-}
-
 pub fn softmax(x: []f32) void {
     @setFloatMode(.Optimized);
 

@@ -19,3 +19,13 @@ Some deviations from the original include:
 - Utilization of slices instead of many-item pointers
 - For models of 4096+ dimensions, thread pools are utilized to parallelize independent matrix
   multiplications
+
+## Papers
+
+- Standard transformer architecture: [Attention Is All You Need](https://arxiv.org/abs/1706.03762)
+- Llama 1: [LLaMA: Open and Efficient Foundation Language Models](https://arxiv.org/abs/2302.13971)
+- Llama 2: [Llama 2: Open Foundation and Fine-Tuned Chat Models](https://arxiv.org/abs/2307.09288)
+- Pre-normalization using RMSNorm: [Root Mean Square Layer Normalization](https://arxiv.org/abs/1910.07467)
+- SwiGLU activation function: [GLU Variants Improve Transformer](https://arxiv.org/abs/2002.05202)
+- Rotary positional embeddings: [RoFormer: Enhanced Transformer with Rotary Position Embedding](https://arxiv.org/abs/2104.09864)
+- Grouped-query attention: [GQA: Training Generalized Multi-Query Transformer Models from Multi-Head Checkpoints](https://arxiv.org/abs/2305.13245v1)

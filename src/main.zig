@@ -1,5 +1,6 @@
 const std = @import("std");
 
+const Attention = @import("attention.zig").Attention;
 const checkpoint = @import("checkpoint.zig");
 const cli = @import("cli.zig");
 const FeedForward = @import("feed_forward.zig").FeedForward;
@@ -67,16 +68,22 @@ pub fn main() !void {
     var total_decoding_time: i64 = 0;
     var total_sampling_time: i64 = 0;
 
+    var attention: Attention = undefined;
+
+    try attention.init(allocator, &config);
+    defer attention.deinit(allocator);
+
     var feed_forward: FeedForward = undefined;
 
     try feed_forward.init(allocator, &config);
+    defer feed_forward.deinit(allocator);
 
     // advance the state state machine
     for (0..args.n_steps) |pos| {
         start_time = std.time.milliTimestamp();
 
         // forward the transformer to get logits for the next token
-        try transformer.decode(allocator, token, pos, config, &run_state, &weights, &feed_forward);
+        try transformer.decode(token, pos, config, &run_state, &weights, &attention, &feed_forward);
 
         if (pos == 0) {
             first_decoding_time = std.time.milliTimestamp() - start_time;
