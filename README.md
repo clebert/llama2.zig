@@ -29,3 +29,4 @@ Some deviations from the original include:
 - SwiGLU activation function: [GLU Variants Improve Transformer](https://arxiv.org/abs/2002.05202)
 - Rotary positional embeddings: [RoFormer: Enhanced Transformer with Rotary Position Embedding](https://arxiv.org/abs/2104.09864)
 - Grouped-query attention: [GQA: Training Generalized Multi-Query Transformer Models from Multi-Head Checkpoints](https://arxiv.org/abs/2305.13245v1)
+- Nucleus sampling: [The Curious Case of Neural Text Degeneration](https://arxiv.org/abs/1904.09751)

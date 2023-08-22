@@ -88,7 +88,7 @@ pub fn main() !void {
 
             prompt_tokens = prompt_tokens[1..];
         } else if (args.temperature == 0) {
-            next = utils.argmax(transformer.logits);
+            next = lib.argmax(transformer.logits);
         } else {
             // apply the temperature to the logits
             for (transformer.logits) |*logit| {
@@ -100,7 +100,7 @@ pub fn main() !void {
 
             if (args.top_p <= 0 or args.top_p >= 1) {
                 // we sample from this distribution to get the next token
-                next = utils.sample(&rng, transformer.logits);
+                next = lib.sample(&rng, transformer.logits);
             } else {
                 // top-p (nucleus) sampling, clamping the least likely tokens to zero
                 next = utils.sampleTopP(&rng, transformer.logits, args.top_p, prob_indices);

@@ -1,38 +1,9 @@
 const std = @import("std");
 
-pub fn argmax(v: []f32) usize {
-    // return argmax of v in elements 0..n
-    var max_i: usize = 0;
-    var max_p: f32 = v[0];
-
-    for (1..v.len) |i| {
-        if (v[i] > max_p) {
-            max_i = i;
-            max_p = v[i];
-        }
-    }
-
-    return max_i;
-}
-
-pub fn sample(rng: *std.rand.DefaultPrng, probabilities: []f32) usize {
-    var r = rng.random().float(f32);
-    var cdf: f32 = 0.0;
-
-    for (probabilities, 0..) |probability, i| {
-        cdf += probability;
-
-        if (r < cdf) {
-            return i;
-        }
-    }
-
-    return probabilities.len - 1;
-}
-
 // struct used when sorting probabilities during top-p sampling
 pub const ProbIndex = struct { prob: f32, index: usize };
 
+// The Curious Case of Neural Text Degeneration (https://arxiv.org/abs/1904.09751)
 pub fn sampleTopP(
     rng: *std.rand.DefaultPrng,
     probabilities: []f32,
