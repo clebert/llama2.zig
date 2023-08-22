@@ -2,7 +2,6 @@ const std = @import("std");
 
 const checkpoint = @import("checkpoint.zig");
 const lib = @import("lib.zig");
-const utils = @import("utils.zig");
 
 pub const Attention = struct {
     const Self = @This();
@@ -129,11 +128,11 @@ pub const Attention = struct {
 
             // calculate the attention score as the dot product of q and k
             // save the score to the attention buffer
-            attention_weights[position] = lib.dotProduct(query, key) / head_size_sqrt;
+            attention_weights[position] = lib.dot(query, key) / head_size_sqrt;
         }
 
         // softmax the scores to get attention weights, from 0..pos inclusively
-        utils.softmax(attention_weights[0..(current_position + 1)]);
+        lib.softmax(attention_weights[0..(current_position + 1)]);
 
         // weighted sum of the values, store back into intermediate_buffer
         const intermediate_buffer = self.input_buffer[query_head_offset..][0..head_size];

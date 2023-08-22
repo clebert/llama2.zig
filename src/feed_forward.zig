@@ -2,7 +2,6 @@ const std = @import("std");
 
 const checkpoint = @import("checkpoint.zig");
 const lib = @import("lib.zig");
-const utils = @import("utils.zig");
 
 pub const FeedForward = struct {
     const Self = @This();
@@ -31,8 +30,6 @@ pub const FeedForward = struct {
         weights: *const checkpoint.Weights,
         layer: usize,
     ) !void {
-        @setFloatMode(.Optimized);
-
         const dim = self.input_buffer.len;
         const hidden_dim = self.hidden_buffer.len;
 

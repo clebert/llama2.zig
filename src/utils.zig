@@ -1,8 +1,6 @@
 const std = @import("std");
 
 pub fn argmax(v: []f32) usize {
-    @setFloatMode(.Optimized);
-
     // return argmax of v in elements 0..n
     var max_i: usize = 0;
     var max_p: f32 = v[0];
@@ -18,8 +16,6 @@ pub fn argmax(v: []f32) usize {
 }
 
 pub fn sample(rng: *std.rand.DefaultPrng, probabilities: []f32) usize {
-    @setFloatMode(.Optimized);
-
     var r = rng.random().float(f32);
     var cdf: f32 = 0.0;
 
@@ -104,24 +100,4 @@ fn lessThan(context: void, lhs: ProbIndex, rhs: ProbIndex) bool {
     _ = context;
 
     return rhs.prob < lhs.prob;
-}
-
-pub fn softmax(x: []f32) void {
-    @setFloatMode(.Optimized);
-
-    var max_val = std.mem.max(f32, x);
-
-    // exp and sum
-    var sum: f32 = 0.0;
-
-    for (x) |*item| {
-        item.* = std.math.exp(item.* - max_val);
-
-        sum += item.*;
-    }
-
-    // normalize
-    for (x) |*item| {
-        item.* /= sum;
-    }
 }

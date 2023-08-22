@@ -2,6 +2,7 @@ const std = @import("std");
 
 const checkpoint = @import("checkpoint.zig");
 const cli = @import("cli.zig");
+const lib = @import("lib.zig");
 const tokenizer = @import("tokenizer.zig");
 const Transformer = @import("transformer.zig").Transformer;
 const utils = @import("utils.zig");
@@ -95,7 +96,7 @@ pub fn main() !void {
             }
 
             // apply softmax to the logits to get the probabilities for next token
-            utils.softmax(transformer.logits);
+            lib.softmax(transformer.logits);
 
             if (args.top_p <= 0 or args.top_p >= 1) {
                 // we sample from this distribution to get the next token
