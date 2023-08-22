@@ -1,5 +1,15 @@
 const std = @import("std");
 
+pub fn add(a: []f32, b: []const f32) void {
+    @setFloatMode(.Optimized);
+
+    std.debug.assert(a.len == b.len);
+
+    for (a, 0..) |*element, index| {
+        element.* += b[index];
+    }
+}
+
 const max_vector_len: comptime_int = 16;
 const min_vector_len: comptime_int = 4;
 
@@ -12,29 +22,29 @@ pub fn dotProduct(a: []const f32, b: []const f32) f32 {
 
     std.debug.assert(rest_len % min_vector_len == 0);
 
-    var buffer_1: @Vector(max_vector_len, f32) = @splat(0.0);
+    var max_len_accu: @Vector(max_vector_len, f32) = @splat(0.0);
     var index: usize = 0;
 
     while (index < a.len - rest_len) : (index += max_vector_len) {
-        buffer_1 +=
+        max_len_accu +=
             @as(@Vector(max_vector_len, f32), a[index..][0..max_vector_len].*) *
             @as(@Vector(max_vector_len, f32), b[index..][0..max_vector_len].*);
     }
 
-    var result = @reduce(.Add, buffer_1);
+    var result = @reduce(.Add, max_len_accu);
 
     if (rest_len > 0) {
-        var buffer_2: @Vector(min_vector_len, f32) = @splat(0.0);
+        var min_len_accu: @Vector(min_vector_len, f32) = @splat(0.0);
 
         index = a.len - rest_len;
 
         while (index < a.len) : (index += min_vector_len) {
-            buffer_2 +=
+            min_len_accu +=
                 @as(@Vector(min_vector_len, f32), a[index..][0..min_vector_len].*) *
                 @as(@Vector(min_vector_len, f32), b[index..][0..min_vector_len].*);
         }
 
-        result += @reduce(.Add, buffer_2);
+        result += @reduce(.Add, min_len_accu);
     }
 
     return result;

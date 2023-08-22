@@ -47,8 +47,6 @@ pub const Attention = struct {
         pos: usize,
         layer: usize,
     ) !void {
-        @setFloatMode(.Optimized);
-
         const dim = config.dim;
         const n_heads = config.n_heads;
         const seq_len = config.seq_len;

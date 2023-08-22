@@ -4,71 +4,66 @@ const Attention = @import("attention.zig").Attention;
 const checkpoint = @import("checkpoint.zig");
 const FeedForward = @import("feed_forward.zig").FeedForward;
 const lib = @import("lib.zig");
-const utils = @import("utils.zig");
 
-pub const RunState = struct {
+pub const Transformer = struct {
+    const Self = @This();
+
     hidden_state: []f32,
     logits: []f32,
-};
+    attention: Attention,
+    feed_forward: FeedForward,
 
-pub fn allocRunState(
-    allocator: std.mem.Allocator,
-    config: checkpoint.Config,
-    run_state: *RunState,
-) !void {
-    run_state.* = RunState{
-        .hidden_state = try allocator.alloc(f32, config.dim),
-        .logits = try allocator.alloc(f32, config.vocab_size),
-    };
-}
+    pub fn init(self: *Self, allocator: std.mem.Allocator, config: *const checkpoint.Config) !void {
+        self.hidden_state = try allocator.alloc(f32, config.dim);
+        self.logits = try allocator.alloc(f32, config.vocab_size);
 
-pub fn decode(
-    token: usize,
-    pos: usize,
-    config: checkpoint.Config,
-    run_state: *RunState,
-    weights: *const checkpoint.Weights,
-    attention: *Attention,
-    feed_forward: *FeedForward,
-) !void {
-    @setFloatMode(.Optimized);
-
-    // copy the token embedding into hidden_state
-    @memcpy(
-        run_state.hidden_state,
-        weights.token_embedding[(token * config.dim)..][0..run_state.hidden_state.len],
-    );
-
-    // forward all the layers
-    for (0..config.n_layers) |layer| {
-        // attention rmsnorm
-        utils.rmsnorm(
-            attention.input_buffer,
-            run_state.hidden_state,
-            weights.rms_attention_input[(layer * config.dim)..],
-        );
-
-        try attention.forward(&config, weights, pos, layer);
-
-        // residual connection back into hidden_state
-        utils.accum(run_state.hidden_state, attention.output_buffer);
-
-        // ffn rmsnorm
-        utils.rmsnorm(
-            feed_forward.input_buffer,
-            run_state.hidden_state,
-            weights.rms_ffn_input[(layer * config.dim)..],
-        );
-
-        try feed_forward.forward(weights, layer);
-
-        // residual connection
-        utils.accum(run_state.hidden_state, feed_forward.output_buffer);
+        try self.attention.init(allocator, config);
+        try self.feed_forward.init(allocator, config);
     }
 
-    // final rmsnorm
-    utils.rmsnorm(run_state.hidden_state, run_state.hidden_state, weights.rms_final);
+    pub fn deinit(self: *const Self, allocator: std.mem.Allocator) void {
+        allocator.free(self.hidden_state);
+        allocator.free(self.logits);
 
-    // classifier into logits
-    lib.matmul(run_state.logits, run_state.hidden_state, weights.classifier);
-}
+        self.attention.deinit(allocator);
+        self.feed_forward.deinit(allocator);
+    }
+
+    pub fn forward(
+        self: *const Self,
+        token: usize,
+        pos: usize,
+        config: *const checkpoint.Config,
+        weights: *const checkpoint.Weights,
+    ) !void {
+        @memcpy(
+            self.hidden_state,
+            weights.token_embedding[(token * config.dim)..][0..self.hidden_state.len],
+        );
+
+        for (0..config.n_layers) |layer| {
+            lib.rmsnorm(
+                self.attention.input_buffer,
+                self.hidden_state,
+                weights.rms_attention_input[(layer * config.dim)..][0..config.dim],
+            );
+
+            try self.attention.forward(config, weights, pos, layer);
+
+            lib.add(self.hidden_state, self.attention.output_buffer);
+
+            lib.rmsnorm(
+                self.feed_forward.input_buffer,
+                self.hidden_state,
+                weights.rms_ffn_input[(layer * config.dim)..][0..config.dim],
+            );
+
+            try self.feed_forward.forward(weights, layer);
+
+            lib.add(self.hidden_state, self.feed_forward.output_buffer);
+        }
+
+        lib.rmsnorm(self.hidden_state, self.hidden_state, weights.rms_final);
+        lib.matmul(self.logits, self.hidden_state, weights.classifier);
+    }
+};

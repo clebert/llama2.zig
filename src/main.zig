@@ -1,11 +1,9 @@
 const std = @import("std");
 
-const Attention = @import("attention.zig").Attention;
 const checkpoint = @import("checkpoint.zig");
 const cli = @import("cli.zig");
-const FeedForward = @import("feed_forward.zig").FeedForward;
 const tokenizer = @import("tokenizer.zig");
-const transformer = @import("transformer.zig");
+const Transformer = @import("transformer.zig").Transformer;
 const utils = @import("utils.zig");
 
 pub fn main() !void {
@@ -53,9 +51,10 @@ pub fn main() !void {
         max_word_length,
     );
 
-    var run_state: transformer.RunState = undefined;
+    var transformer: Transformer = undefined;
 
-    try transformer.allocRunState(allocator, config, &run_state);
+    try transformer.init(allocator, &config);
+    defer transformer.deinit(allocator);
 
     var token: usize = 1; // init with token 1 (=BOS), as done in Llama-2 sentencepiece tokenizer
     var next: usize = 1; // TODO
@@ -68,22 +67,11 @@ pub fn main() !void {
     var total_decoding_time: i64 = 0;
     var total_sampling_time: i64 = 0;
 
-    var attention: Attention = undefined;
-
-    try attention.init(allocator, &config);
-    defer attention.deinit(allocator);
-
-    var feed_forward: FeedForward = undefined;
-
-    try feed_forward.init(allocator, &config);
-    defer feed_forward.deinit(allocator);
-
     // advance the state state machine
     for (0..args.n_steps) |pos| {
         start_time = std.time.milliTimestamp();
 
-        // forward the transformer to get logits for the next token
-        try transformer.decode(token, pos, config, &run_state, &weights, &attention, &feed_forward);
+        try transformer.forward(token, pos, &config, &weights);
 
         if (pos == 0) {
             first_decoding_time = std.time.milliTimestamp() - start_time;
@@ -99,22 +87,22 @@ pub fn main() !void {
 
             prompt_tokens = prompt_tokens[1..];
         } else if (args.temperature == 0) {
-            next = utils.argmax(run_state.logits);
+            next = utils.argmax(transformer.logits);
         } else {
             // apply the temperature to the logits
-            for (run_state.logits) |*logit| {
+            for (transformer.logits) |*logit| {
                 logit.* /= args.temperature;
             }
 
             // apply softmax to the logits to get the probabilities for next token
-            utils.softmax(run_state.logits);
+            utils.softmax(transformer.logits);
 
             if (args.top_p <= 0 or args.top_p >= 1) {
                 // we sample from this distribution to get the next token
-                next = utils.sample(&rng, run_state.logits);
+                next = utils.sample(&rng, transformer.logits);
             } else {
                 // top-p (nucleus) sampling, clamping the least likely tokens to zero
-                next = utils.sampleTopP(&rng, run_state.logits, args.top_p, prob_indices);
+                next = utils.sampleTopP(&rng, transformer.logits, args.top_p, prob_indices);
             }
         }
 
