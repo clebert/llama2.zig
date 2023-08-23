@@ -33,6 +33,8 @@ pub const FeedForward = struct {
     }
 
     pub fn forward(self: *const Self, layer: usize) !void {
+        @setFloatMode(.Optimized);
+
         const checkpoint = self.checkpoint;
         const dim = checkpoint.dim;
         const hidden_dim = checkpoint.hidden_dim;

@@ -1,4 +1,6 @@
 pub fn random(state: *u64) f32 {
+    @setFloatMode(.Optimized);
+
     return @as(f32, @floatFromInt(xorshift(state) >> 8)) / 16777216;
 }
 

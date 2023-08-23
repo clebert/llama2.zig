@@ -106,6 +106,8 @@ pub const Attention = struct {
         head: usize,
         kv_cache_layer_offset: usize,
     ) void {
+        @setFloatMode(.Optimized);
+
         const checkpoint = self.checkpoint;
         const kv_dim = checkpoint.kv_dim;
         const head_size = checkpoint.head_size;
