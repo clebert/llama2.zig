@@ -44,4 +44,16 @@ if [ "$actual_output" != "$expected_output" ]; then
     exit 1
 fi
 
+actual_output=$(./zig-out/bin/llama2 stories260K.bin -z tok512.bin -t 1 -p 0.95 -s 42 -n 200 -i "There was a big" --test)
+
+# Generated with llama2.c (https://github.com/karpathy/llama2.c/tree/7ac65cb2c2b169050747be92011b7bebdd1b4544)
+expected_output="There was a big pretty grass. It was a long elephant. The cars wanted to tell him that as they spin before the amazing doll, just like it she was always okay.
+One day, a little girl named Lucy found a ball and an axe. She wanted to race, but she didn't know what the ball was. The ball was determined to be a nice car for Lucy.
+Lucy's friend, a little girl named Lily, said, \"Let's go to the store with my mom. I will s"
+
+if [ "$actual_output" != "$expected_output" ]; then
+    echo "input prompt test failed"
+    exit 1
+fi
+
 echo "tests ok"
