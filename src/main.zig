@@ -5,7 +5,6 @@ const cli = @import("cli.zig");
 const lib = @import("lib.zig");
 const tokenizer = @import("tokenizer.zig");
 const Transformer = @import("transformer.zig").Transformer;
-const utils = @import("utils.zig");
 
 pub fn main() !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
@@ -60,7 +59,7 @@ pub fn main() !void {
     var token: usize = 1; // init with token 1 (=BOS), as done in Llama-2 sentencepiece tokenizer
     var next: usize = 1; // TODO
     var rng_state = args.random_seed;
-    var prob_indices: []utils.ProbIndex = try allocator.alloc(utils.ProbIndex, config.vocab_size);
+    var prob_indices: []lib.ProbIndex = try allocator.alloc(lib.ProbIndex, config.vocab_size);
     var n_steps: usize = 0;
 
     var start_time: i64 = 0;
@@ -100,10 +99,10 @@ pub fn main() !void {
 
             if (args.top_p <= 0 or args.top_p >= 1) {
                 // we sample from this distribution to get the next token
-                next = lib.sample(lib.random(&rng_state), transformer.logits);
+                next = lib.sampleMultinomial(lib.random(&rng_state), transformer.logits);
             } else {
                 // top-p (nucleus) sampling, clamping the least likely tokens to zero
-                next = utils.sampleTopP(lib.random(&rng_state), transformer.logits, args.top_p, prob_indices);
+                next = lib.sampleNucleus(lib.random(&rng_state), transformer.logits, args.top_p, prob_indices);
             }
         }
 

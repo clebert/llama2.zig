@@ -4,9 +4,9 @@ const std = @import("std");
 pub const ProbIndex = struct { prob: f32, index: usize };
 
 // The Curious Case of Neural Text Degeneration (https://arxiv.org/abs/1904.09751)
-pub fn sampleTopP(
+pub fn sampleNucleus(
     rng_value: f32,
-    probabilities: []f32,
+    probabilities: []const f32,
     top_p: f32,
     prob_indices_buffer: []ProbIndex,
 ) usize {
@@ -37,13 +37,13 @@ pub fn sampleTopP(
     std.sort.block(ProbIndex, filtered_prob_indices, {}, lessThan);
 
     // truncate the list where cumulative probability exceeds topp
-    var cumulative_prob: f32 = 0;
+    var cumulative_probability: f32 = 0;
     var truncated_prob_indices: ?[]ProbIndex = null;
 
     for (filtered_prob_indices, 0..) |prob_index, index| {
-        cumulative_prob += prob_index.prob;
+        cumulative_probability += prob_index.prob;
 
-        if (cumulative_prob > top_p) {
+        if (cumulative_probability > top_p) {
             truncated_prob_indices = filtered_prob_indices[0..(index + 1)];
 
             break; // we've exceeded topp by including index
@@ -51,14 +51,15 @@ pub fn sampleTopP(
     }
 
     // sample from the truncated list
-    var cdf: f32 = 0.0;
-    const r = rng_value * cumulative_prob;
+    const probability_threshold = rng_value * cumulative_probability;
+
+    cumulative_probability = 0;
 
     if (truncated_prob_indices) |prob_indices| {
         for (prob_indices) |prob_index| {
-            cdf += prob_index.prob;
+            cumulative_probability += prob_index.prob;
 
-            if (r < cdf) {
+            if (probability_threshold < cumulative_probability) {
                 return prob_index.index;
             }
         }
