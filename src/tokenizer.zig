@@ -30,13 +30,15 @@ pub fn readFile(
 pub fn encodeWords(
     allocator: std.mem.Allocator,
     text: []const u8,
+    prepend_bos_token: bool,
+    append_eos_token: bool,
     vocab: []const []const u8,
     word_scores: []const f32,
     max_word_length: usize,
 ) ![]usize {
     const sorted_vocab = try sortVocab(allocator, vocab);
 
-    var tokens = try encodeCodepoints(allocator, text, sorted_vocab);
+    var tokens = try encodeCodepoints(allocator, text, prepend_bos_token, append_eos_token, sorted_vocab);
     var double_word_buffer = try allocator.alloc(u8, max_word_length * 2);
 
     while (mergeBestWordPair(vocab, sorted_vocab, word_scores, tokens, double_word_buffer)) {
@@ -72,12 +74,18 @@ fn lessThan(context: void, lhs: VocabEntry, rhs: VocabEntry) bool {
 fn encodeCodepoints(
     allocator: std.mem.Allocator,
     text: []const u8,
+    prepend_bos_token: bool,
+    append_eos_token: bool,
     sorted_vocab: []const VocabEntry,
 ) ![]usize {
     var tokens = std.ArrayList(usize).init(allocator);
     var text_view = try std.unicode.Utf8View.init(text);
     var text_iterator = text_view.iterator();
     var token_index: usize = 0;
+
+    if (prepend_bos_token) {
+        try tokens.append(1);
+    }
 
     while (text_iterator.nextCodepointSlice()) |codepoints| : (token_index += 1) {
         if (token_index == 0) {
@@ -95,6 +103,10 @@ fn encodeCodepoints(
                 try tokens.append(@as(usize, codepoint) + 3);
             }
         }
+    }
+
+    if (append_eos_token) {
+        try tokens.append(2);
     }
 
     return tokens.toOwnedSlice();
@@ -189,7 +201,16 @@ test "utf-8 support" {
 
     const max_word_length = try readFile(allocator, "tokenizer.bin", vocab, word_scores);
     const expected = [_]usize{ 365, 1691, 1018, 3963, 669, 29871, 31409, 30607, 30437, 30564 };
-    const actual = try encodeWords(allocator, text, vocab, word_scores, max_word_length);
+
+    const actual = try encodeWords(
+        allocator,
+        text,
+        false,
+        false,
+        vocab,
+        word_scores,
+        max_word_length,
+    );
 
     try std.testing.expectEqualSlices(usize, expected[0..], actual);
 }
@@ -208,7 +229,16 @@ test "empty string" {
 
     const max_word_length = try readFile(allocator, "tokenizer.bin", vocab, word_scores);
     const expected = [_]usize{};
-    const actual = try encodeWords(allocator, text, vocab, word_scores, max_word_length);
+
+    const actual = try encodeWords(
+        allocator,
+        text,
+        false,
+        false,
+        vocab,
+        word_scores,
+        max_word_length,
+    );
 
     try std.testing.expectEqualSlices(usize, expected[0..], actual);
 }
@@ -227,7 +257,16 @@ test "byte fallback" {
 
     const max_word_length = try readFile(allocator, "tokenizer.bin", vocab, word_scores);
     const expected = [_]usize{ 29871, 243, 149, 145, 154, 243, 150, 147, 144 };
-    const actual = try encodeWords(allocator, text, vocab, word_scores, max_word_length);
+
+    const actual = try encodeWords(
+        allocator,
+        text,
+        false,
+        false,
+        vocab,
+        word_scores,
+        max_word_length,
+    );
 
     try std.testing.expectEqualSlices(usize, expected[0..], actual);
 }
@@ -246,7 +285,129 @@ test "one char tokens" {
 
     const max_word_length = try readFile(allocator, "tok512.bin", vocab, word_scores);
     const expected = [_]usize{ 261, 430, 429, 418, 411, 431, 428, 415 };
-    const actual = try encodeWords(allocator, text, vocab, word_scores, max_word_length);
+
+    const actual = try encodeWords(
+        allocator,
+        text,
+        false,
+        false,
+        vocab,
+        word_scores,
+        max_word_length,
+    );
+
+    try std.testing.expectEqualSlices(usize, expected[0..], actual);
+}
+
+// https://github.com/facebookresearch/llama/blob/main/example_text_completion.py
+test "meta example 1" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+
+    defer arena.deinit();
+
+    const allocator = arena.allocator();
+    const text = "I believe the meaning of life is";
+    const vocab_size = 32000;
+
+    var vocab: [][]u8 = try allocator.alloc([]u8, vocab_size);
+    var word_scores: []f32 = try allocator.alloc(f32, vocab_size);
+
+    const max_word_length = try readFile(allocator, "tokenizer.bin", vocab, word_scores);
+    const expected = [_]usize{ 1, 306, 4658, 278, 6593, 310, 2834, 338 };
+
+    const actual = try encodeWords(
+        allocator,
+        text,
+        true,
+        false,
+        vocab,
+        word_scores,
+        max_word_length,
+    );
+
+    try std.testing.expectEqualSlices(usize, expected[0..], actual);
+}
+
+test "meta example 2" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+
+    defer arena.deinit();
+
+    const allocator = arena.allocator();
+    const text = "Simply put, the theory of relativity states that ";
+    const vocab_size = 32000;
+
+    var vocab: [][]u8 = try allocator.alloc([]u8, vocab_size);
+    var word_scores: []f32 = try allocator.alloc(f32, vocab_size);
+
+    const max_word_length = try readFile(allocator, "tokenizer.bin", vocab, word_scores);
+    const expected = [_]usize{ 1, 3439, 17632, 1925, 29892, 278, 6368, 310, 14215, 537, 5922, 393, 29871, 2 };
+
+    const actual = try encodeWords(
+        allocator,
+        text,
+        true,
+        true,
+        vocab,
+        word_scores,
+        max_word_length,
+    );
+
+    try std.testing.expectEqualSlices(usize, expected[0..], actual);
+}
+
+test "meta example 3" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+
+    defer arena.deinit();
+
+    const allocator = arena.allocator();
+    const text = "A brief message congratulating the team on the launch:\n\n        Hi everyone,\n\n        I just ";
+    const vocab_size = 32000;
+
+    var vocab: [][]u8 = try allocator.alloc([]u8, vocab_size);
+    var word_scores: []f32 = try allocator.alloc(f32, vocab_size);
+
+    const max_word_length = try readFile(allocator, "tokenizer.bin", vocab, word_scores);
+    const expected = [_]usize{ 1, 319, 11473, 2643, 378, 629, 271, 18099, 278, 3815, 373, 278, 6826, 29901, 13, 13, 4706, 6324, 14332, 29892, 13, 13, 4706, 306, 925, 29871 };
+
+    const actual = try encodeWords(
+        allocator,
+        text,
+        true,
+        false,
+        vocab,
+        word_scores,
+        max_word_length,
+    );
+
+    try std.testing.expectEqualSlices(usize, expected[0..], actual);
+}
+
+test "meta example 4" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+
+    defer arena.deinit();
+
+    const allocator = arena.allocator();
+    const text = "Translate English to French:\n\n        sea otter => loutre de mer\n        peppermint => menthe poivrée\n        plush girafe => girafe peluche\n        cheese =>";
+    const vocab_size = 32000;
+
+    var vocab: [][]u8 = try allocator.alloc([]u8, vocab_size);
+    var word_scores: []f32 = try allocator.alloc(f32, vocab_size);
+
+    const max_word_length = try readFile(allocator, "tokenizer.bin", vocab, word_scores);
+    const expected = [_]usize{ 1, 4103, 9632, 4223, 304, 5176, 29901, 13, 13, 4706, 7205, 4932, 357, 1149, 301, 449, 276, 316, 2778, 13, 4706, 1236, 407, 837, 524, 1149, 6042, 354, 772, 440, 29878, 1318, 13, 4706, 715, 1878, 330, 3055, 1725, 1149, 330, 3055, 1725, 4639, 28754, 13, 4706, 923, 968, 1149 };
+
+    const actual = try encodeWords(
+        allocator,
+        text,
+        true,
+        false,
+        vocab,
+        word_scores,
+        max_word_length,
+    );
 
     try std.testing.expectEqualSlices(usize, expected[0..], actual);
 }

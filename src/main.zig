@@ -46,6 +46,8 @@ pub fn main() !void {
     var prompt_tokens = try tokenizer.encodeWords(
         allocator,
         args.input_prompt,
+        true,
+        false,
         vocab,
         word_scores,
         max_word_length,
@@ -56,8 +58,11 @@ pub fn main() !void {
     try transformer.init(allocator, &config);
     defer transformer.deinit(allocator);
 
-    var token: usize = 1; // init with token 1 (=BOS), as done in Llama-2 sentencepiece tokenizer
-    var next: usize = 1; // TODO
+    var token: usize = prompt_tokens[0];
+
+    prompt_tokens = prompt_tokens[1..];
+
+    var next: usize = 0;
     var rng_state = args.random_seed;
 
     var probability_index_pairs_buffer: []lib.ProbabilityIndexPair =
