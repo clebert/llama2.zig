@@ -20,6 +20,13 @@ Some deviations from the original include:
 - For models of 4096+ dimensions, thread pools are utilized to parallelize independent matrix
   multiplications
 
+## Refactoring TODOs
+
+- cli
+- tokenizer
+- sampler
+- main
+
 ## Papers
 
 - Standard transformer architecture: [Attention Is All You Need](https://arxiv.org/abs/1706.03762)

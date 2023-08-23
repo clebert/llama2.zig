@@ -1,16 +1,12 @@
 const std = @import("std");
 
-const checkpoint = @import("checkpoint.zig");
+const Checkpoint = @import("checkpoint.zig").Checkpoint;
 const lib = @import("lib.zig");
 
 pub const Attention = struct {
     const Self = @This();
 
-    head_size: usize,
-    head_size_sqrt: f32,
-    n_groups: usize,
-    n_heads: usize,
-    seq_len: usize,
+    checkpoint: *const Checkpoint,
 
     input_buffer: []f32,
     output_buffer: []f32,
@@ -21,23 +17,22 @@ pub const Attention = struct {
     key_cache: []f32,
     value_cache: []f32,
 
-    pub fn init(self: *Self, allocator: std.mem.Allocator, config: *const checkpoint.Config) !void {
-        self.head_size = config.dim / config.n_heads;
-        self.head_size_sqrt = std.math.sqrt(@as(f32, @floatFromInt(self.head_size)));
-        self.n_groups = config.n_heads / config.n_kv_heads;
-        self.n_heads = config.n_heads;
-        self.seq_len = config.seq_len;
+    pub fn init(self: *Self, allocator: std.mem.Allocator, checkpoint: *const Checkpoint) !void {
+        self.checkpoint = checkpoint;
 
-        const kv_dim = (config.dim * config.n_kv_heads) / config.n_heads;
+        const dim = checkpoint.dim;
+        const seq_len = checkpoint.seq_len;
+        const kv_dim = checkpoint.kv_dim;
+        const kv_cache_dim = checkpoint.n_layers * seq_len * kv_dim;
 
-        self.input_buffer = try allocator.alloc(f32, config.dim);
-        self.output_buffer = try allocator.alloc(f32, config.dim);
-        self.scores_buffer = try allocator.alloc(f32, config.n_heads * config.seq_len);
-        self.queries_buffer = try allocator.alloc(f32, config.dim);
+        self.input_buffer = try allocator.alloc(f32, dim);
+        self.output_buffer = try allocator.alloc(f32, dim);
+        self.scores_buffer = try allocator.alloc(f32, checkpoint.n_heads * seq_len);
+        self.queries_buffer = try allocator.alloc(f32, dim);
         self.keys_buffer = try allocator.alloc(f32, kv_dim);
         self.values_buffer = try allocator.alloc(f32, kv_dim);
-        self.key_cache = try allocator.alloc(f32, config.n_layers * config.seq_len * kv_dim);
-        self.value_cache = try allocator.alloc(f32, config.n_layers * config.seq_len * kv_dim);
+        self.key_cache = try allocator.alloc(f32, kv_cache_dim);
+        self.value_cache = try allocator.alloc(f32, kv_cache_dim);
     }
 
     pub fn deinit(self: *const Self, allocator: std.mem.Allocator) void {
@@ -51,14 +46,12 @@ pub const Attention = struct {
         allocator.free(self.value_cache);
     }
 
-    pub fn forward(
-        self: *const Self,
-        weights: *const checkpoint.Weights,
-        pos: usize,
-        layer: usize,
-    ) !void {
-        const dim = self.input_buffer.len;
-        const kv_dim = self.keys_buffer.len;
+    pub fn forward(self: *const Self, pos: usize, layer: usize) !void {
+        const checkpoint = self.checkpoint;
+        const dim = checkpoint.dim;
+        const kv_dim = checkpoint.kv_dim;
+        const weights = checkpoint.weights;
+
         const query_weights_dim = dim * dim;
         const kv_weights_dim = dim * kv_dim;
 
@@ -66,24 +59,24 @@ pub const Attention = struct {
             .{
                 self.queries_buffer,
                 self.input_buffer,
-                weights.query[(layer * query_weights_dim)..][0..query_weights_dim],
+                weights.attention_query[(layer * query_weights_dim)..][0..query_weights_dim],
             },
             .{
                 self.keys_buffer,
                 self.input_buffer,
-                weights.key[(layer * kv_weights_dim)..][0..kv_weights_dim],
+                weights.attention_key[(layer * kv_weights_dim)..][0..kv_weights_dim],
             },
             .{
                 self.values_buffer,
                 self.input_buffer,
-                weights.value[(layer * kv_weights_dim)..][0..kv_weights_dim],
+                weights.attention_value[(layer * kv_weights_dim)..][0..kv_weights_dim],
             },
             dim >= 4096,
         );
 
-        lib.rope(pos, self.head_size, self.queries_buffer, self.keys_buffer);
+        lib.rope(pos, checkpoint.head_size, self.queries_buffer, self.keys_buffer);
 
-        const kv_cache_dim = self.seq_len * kv_dim;
+        const kv_cache_dim = checkpoint.seq_len * kv_dim;
         const kv_cache_layer_offset = layer * kv_cache_dim;
 
         @memcpy(
@@ -96,7 +89,7 @@ pub const Attention = struct {
             self.values_buffer,
         );
 
-        for (0..self.n_heads) |head| {
+        for (0..checkpoint.n_heads) |head| {
             self.compute_weighted_values(pos, head, kv_cache_layer_offset);
         }
 
@@ -113,23 +106,26 @@ pub const Attention = struct {
         head: usize,
         kv_cache_layer_offset: usize,
     ) void {
-        const kv_dim = self.keys_buffer.len;
-        const group = head / self.n_groups;
-        const kv_head_offset = group * self.head_size;
-        const head_offset = head * self.head_size;
-        const query = self.queries_buffer[head_offset..][0..self.head_size];
-        const scores = self.scores_buffer[(head * self.seq_len)..];
+        const checkpoint = self.checkpoint;
+        const kv_dim = checkpoint.kv_dim;
+        const head_size = checkpoint.head_size;
+
+        const group = head / checkpoint.n_groups;
+        const kv_head_offset = group * head_size;
+        const head_offset = head * head_size;
+        const query = self.queries_buffer[head_offset..][0..head_size];
+        const scores = self.scores_buffer[(head * checkpoint.seq_len)..];
 
         for (0..(pos + 1)) |prev_pos| {
             const kv_cache_head_offset = kv_cache_layer_offset + prev_pos * kv_dim + kv_head_offset;
-            const key = self.key_cache[kv_cache_head_offset..][0..self.head_size];
+            const key = self.key_cache[kv_cache_head_offset..][0..head_size];
 
-            scores[prev_pos] = lib.dot(query, key) / self.head_size_sqrt;
+            scores[prev_pos] = lib.dot(query, key) / checkpoint.head_size_sqrt;
         }
 
         lib.softmax(scores[0..(pos + 1)]);
 
-        const weighted_values = self.input_buffer[head_offset..][0..self.head_size];
+        const weighted_values = self.input_buffer[head_offset..][0..head_size];
 
         @memset(weighted_values, 0);
 
@@ -138,7 +134,7 @@ pub const Attention = struct {
             const value = self.value_cache[kv_cache_head_offset..];
             const weight = scores[prev_pos];
 
-            for (0..self.head_size) |index| {
+            for (0..head_size) |index| {
                 weighted_values[index] += weight * value[index];
             }
         }

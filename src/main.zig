@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const checkpoint = @import("checkpoint.zig");
+const Checkpoint = @import("checkpoint.zig").Checkpoint;
 const cli = @import("cli.zig");
 const lib = @import("lib.zig");
 const tokenizer = @import("tokenizer.zig");
@@ -15,26 +15,24 @@ pub fn main() !void {
     const stdout = std.io.getStdOut().writer();
 
     var args = try cli.parseArgs(allocator);
-    var config: checkpoint.Config = undefined;
-    var weights: checkpoint.Weights = undefined;
+    var checkpoint: Checkpoint = undefined;
 
-    try checkpoint.readFile(
-        if (args.mmap) null else allocator,
-        args.checkpoint_path,
-        &config,
-        &weights,
-    );
-
-    if (!args.test_mode) {
-        try stdout.print("{}\n\n", .{config});
+    if (args.mmap) {
+        try checkpoint.initMapFile(args.checkpoint_path);
+    } else {
+        try checkpoint.initReadFile(allocator, args.checkpoint_path);
     }
+
+    defer checkpoint.deinit(if (args.mmap) null else allocator);
 
     if (args.n_steps == 0) {
-        args.n_steps = config.seq_len;
+        args.n_steps = checkpoint.seq_len;
     }
 
-    var vocab: [][]u8 = try allocator.alloc([]u8, config.vocab_size);
-    var word_scores: []f32 = try allocator.alloc(f32, config.vocab_size);
+    const vocab_size = checkpoint.vocab_size;
+
+    var vocab: [][]u8 = try allocator.alloc([]u8, vocab_size);
+    var word_scores: []f32 = try allocator.alloc(f32, vocab_size);
 
     const max_word_length = try tokenizer.readFile(
         allocator,
@@ -55,7 +53,7 @@ pub fn main() !void {
 
     var transformer: Transformer = undefined;
 
-    try transformer.init(allocator, &config);
+    try transformer.init(allocator, &checkpoint);
     defer transformer.deinit(allocator);
 
     var token: usize = prompt_tokens[0];
@@ -66,7 +64,7 @@ pub fn main() !void {
     var rng_state = args.random_seed;
 
     var probability_index_pairs_buffer: []lib.ProbabilityIndexPair =
-        try allocator.alloc(lib.ProbabilityIndexPair, config.vocab_size);
+        try allocator.alloc(lib.ProbabilityIndexPair, vocab_size);
 
     var n_steps: usize = 0;
 
@@ -79,7 +77,7 @@ pub fn main() !void {
     for (0..args.n_steps) |pos| {
         start_time = std.time.milliTimestamp();
 
-        try transformer.forward(token, pos, &config, &weights);
+        try transformer.forward(token, pos);
 
         if (pos == 0) {
             first_decoding_time = std.time.milliTimestamp() - start_time;

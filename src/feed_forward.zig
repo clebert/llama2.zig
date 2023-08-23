@@ -1,21 +1,28 @@
 const std = @import("std");
 
-const checkpoint = @import("checkpoint.zig");
+const Checkpoint = @import("checkpoint.zig").Checkpoint;
 const lib = @import("lib.zig");
 
 pub const FeedForward = struct {
     const Self = @This();
+
+    checkpoint: *const Checkpoint,
 
     input_buffer: []f32,
     hidden_buffer: []f32,
     residual_buffer: []f32,
     output_buffer: []f32,
 
-    pub fn init(self: *Self, allocator: std.mem.Allocator, config: *const checkpoint.Config) !void {
-        self.input_buffer = try allocator.alloc(f32, config.dim);
-        self.hidden_buffer = try allocator.alloc(f32, config.hidden_dim);
-        self.residual_buffer = try allocator.alloc(f32, config.hidden_dim);
-        self.output_buffer = try allocator.alloc(f32, config.dim);
+    pub fn init(self: *Self, allocator: std.mem.Allocator, checkpoint: *const Checkpoint) !void {
+        self.checkpoint = checkpoint;
+
+        const dim = checkpoint.dim;
+        const hidden_dim = checkpoint.hidden_dim;
+
+        self.input_buffer = try allocator.alloc(f32, dim);
+        self.hidden_buffer = try allocator.alloc(f32, hidden_dim);
+        self.residual_buffer = try allocator.alloc(f32, hidden_dim);
+        self.output_buffer = try allocator.alloc(f32, dim);
     }
 
     pub fn deinit(self: *const Self, allocator: std.mem.Allocator) void {
@@ -25,13 +32,11 @@ pub const FeedForward = struct {
         allocator.free(self.output_buffer);
     }
 
-    pub fn forward(
-        self: *const Self,
-        weights: *const checkpoint.Weights,
-        layer: usize,
-    ) !void {
-        const dim = self.input_buffer.len;
-        const hidden_dim = self.hidden_buffer.len;
+    pub fn forward(self: *const Self, layer: usize) !void {
+        const checkpoint = self.checkpoint;
+        const dim = checkpoint.dim;
+        const hidden_dim = checkpoint.hidden_dim;
+        const weights = checkpoint.weights;
 
         const weights_size = dim * hidden_dim;
         const weights_offset = layer * weights_size;
