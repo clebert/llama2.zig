@@ -8,7 +8,7 @@ jobs:
         version: 0.11.0
     - run: zig fmt --check src/*.zig
     - run: zig build test
-    - run: ./test-inference.sh
+    - run: ./test.sh
 name: CI
 on:
   pull_request: {}

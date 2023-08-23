@@ -22,7 +22,7 @@
                 {"uses": "goto-bus-stop/setup-zig@v2", "with": {"version": "0.11.0"}},
                 {"run": "zig fmt --check src/*.zig"},
                 {"run": "zig build test"},
-                {"run": "./test-inference.sh"}
+                {"run": "./test.sh"}
               ]
             }
           }
