@@ -59,7 +59,10 @@ pub fn main() !void {
     var token: usize = 1; // init with token 1 (=BOS), as done in Llama-2 sentencepiece tokenizer
     var next: usize = 1; // TODO
     var rng_state = args.random_seed;
-    var prob_indices: []lib.ProbIndex = try allocator.alloc(lib.ProbIndex, config.vocab_size);
+
+    var probability_index_pairs_buffer: []lib.ProbabilityIndexPair =
+        try allocator.alloc(lib.ProbabilityIndexPair, config.vocab_size);
+
     var n_steps: usize = 0;
 
     var start_time: i64 = 0;
@@ -102,7 +105,12 @@ pub fn main() !void {
                 next = lib.sampleMultinomial(lib.random(&rng_state), transformer.logits);
             } else {
                 // top-p (nucleus) sampling, clamping the least likely tokens to zero
-                next = lib.sampleNucleus(lib.random(&rng_state), transformer.logits, args.top_p, prob_indices);
+                next = lib.sampleNucleus(
+                    lib.random(&rng_state),
+                    transformer.logits,
+                    args.top_p,
+                    probability_index_pairs_buffer,
+                );
             }
         }
 

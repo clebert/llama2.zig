@@ -8,6 +8,6 @@ pub const random = @import("lib/random.zig").random;
 pub const rmsnorm = @import("lib/rmsnorm.zig").rmsnorm;
 pub const rope = @import("lib/rope.zig").rope;
 pub const sampleMultinomial = @import("lib/sample_multinomial.zig").sampleMultinomial;
-pub const ProbIndex = @import("lib/sample_nucleus.zig").ProbIndex;
+pub const ProbabilityIndexPair = @import("lib/sample_nucleus.zig").ProbabilityIndexPair;
 pub const sampleNucleus = @import("lib/sample_nucleus.zig").sampleNucleus;
 pub const softmax = @import("lib/softmax.zig").softmax;
