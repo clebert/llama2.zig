@@ -59,7 +59,7 @@ pub fn main() !void {
 
     var token: usize = 1; // init with token 1 (=BOS), as done in Llama-2 sentencepiece tokenizer
     var next: usize = 1; // TODO
-    var rng = std.rand.DefaultPrng.init(args.random_seed);
+    var rng_state = args.random_seed;
     var prob_indices: []utils.ProbIndex = try allocator.alloc(utils.ProbIndex, config.vocab_size);
     var n_steps: usize = 0;
 
@@ -100,10 +100,10 @@ pub fn main() !void {
 
             if (args.top_p <= 0 or args.top_p >= 1) {
                 // we sample from this distribution to get the next token
-                next = lib.sample(&rng, transformer.logits);
+                next = lib.sample(lib.random(&rng_state), transformer.logits);
             } else {
                 // top-p (nucleus) sampling, clamping the least likely tokens to zero
-                next = utils.sampleTopP(&rng, transformer.logits, args.top_p, prob_indices);
+                next = utils.sampleTopP(lib.random(&rng_state), transformer.logits, args.top_p, prob_indices);
             }
         }
 

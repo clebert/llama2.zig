@@ -5,7 +5,7 @@ pub const ProbIndex = struct { prob: f32, index: usize };
 
 // The Curious Case of Neural Text Degeneration (https://arxiv.org/abs/1904.09751)
 pub fn sampleTopP(
-    rng: *std.rand.DefaultPrng,
+    rng_value: f32,
     probabilities: []f32,
     top_p: f32,
     prob_indices_buffer: []ProbIndex,
@@ -51,8 +51,8 @@ pub fn sampleTopP(
     }
 
     // sample from the truncated list
-    var r = rng.random().float(f32) * cumulative_prob;
     var cdf: f32 = 0.0;
+    const r = rng_value * cumulative_prob;
 
     if (truncated_prob_indices) |prob_indices| {
         for (prob_indices) |prob_index| {
