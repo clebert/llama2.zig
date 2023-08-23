@@ -15,6 +15,7 @@ pub const Args = struct {
 const Option = enum { temperature, top_p, random_seed, n_steps, input_prompt, tokenizer_path };
 
 pub fn parseArgs(allocator: std.mem.Allocator) !Args {
+    // TODO: fix memory leak
     var arg_iterator = try std.process.argsWithAllocator(allocator);
     var current_option: ?Option = null;
     var temperature: ?f32 = null;

@@ -3,7 +3,7 @@ const std = @import("std");
 const Checkpoint = @import("checkpoint.zig").Checkpoint;
 const cli = @import("cli.zig");
 const lib = @import("lib.zig");
-const tokenizer = @import("tokenizer.zig");
+const Tokenizer = @import("tokenizer.zig").Tokenizer;
 const Transformer = @import("transformer.zig").Transformer;
 
 pub fn main() !void {
@@ -31,36 +31,25 @@ pub fn main() !void {
 
     const vocab_size = checkpoint.vocab_size;
 
-    var vocab: [][]u8 = try allocator.alloc([]u8, vocab_size);
-    var word_scores: []f32 = try allocator.alloc(f32, vocab_size);
+    var tokenizer: Tokenizer = undefined;
 
-    const max_word_length = try tokenizer.readFile(
-        allocator,
-        args.tokenizer_path,
-        vocab,
-        word_scores,
-    );
+    try tokenizer.init(allocator, args.tokenizer_path, vocab_size);
+    defer tokenizer.deinit(allocator);
 
-    var prompt_tokens = try tokenizer.encodeWords(
-        allocator,
-        args.input_prompt,
-        true,
-        false,
-        vocab,
-        word_scores,
-        max_word_length,
-    );
+    var prompt_tokens = try tokenizer.encode(allocator, args.input_prompt, true, false);
+
+    defer allocator.free(prompt_tokens);
 
     var transformer: Transformer = undefined;
 
     try transformer.init(allocator, &checkpoint);
     defer transformer.deinit(allocator);
 
-    var token: usize = prompt_tokens[0];
+    var current_token: usize = prompt_tokens[0];
 
     prompt_tokens = prompt_tokens[1..];
 
-    var next: usize = 0;
+    var next_token: usize = 0; // TODO: null
     var rng_state = args.random_seed;
 
     var probability_index_pairs_buffer: []lib.ProbabilityIndexPair =
@@ -77,7 +66,7 @@ pub fn main() !void {
     for (0..args.n_steps) |pos| {
         start_time = std.time.milliTimestamp();
 
-        try transformer.forward(token, pos);
+        try transformer.forward(current_token, pos);
 
         if (pos == 0) {
             first_decoding_time = std.time.milliTimestamp() - start_time;
@@ -89,11 +78,11 @@ pub fn main() !void {
         start_time = std.time.milliTimestamp();
 
         if (prompt_tokens.len > 0) {
-            next = prompt_tokens[0];
+            next_token = prompt_tokens[0];
 
             prompt_tokens = prompt_tokens[1..];
         } else if (args.temperature == 0) {
-            next = lib.argmax(transformer.logits);
+            next_token = lib.argmax(transformer.logits);
         } else {
             // apply the temperature to the logits
             for (transformer.logits) |*logit| {
@@ -105,10 +94,10 @@ pub fn main() !void {
 
             if (args.top_p <= 0 or args.top_p >= 1) {
                 // we sample from this distribution to get the next token
-                next = lib.sampleMultinomial(lib.random(&rng_state), transformer.logits);
+                next_token = lib.sampleMultinomial(lib.random(&rng_state), transformer.logits);
             } else {
                 // top-p (nucleus) sampling, clamping the least likely tokens to zero
-                next = lib.sampleNucleus(
+                next_token = lib.sampleNucleus(
                     lib.random(&rng_state),
                     transformer.logits,
                     args.top_p,
@@ -121,12 +110,11 @@ pub fn main() !void {
         n_steps += 1;
 
         // data-dependent terminating condition: the BOS (1) token delimits sequences
-        if (next == 1) {
+        if (next_token == 1) {
             break;
         }
 
-        // following BOS (1) token, sentencepiece decoder strips any leading whitespace
-        const word = if (token == 1 and vocab[next][0] == ' ') vocab[next][1..] else vocab[next];
+        const word = tokenizer.decode(current_token, next_token);
 
         // careful, some tokens designate raw bytes, and look like e.g. '<0x01>'
         if (word.len == 6 and std.mem.eql(u8, word[0..3], "<0x") and word[5] == '>') {
@@ -146,7 +134,7 @@ pub fn main() !void {
             try stdout.print("{s}", .{word});
         }
 
-        token = next;
+        current_token = next_token;
     }
 
     if (n_steps > 1 and !args.test_mode) {

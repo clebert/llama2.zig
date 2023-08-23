@@ -23,7 +23,6 @@ Some deviations from the original include:
 ## Refactoring TODOs
 
 - cli
-- tokenizer
 - sampler
 - main
 
