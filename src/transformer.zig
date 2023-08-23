@@ -48,7 +48,7 @@ pub const Transformer = struct {
                 weights.rms_attention_input[(layer * config.dim)..][0..config.dim],
             );
 
-            try self.attention.forward(config, weights, pos, layer);
+            try self.attention.forward(weights, pos, layer);
 
             lib.add(self.hidden_state, self.attention.output_buffer);
 

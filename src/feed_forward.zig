@@ -46,8 +46,9 @@ pub const FeedForward = struct {
             dim >= 4096,
         );
 
-        for (0..hidden_dim) |i| {
-            self.hidden_buffer[i] = silu(self.hidden_buffer[i]) * self.residual_buffer[i];
+        for (0..hidden_dim) |index| {
+            self.hidden_buffer[index] =
+                silu(self.hidden_buffer[index]) * self.residual_buffer[index];
         }
 
         lib.matmul(self.output_buffer, self.hidden_buffer, hidden_to_output);

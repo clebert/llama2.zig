@@ -5,8 +5,8 @@ const dot = @import("dot.zig").dot;
 pub fn matmul(result: []f32, a: []const f32, b: []const f32) void {
     std.debug.assert(b.len == result.len * a.len);
 
-    for (result, 0..) |*entry, i| {
-        entry.* = dot(a, b[(i * a.len)..][0..a.len]);
+    for (result, 0..) |*entry, index| {
+        entry.* = dot(a, b[(index * a.len)..][0..a.len]);
     }
 }
 

@@ -6,6 +6,12 @@ const lib = @import("lib.zig");
 pub const Attention = struct {
     const Self = @This();
 
+    n_heads: usize,
+    seq_len: usize,
+    n_groups: usize,
+    head_size: usize,
+    head_size_sqrt: f32,
+
     input_buffer: []f32,
     output_buffer: []f32,
     scores_buffer: []f32,
@@ -18,6 +24,11 @@ pub const Attention = struct {
     pub fn init(self: *Self, allocator: std.mem.Allocator, config: *const checkpoint.Config) !void {
         const kv_dim = (config.dim * config.n_kv_heads) / config.n_heads;
 
+        self.n_heads = config.n_heads;
+        self.seq_len = config.seq_len;
+        self.n_groups = config.n_heads / config.n_kv_heads;
+        self.head_size = config.dim / config.n_heads;
+        self.head_size_sqrt = std.math.sqrt(@as(f32, @floatFromInt(self.head_size)));
         self.input_buffer = try allocator.alloc(f32, config.dim);
         self.output_buffer = try allocator.alloc(f32, config.dim);
         self.scores_buffer = try allocator.alloc(f32, config.n_heads * config.seq_len);
@@ -41,14 +52,11 @@ pub const Attention = struct {
 
     pub fn forward(
         self: *const Self,
-        config: *const checkpoint.Config,
         weights: *const checkpoint.Weights,
         pos: usize,
         layer: usize,
     ) !void {
-        const dim = config.dim;
-        const n_heads = config.n_heads;
-        const seq_len = config.seq_len;
+        const dim = self.input_buffer.len;
         const kv_dim = self.keys_buffer.len;
         const query_weights_dim = dim * dim;
         const kv_weights_dim = dim * kv_dim;
@@ -72,25 +80,23 @@ pub const Attention = struct {
             dim >= 4096,
         );
 
-        const head_size = dim / n_heads;
+        lib.rope(pos, self.head_size, self.queries_buffer, self.keys_buffer);
 
-        lib.rope(pos, head_size, self.queries_buffer, self.keys_buffer);
-
-        const kv_cache_dim = seq_len * kv_dim;
-        const kv_cache_offset = layer * kv_cache_dim;
+        const kv_cache_dim = self.seq_len * kv_dim;
+        const kv_cache_layer_offset = layer * kv_cache_dim;
 
         @memcpy(
-            self.key_cache[(kv_cache_offset + pos * kv_dim)..][0..self.keys_buffer.len],
+            self.key_cache[(kv_cache_layer_offset + pos * kv_dim)..][0..self.keys_buffer.len],
             self.keys_buffer,
         );
 
         @memcpy(
-            self.value_cache[(kv_cache_offset + pos * kv_dim)..][0..self.values_buffer.len],
+            self.value_cache[(kv_cache_layer_offset + pos * kv_dim)..][0..self.values_buffer.len],
             self.values_buffer,
         );
 
-        for (0..n_heads) |query_head| {
-            self.compute_attention(query_head, head_size, config, pos, kv_cache_offset, kv_dim);
+        for (0..self.n_heads) |head| {
+            self.compute_attention(pos, head, kv_cache_layer_offset);
         }
 
         lib.matmul(
@@ -102,53 +108,37 @@ pub const Attention = struct {
 
     fn compute_attention(
         self: *const Self,
-        query_head: usize,
-        head_size: usize,
-        config: *const checkpoint.Config,
-        current_position: usize,
-        kv_cache_offset: usize,
-        kv_dim: usize,
+        pos: usize,
+        head: usize,
+        kv_cache_layer_offset: usize,
     ) void {
-        const n_groups = config.n_heads / config.n_kv_heads;
-        const head_size_sqrt = std.math.sqrt(@as(f32, @floatFromInt(head_size)));
-        const query_head_offset = query_head * head_size;
-        const query_head_group = query_head / n_groups;
-        const key_value_head_offset = query_head_group * head_size;
+        const kv_dim = self.keys_buffer.len;
+        const group = head / self.n_groups;
+        const kv_head_offset = group * self.head_size;
+        const head_offset = head * self.head_size;
+        const query = self.queries_buffer[head_offset..][0..self.head_size];
+        const scores = self.scores_buffer[(head * self.seq_len)..];
 
-        // get the query vector for this head
-        const query = self.queries_buffer[query_head_offset..][0..head_size];
+        for (0..(pos + 1)) |prev_pos| {
+            const kv_cache_head_offset = kv_cache_layer_offset + prev_pos * kv_dim + kv_head_offset;
+            const key = self.key_cache[kv_cache_head_offset..][0..self.head_size];
 
-        // attention scores for this head
-        const attention_weights = self.scores_buffer[(query_head * config.seq_len)..];
-
-        // iterate over all timesteps, including the current one
-        for (0..(current_position + 1)) |position| {
-            // get the key vector for this head and at this timestep
-            const key = self.key_cache[(kv_cache_offset + position * kv_dim + key_value_head_offset)..][0..head_size];
-
-            // calculate the attention score as the dot product of q and k
-            // save the score to the attention buffer
-            attention_weights[position] = lib.dot(query, key) / head_size_sqrt;
+            scores[prev_pos] = lib.dot(query, key) / self.head_size_sqrt;
         }
 
-        // softmax the scores to get attention weights, from 0..pos inclusively
-        lib.softmax(attention_weights[0..(current_position + 1)]);
+        lib.softmax(scores[0..(pos + 1)]);
 
-        // weighted sum of the values, store back into intermediate_buffer
-        const intermediate_buffer = self.input_buffer[query_head_offset..][0..head_size];
+        const weighted_values = self.input_buffer[head_offset..][0..self.head_size];
 
-        @memset(intermediate_buffer, 0);
+        @memset(weighted_values, 0);
 
-        for (0..(current_position + 1)) |position| {
-            // get the value vector for this head and at this timestep
-            const value = self.value_cache[(kv_cache_offset + position * kv_dim + key_value_head_offset)..];
+        for (0..(pos + 1)) |prev_pos| {
+            const kv_cache_head_offset = kv_cache_layer_offset + prev_pos * kv_dim + kv_head_offset;
+            const value = self.value_cache[kv_cache_head_offset..];
+            const weight = scores[prev_pos];
 
-            // get the attention weight for this timestep
-            const attention_weight = attention_weights[position];
-
-            // accumulate the weighted value into intermediate_buffer
-            for (0..head_size) |i| {
-                intermediate_buffer[i] += attention_weight * value[i];
+            for (0..self.head_size) |index| {
+                weighted_values[index] += weight * value[index];
             }
         }
     }
