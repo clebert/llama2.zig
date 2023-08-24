@@ -80,7 +80,7 @@ pub fn init(self: *Self, allocator: std.mem.Allocator) !void {
     self.temperature = @max(@min(temperature orelse 1, 1), 0);
     self.top_p = @max(@min(top_p orelse 0.9, 1), 0);
     self.random_seed = random_seed orelse @intCast(std.time.milliTimestamp());
-    self.n_steps = n_steps orelse 256;
+    self.n_steps = @max(n_steps orelse 256, 1);
     self.input_prompt = input_prompt orelse "";
     self.tokenizer_path = tokenizer_path orelse "tokenizer.bin";
     self.mmap = mmap;
@@ -100,7 +100,7 @@ fn exit() !noreturn {
     try stderr.print("  -t <float>  temperature    = 1\n", .{});
     try stderr.print("  -p <float>  top_p          = 0.9; 1 == off\n", .{});
     try stderr.print("  -s <int>    random_seed    = milli_timestamp\n", .{});
-    try stderr.print("  -n <int>    n_steps        = 256; 0 == max_seq_len\n", .{});
+    try stderr.print("  -n <int>    n_steps        = 256\n", .{});
     try stderr.print("  -i <string> input_prompt   = \"\"\n", .{});
     try stderr.print("  -z <string> tokenizer_path = \"tokenizer.bin\"\n", .{});
     try stderr.print("  --no-mmap\n\n", .{});

@@ -8,7 +8,6 @@ n_layers: usize,
 n_heads: usize,
 n_kv_heads: usize,
 vocab_size: usize,
-seq_len: usize,
 kv_dim: usize,
 head_size: usize,
 head_size_sqrt: f32,
@@ -92,7 +91,6 @@ fn init(self: *Self) void {
     self.n_heads = @intCast(config_data[3]);
     self.n_kv_heads = @intCast(config_data[4]);
     self.vocab_size = std.math.absCast(signed_vocab_size);
-    self.seq_len = @intCast(config_data[6]);
     self.kv_dim = (self.dim * self.n_kv_heads) / self.n_heads;
     self.head_size = self.dim / self.n_heads;
     self.head_size_sqrt = std.math.sqrt(@as(f32, @floatFromInt(self.head_size)));
@@ -120,9 +118,10 @@ fn init(self: *Self) void {
     const ffn_input_to_residual = readFloatSlice(&weights_data, n_layers * dim * self.hidden_dim);
 
     const final_rms = readFloatSlice(&weights_data, dim);
+    const seq_len: usize = @intCast(config_data[6]);
 
-    _ = readFloatSlice(&weights_data, self.seq_len * head_size / 2);
-    _ = readFloatSlice(&weights_data, self.seq_len * head_size / 2);
+    _ = readFloatSlice(&weights_data, seq_len * head_size / 2);
+    _ = readFloatSlice(&weights_data, seq_len * head_size / 2);
 
     self.weights = .{
         .token_embedding = token_embedding,

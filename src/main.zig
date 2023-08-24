@@ -29,10 +29,6 @@ fn generate(allocator: std.mem.Allocator) !void {
 
     defer checkpoint.deinit();
 
-    if (cli.n_steps == 0) {
-        cli.n_steps = checkpoint.seq_len;
-    }
-
     var tokenizer: Tokenizer = undefined;
 
     try tokenizer.init(allocator, cli.tokenizer_path, checkpoint.vocab_size);
@@ -44,7 +40,7 @@ fn generate(allocator: std.mem.Allocator) !void {
 
     var transformer: Transformer = undefined;
 
-    try transformer.init(allocator, &checkpoint);
+    try transformer.init(allocator, &checkpoint, cli.n_steps);
     defer transformer.deinit();
 
     std.debug.assert(prompt_tokens.len > 0);
@@ -64,7 +60,7 @@ fn generate(allocator: std.mem.Allocator) !void {
     var rng_state = cli.random_seed;
     var n_steps: usize = 0;
 
-    for (0..@min(cli.n_steps, checkpoint.seq_len)) |pos| {
+    for (0..cli.n_steps) |pos| {
         if (pos > 0) {
             start_time = std.time.milliTimestamp();
         }

@@ -5,6 +5,7 @@ const lib = @import("lib.zig");
 
 allocator: std.mem.Allocator,
 checkpoint: *const Checkpoint,
+seq_len: usize,
 
 input_buffer: []f32,
 output_buffer: []f32,
@@ -15,12 +16,17 @@ values_buffer: []f32,
 key_cache: []f32,
 value_cache: []f32,
 
-pub fn init(self: *Self, allocator: std.mem.Allocator, checkpoint: *const Checkpoint) !void {
+pub fn init(
+    self: *Self,
+    allocator: std.mem.Allocator,
+    checkpoint: *const Checkpoint,
+    seq_len: usize,
+) !void {
     self.allocator = allocator;
     self.checkpoint = checkpoint;
+    self.seq_len = seq_len;
 
     const dim = checkpoint.dim;
-    const seq_len = checkpoint.seq_len;
     const kv_dim = checkpoint.kv_dim;
     const kv_cache_dim = checkpoint.n_layers * seq_len * kv_dim;
 
@@ -75,7 +81,7 @@ pub fn forward(self: *const Self, pos: usize, layer: usize) !void {
 
     lib.rope(pos, checkpoint.head_size, self.queries_buffer, self.keys_buffer);
 
-    const kv_cache_dim = checkpoint.seq_len * kv_dim;
+    const kv_cache_dim = self.seq_len * kv_dim;
     const kv_cache_layer_offset = layer * kv_cache_dim;
 
     @memcpy(
@@ -115,7 +121,7 @@ fn compute_weighted_values(
     const kv_head_offset = group * head_size;
     const head_offset = head * head_size;
     const query = self.queries_buffer[head_offset..][0..head_size];
-    const scores = self.scores_buffer[(head * checkpoint.seq_len)..];
+    const scores = self.scores_buffer[(head * self.seq_len)..];
 
     for (0..(pos + 1)) |prev_pos| {
         const kv_cache_head_offset = kv_cache_layer_offset + prev_pos * kv_dim + kv_head_offset;

@@ -13,13 +13,18 @@ logits: []f32,
 attention: Attention,
 feed_forward: FeedForward,
 
-pub fn init(self: *Self, allocator: std.mem.Allocator, checkpoint: *const Checkpoint) !void {
+pub fn init(
+    self: *Self,
+    allocator: std.mem.Allocator,
+    checkpoint: *const Checkpoint,
+    seq_len: usize,
+) !void {
     self.allocator = allocator;
     self.checkpoint = checkpoint;
     self.hidden_state = try allocator.alloc(f32, checkpoint.dim);
     self.logits = try allocator.alloc(f32, checkpoint.vocab_size);
 
-    try self.attention.init(allocator, checkpoint);
+    try self.attention.init(allocator, checkpoint, seq_len);
     try self.feed_forward.init(allocator, checkpoint);
 }
 
