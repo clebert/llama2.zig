@@ -1,9 +1,7 @@
+const Self = @This();
 const std = @import("std");
-
 const Checkpoint = @import("checkpoint.zig");
 const lib = @import("lib.zig");
-
-const Self = @This();
 
 allocator: std.mem.Allocator,
 checkpoint: *const Checkpoint,

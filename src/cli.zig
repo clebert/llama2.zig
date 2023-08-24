@@ -1,6 +1,5 @@
-const std = @import("std");
-
 const Self = @This();
+const std = @import("std");
 
 checkpoint_path: []const u8,
 temperature: f32,

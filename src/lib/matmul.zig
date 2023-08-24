@@ -1,5 +1,4 @@
 const std = @import("std");
-
 const dot = @import("dot.zig").dot;
 
 pub fn matmul(result: []f32, a: []const f32, b: []const f32) void {

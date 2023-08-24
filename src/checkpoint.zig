@@ -1,6 +1,5 @@
-const std = @import("std");
-
 const Self = @This();
+const std = @import("std");
 
 allocator: ?std.mem.Allocator,
 dim: usize,
