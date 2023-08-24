@@ -10,15 +10,17 @@ pub fn main() !void {
 
     defer arena.deinit();
 
-    try generate(arena.allocator());
-}
-
-fn generate(allocator: std.mem.Allocator) !void {
     var cli: Cli = undefined;
 
-    try cli.init(allocator);
+    try cli.init(arena.allocator());
     defer cli.deinit();
 
+    const stdout = std.io.getStdOut().writer();
+
+    try generate(arena.allocator(), &cli, stdout);
+}
+
+fn generate(allocator: std.mem.Allocator, cli: *const Cli, writer: anytype) !void {
     var checkpoint: Checkpoint = undefined;
 
     if (cli.mmap) {
@@ -34,6 +36,7 @@ fn generate(allocator: std.mem.Allocator) !void {
     try tokenizer.init(allocator, cli.tokenizer_path, checkpoint.vocab_size);
     defer tokenizer.deinit();
 
+    var prompt_tokens_offset: usize = 0;
     var prompt_tokens = try tokenizer.encode(allocator, cli.input_prompt, true, false);
 
     defer allocator.free(prompt_tokens);
@@ -45,9 +48,9 @@ fn generate(allocator: std.mem.Allocator) !void {
 
     std.debug.assert(prompt_tokens.len > 0);
 
-    var current_token: usize = prompt_tokens[0];
+    var current_token: usize = prompt_tokens[prompt_tokens_offset];
 
-    prompt_tokens = prompt_tokens[1..];
+    prompt_tokens_offset += 1;
 
     var probability_index_pairs_buffer: []lib.ProbabilityIndexPair =
         try allocator.alloc(lib.ProbabilityIndexPair, checkpoint.vocab_size);
@@ -71,9 +74,9 @@ fn generate(allocator: std.mem.Allocator) !void {
             total_time += std.time.milliTimestamp() - start_time;
         }
 
-        if (prompt_tokens.len > 0) {
-            next_token = prompt_tokens[0];
-            prompt_tokens = prompt_tokens[1..];
+        if (prompt_tokens_offset < prompt_tokens.len) {
+            next_token = prompt_tokens[prompt_tokens_offset];
+            prompt_tokens_offset += 1;
         } else if (cli.temperature == 0) {
             next_token = lib.argmax(transformer.logits);
         } else {
@@ -104,22 +107,47 @@ fn generate(allocator: std.mem.Allocator) !void {
 
         const word = tokenizer.decode(current_token, next_token);
 
-        try lib.print(word);
+        try lib.print(word, writer);
 
         current_token = next_token;
     }
 
-    const stdout = std.io.getStdOut().writer();
-
     if (total_time > 0 and !cli.test_mode) {
         const average_time = @as(f32, @floatFromInt(total_time)) / @as(f32, @floatFromInt(n_steps));
 
-        try stdout.print("\n\nachieved: {d:.3} tok/s\n", .{@as(f32, 1000 / average_time)});
+        try writer.print("\n\nachieved: {d:.3} tok/s\n", .{@as(f32, 1000 / average_time)});
     } else {
-        try stdout.print("\n", .{});
+        try writer.print("\n", .{});
     }
 }
 
 test {
     std.testing.refAllDecls(@This());
+}
+
+test "generate tiny story" {
+    var output = std.ArrayList(u8).init(std.testing.allocator);
+
+    defer output.deinit();
+
+    var arg_iterator = try std.process.argsWithAllocator(std.testing.allocator);
+
+    defer arg_iterator.deinit();
+
+    const cli = Cli{
+        .checkpoint_path = "stories260K.bin",
+        .temperature = 1,
+        .top_p = 0.9,
+        .random_seed = 42,
+        .n_steps = 10,
+        .input_prompt = "There was",
+        .tokenizer_path = "tok512.bin",
+        .mmap = false,
+        .test_mode = true,
+        .arg_iterator = arg_iterator,
+    };
+
+    try generate(std.testing.allocator, &cli, output.writer());
+
+    try std.testing.expectEqualStrings("There was a good room\n", output.items);
 }
