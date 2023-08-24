@@ -55,7 +55,7 @@ pub fn main() !void {
     var probability_index_pairs_buffer: []lib.ProbabilityIndexPair =
         try allocator.alloc(lib.ProbabilityIndexPair, vocab_size);
 
-    var n_steps: usize = 0;
+    var step: usize = 0;
 
     var start_time: i64 = 0;
     var first_decoding_time: i64 = 0;
@@ -63,7 +63,7 @@ pub fn main() !void {
     var total_sampling_time: i64 = 0;
 
     // advance the state state machine
-    for (0..args.n_steps) |pos| {
+    for (0..@min(args.n_steps, checkpoint.seq_len)) |pos| {
         start_time = std.time.milliTimestamp();
 
         try transformer.forward(current_token, pos);
@@ -107,7 +107,7 @@ pub fn main() !void {
         }
 
         total_sampling_time += std.time.milliTimestamp() - start_time;
-        n_steps += 1;
+        step += 1;
 
         // data-dependent terminating condition: the BOS (1) token delimits sequences
         if (next_token == 1) {
@@ -137,13 +137,13 @@ pub fn main() !void {
         current_token = next_token;
     }
 
-    if (n_steps > 1 and !args.test_mode) {
+    if (step > 1 and !args.test_mode) {
         const average_decoding_time: f32 =
             @as(f32, @floatFromInt(total_decoding_time - first_decoding_time)) /
-            @as(f32, @floatFromInt(n_steps - 1));
+            @as(f32, @floatFromInt(step - 1));
 
         const average_sampling_time: f32 =
-            @as(f32, @floatFromInt(total_sampling_time)) / @as(f32, @floatFromInt(n_steps));
+            @as(f32, @floatFromInt(total_sampling_time)) / @as(f32, @floatFromInt(step));
 
         const tokens_per_second: f32 = 1000 / (average_decoding_time + average_sampling_time);
 
