@@ -6,6 +6,7 @@ const lib = @import("lib.zig");
 pub const FeedForward = struct {
     const Self = @This();
 
+    allocator: std.mem.Allocator,
     checkpoint: *const Checkpoint,
 
     input_buffer: []f32,
@@ -14,6 +15,7 @@ pub const FeedForward = struct {
     output_buffer: []f32,
 
     pub fn init(self: *Self, allocator: std.mem.Allocator, checkpoint: *const Checkpoint) !void {
+        self.allocator = allocator;
         self.checkpoint = checkpoint;
 
         const dim = checkpoint.dim;
@@ -25,11 +27,11 @@ pub const FeedForward = struct {
         self.output_buffer = try allocator.alloc(f32, dim);
     }
 
-    pub fn deinit(self: *const Self, allocator: std.mem.Allocator) void {
-        allocator.free(self.input_buffer);
-        allocator.free(self.hidden_buffer);
-        allocator.free(self.residual_buffer);
-        allocator.free(self.output_buffer);
+    pub fn deinit(self: *const Self) void {
+        self.allocator.free(self.input_buffer);
+        self.allocator.free(self.hidden_buffer);
+        self.allocator.free(self.residual_buffer);
+        self.allocator.free(self.output_buffer);
     }
 
     pub fn forward(self: *const Self, layer: usize) !void {

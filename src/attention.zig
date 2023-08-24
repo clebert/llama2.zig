@@ -6,6 +6,7 @@ const lib = @import("lib.zig");
 pub const Attention = struct {
     const Self = @This();
 
+    allocator: std.mem.Allocator,
     checkpoint: *const Checkpoint,
 
     input_buffer: []f32,
@@ -18,6 +19,7 @@ pub const Attention = struct {
     value_cache: []f32,
 
     pub fn init(self: *Self, allocator: std.mem.Allocator, checkpoint: *const Checkpoint) !void {
+        self.allocator = allocator;
         self.checkpoint = checkpoint;
 
         const dim = checkpoint.dim;
@@ -35,15 +37,15 @@ pub const Attention = struct {
         self.value_cache = try allocator.alloc(f32, kv_cache_dim);
     }
 
-    pub fn deinit(self: *const Self, allocator: std.mem.Allocator) void {
-        allocator.free(self.input_buffer);
-        allocator.free(self.output_buffer);
-        allocator.free(self.scores_buffer);
-        allocator.free(self.queries_buffer);
-        allocator.free(self.keys_buffer);
-        allocator.free(self.values_buffer);
-        allocator.free(self.key_cache);
-        allocator.free(self.value_cache);
+    pub fn deinit(self: *const Self) void {
+        self.allocator.free(self.input_buffer);
+        self.allocator.free(self.output_buffer);
+        self.allocator.free(self.scores_buffer);
+        self.allocator.free(self.queries_buffer);
+        self.allocator.free(self.keys_buffer);
+        self.allocator.free(self.values_buffer);
+        self.allocator.free(self.key_cache);
+        self.allocator.free(self.value_cache);
     }
 
     pub fn forward(self: *const Self, pos: usize, layer: usize) !void {

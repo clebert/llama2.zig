@@ -8,6 +8,7 @@ const lib = @import("lib.zig");
 pub const Transformer = struct {
     const Self = @This();
 
+    allocator: std.mem.Allocator,
     checkpoint: *const Checkpoint,
 
     hidden_state: []f32,
@@ -16,6 +17,7 @@ pub const Transformer = struct {
     feed_forward: FeedForward,
 
     pub fn init(self: *Self, allocator: std.mem.Allocator, checkpoint: *const Checkpoint) !void {
+        self.allocator = allocator;
         self.checkpoint = checkpoint;
         self.hidden_state = try allocator.alloc(f32, checkpoint.dim);
         self.logits = try allocator.alloc(f32, checkpoint.vocab_size);
@@ -24,12 +26,12 @@ pub const Transformer = struct {
         try self.feed_forward.init(allocator, checkpoint);
     }
 
-    pub fn deinit(self: *const Self, allocator: std.mem.Allocator) void {
-        allocator.free(self.hidden_state);
-        allocator.free(self.logits);
+    pub fn deinit(self: *const Self) void {
+        self.allocator.free(self.hidden_state);
+        self.allocator.free(self.logits);
 
-        self.attention.deinit(allocator);
-        self.feed_forward.deinit(allocator);
+        self.attention.deinit();
+        self.feed_forward.deinit();
     }
 
     pub fn forward(self: *const Self, token: usize, pos: usize) !void {

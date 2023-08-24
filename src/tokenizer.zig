@@ -3,7 +3,9 @@ const std = @import("std");
 pub const Tokenizer = struct {
     const Self = @This();
 
+    allocator: std.mem.Allocator,
     max_word_length: usize,
+
     vocab: []const []const u8,
     word_scores: []const f32,
     sorted_vocab: []const VocabEntry,
@@ -14,6 +16,8 @@ pub const Tokenizer = struct {
         path: []const u8,
         vocab_size: usize,
     ) !void {
+        self.allocator = allocator;
+
         var vocab = try allocator.alloc([]u8, vocab_size);
         var word_scores = try allocator.alloc(f32, vocab_size);
 
@@ -41,14 +45,14 @@ pub const Tokenizer = struct {
         self.sorted_vocab = try sortVocab(allocator, vocab);
     }
 
-    pub fn deinit(self: *const Self, allocator: std.mem.Allocator) void {
+    pub fn deinit(self: *const Self) void {
         for (self.vocab) |word| {
-            allocator.free(word);
+            self.allocator.free(word);
         }
 
-        allocator.free(self.vocab);
-        allocator.free(self.word_scores);
-        allocator.free(self.sorted_vocab);
+        self.allocator.free(self.vocab);
+        self.allocator.free(self.word_scores);
+        self.allocator.free(self.sorted_vocab);
     }
 
     pub fn encode(
@@ -233,7 +237,7 @@ test "encode utf-8" {
     var tokenizer: Tokenizer = undefined;
 
     try tokenizer.init(std.testing.allocator, "tokenizer.bin", 32000);
-    defer tokenizer.deinit(std.testing.allocator);
+    defer tokenizer.deinit();
 
     const expected = [_]usize{ 365, 1691, 1018, 3963, 669, 29871, 31409, 30607, 30437, 30564 };
 
@@ -253,7 +257,7 @@ test "encode empty string" {
     var tokenizer: Tokenizer = undefined;
 
     try tokenizer.init(std.testing.allocator, "tokenizer.bin", 32000);
-    defer tokenizer.deinit(std.testing.allocator);
+    defer tokenizer.deinit();
 
     const expected = [_]usize{};
 
@@ -273,7 +277,7 @@ test "encode unknown codepoint" {
     var tokenizer: Tokenizer = undefined;
 
     try tokenizer.init(std.testing.allocator, "tokenizer.bin", 32000);
-    defer tokenizer.deinit(std.testing.allocator);
+    defer tokenizer.deinit();
 
     const expected = [_]usize{ 29871, 243, 149, 145, 154, 243, 150, 147, 144 };
 
@@ -293,7 +297,7 @@ test "encode single chars" {
     var tokenizer: Tokenizer = undefined;
 
     try tokenizer.init(std.testing.allocator, "tok512.bin", 512);
-    defer tokenizer.deinit(std.testing.allocator);
+    defer tokenizer.deinit();
 
     const expected = [_]usize{ 261, 430, 429, 418, 411, 431, 428, 415 };
 
@@ -314,7 +318,7 @@ test "meta encoding example 1" {
     var tokenizer: Tokenizer = undefined;
 
     try tokenizer.init(std.testing.allocator, "tokenizer.bin", 32000);
-    defer tokenizer.deinit(std.testing.allocator);
+    defer tokenizer.deinit();
 
     const expected = [_]usize{ 1, 306, 4658, 278, 6593, 310, 2834, 338 };
 
@@ -334,7 +338,7 @@ test "meta encoding example 2" {
     var tokenizer: Tokenizer = undefined;
 
     try tokenizer.init(std.testing.allocator, "tokenizer.bin", 32000);
-    defer tokenizer.deinit(std.testing.allocator);
+    defer tokenizer.deinit();
 
     const expected = [_]usize{ 1, 3439, 17632, 1925, 29892, 278, 6368, 310, 14215, 537, 5922, 393, 29871, 2 };
 
@@ -354,7 +358,7 @@ test "meta encoding example 3" {
     var tokenizer: Tokenizer = undefined;
 
     try tokenizer.init(std.testing.allocator, "tokenizer.bin", 32000);
-    defer tokenizer.deinit(std.testing.allocator);
+    defer tokenizer.deinit();
 
     const expected = [_]usize{ 1, 319, 11473, 2643, 378, 629, 271, 18099, 278, 3815, 373, 278, 6826, 29901, 13, 13, 4706, 6324, 14332, 29892, 13, 13, 4706, 306, 925, 29871 };
 
@@ -374,7 +378,7 @@ test "meta encoding example 4" {
     var tokenizer: Tokenizer = undefined;
 
     try tokenizer.init(std.testing.allocator, "tokenizer.bin", 32000);
-    defer tokenizer.deinit(std.testing.allocator);
+    defer tokenizer.deinit();
 
     const expected = [_]usize{ 1, 4103, 9632, 4223, 304, 5176, 29901, 13, 13, 4706, 7205, 4932, 357, 1149, 301, 449, 276, 316, 2778, 13, 4706, 1236, 407, 837, 524, 1149, 6042, 354, 772, 440, 29878, 1318, 13, 4706, 715, 1878, 330, 3055, 1725, 1149, 330, 3055, 1725, 4639, 28754, 13, 4706, 923, 968, 1149 };
 

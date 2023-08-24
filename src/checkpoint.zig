@@ -3,6 +3,7 @@ const std = @import("std");
 pub const Checkpoint = struct {
     const Self = @This();
 
+    allocator: ?std.mem.Allocator,
     dim: usize,
     hidden_dim: usize,
     n_layers: usize,
@@ -36,6 +37,8 @@ pub const Checkpoint = struct {
     data: []align(std.mem.page_size) const u8,
 
     pub fn initReadFile(self: *Self, allocator: std.mem.Allocator, path: []const u8) !void {
+        self.allocator = allocator;
+
         const file = try std.fs.cwd().openFile(path, .{});
 
         defer file.close();
@@ -57,7 +60,9 @@ pub const Checkpoint = struct {
         self.init();
     }
 
-    pub fn initMapFile(self: *Self, path: []const u8) !void {
+    pub fn initMmapFile(self: *Self, path: []const u8) !void {
+        self.allocator = null;
+
         const file = try std.fs.cwd().openFile(path, .{});
 
         defer file.close();
@@ -140,8 +145,8 @@ pub const Checkpoint = struct {
         };
     }
 
-    pub fn deinit(self: *const Self, optional_allocator: ?std.mem.Allocator) void {
-        if (optional_allocator) |allocator| {
+    pub fn deinit(self: *const Self) void {
+        if (self.allocator) |allocator| {
             allocator.free(self.data);
         } else {
             std.os.munmap(self.data);

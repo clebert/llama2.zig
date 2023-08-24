@@ -22,12 +22,12 @@ pub fn main() !void {
     var checkpoint: Checkpoint = undefined;
 
     if (cli.mmap) {
-        try checkpoint.initMapFile(cli.checkpoint_path);
+        try checkpoint.initMmapFile(cli.checkpoint_path);
     } else {
         try checkpoint.initReadFile(allocator, cli.checkpoint_path);
     }
 
-    defer checkpoint.deinit(if (cli.mmap) null else allocator);
+    defer checkpoint.deinit();
 
     if (cli.n_steps == 0) {
         cli.n_steps = checkpoint.seq_len;
@@ -38,7 +38,7 @@ pub fn main() !void {
     var tokenizer: Tokenizer = undefined;
 
     try tokenizer.init(allocator, cli.tokenizer_path, vocab_size);
-    defer tokenizer.deinit(allocator);
+    defer tokenizer.deinit();
 
     var prompt_tokens = try tokenizer.encode(allocator, cli.input_prompt, true, false);
 
@@ -47,7 +47,7 @@ pub fn main() !void {
     var transformer: Transformer = undefined;
 
     try transformer.init(allocator, &checkpoint);
-    defer transformer.deinit(allocator);
+    defer transformer.deinit();
 
     var current_token: usize = prompt_tokens[0];
 
