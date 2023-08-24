@@ -1,10 +1,10 @@
 const std = @import("std");
 
-const Checkpoint = @import("checkpoint.zig").Checkpoint;
-const Cli = @import("cli.zig").Cli;
+const Checkpoint = @import("checkpoint.zig");
+const Cli = @import("cli.zig");
 const lib = @import("lib.zig");
-const Tokenizer = @import("tokenizer.zig").Tokenizer;
-const Transformer = @import("transformer.zig").Transformer;
+const Tokenizer = @import("tokenizer.zig");
+const Transformer = @import("transformer.zig");
 
 pub fn main() !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
@@ -77,7 +77,6 @@ pub fn main() !void {
 
         if (prompt_tokens.len > 0) {
             next_token = prompt_tokens[0];
-
             prompt_tokens = prompt_tokens[1..];
         } else if (cli.temperature == 0) {
             next_token = lib.argmax(transformer.logits);

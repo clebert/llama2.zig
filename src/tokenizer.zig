@@ -1,210 +1,208 @@
 const std = @import("std");
 
-pub const Tokenizer = struct {
-    const Self = @This();
+const Self = @This();
 
+allocator: std.mem.Allocator,
+max_word_length: usize,
+
+vocab: []const []const u8,
+word_scores: []const f32,
+sorted_vocab: []const VocabEntry,
+
+pub fn init(
+    self: *Self,
     allocator: std.mem.Allocator,
-    max_word_length: usize,
+    path: []const u8,
+    vocab_size: usize,
+) !void {
+    self.allocator = allocator;
 
-    vocab: []const []const u8,
-    word_scores: []const f32,
-    sorted_vocab: []const VocabEntry,
+    var vocab = try allocator.alloc([]u8, vocab_size);
+    var word_scores = try allocator.alloc(f32, vocab_size);
 
-    pub fn init(
-        self: *Self,
-        allocator: std.mem.Allocator,
-        path: []const u8,
-        vocab_size: usize,
-    ) !void {
-        self.allocator = allocator;
+    const file = try std.fs.cwd().openFile(path, .{});
 
-        var vocab = try allocator.alloc([]u8, vocab_size);
-        var word_scores = try allocator.alloc(f32, vocab_size);
+    defer file.close();
 
-        const file = try std.fs.cwd().openFile(path, .{});
+    const reader = file.reader();
 
-        defer file.close();
+    self.max_word_length = try reader.readIntLittle(u32);
 
-        const reader = file.reader();
+    for (word_scores, 0..) |*word_score, word_index| {
+        word_score.* = @bitCast(try reader.readIntLittle(u32));
 
-        self.max_word_length = try reader.readIntLittle(u32);
+        const word_length = try reader.readIntLittle(u32);
+        const word = try allocator.alloc(u8, word_length);
 
-        for (word_scores, 0..) |*word_score, word_index| {
-            word_score.* = @bitCast(try reader.readIntLittle(u32));
+        try reader.readNoEof(word);
 
-            const word_length = try reader.readIntLittle(u32);
-            const word = try allocator.alloc(u8, word_length);
-
-            try reader.readNoEof(word);
-
-            vocab[word_index] = word;
-        }
-
-        self.vocab = vocab;
-        self.word_scores = word_scores;
-        self.sorted_vocab = try sortVocab(allocator, vocab);
+        vocab[word_index] = word;
     }
 
-    pub fn deinit(self: *const Self) void {
-        for (self.vocab) |word| {
-            self.allocator.free(word);
-        }
+    self.vocab = vocab;
+    self.word_scores = word_scores;
+    self.sorted_vocab = try sortVocab(allocator, vocab);
+}
 
-        self.allocator.free(self.vocab);
-        self.allocator.free(self.word_scores);
-        self.allocator.free(self.sorted_vocab);
+pub fn deinit(self: *const Self) void {
+    for (self.vocab) |word| {
+        self.allocator.free(word);
     }
 
-    pub fn encode(
-        self: *const Self,
-        allocator: std.mem.Allocator,
-        text: []const u8,
-        prepend_bos_token: bool,
-        append_eos_token: bool,
-    ) ![]usize {
-        var double_word_buffer = try allocator.alloc(u8, self.max_word_length * 2);
+    self.allocator.free(self.vocab);
+    self.allocator.free(self.word_scores);
+    self.allocator.free(self.sorted_vocab);
+}
 
-        defer allocator.free(double_word_buffer);
+pub fn encode(
+    self: *const Self,
+    allocator: std.mem.Allocator,
+    text: []const u8,
+    prepend_bos_token: bool,
+    append_eos_token: bool,
+) ![]usize {
+    var double_word_buffer = try allocator.alloc(u8, self.max_word_length * 2);
 
-        var tokens = try self.encodeCodepoints(
-            allocator,
-            text,
-            prepend_bos_token,
-            append_eos_token,
-        );
+    defer allocator.free(double_word_buffer);
 
-        defer allocator.free(tokens);
+    var tokens = try self.encodeCodepoints(
+        allocator,
+        text,
+        prepend_bos_token,
+        append_eos_token,
+    );
 
-        var merged_tokens = tokens[0..];
+    defer allocator.free(tokens);
 
-        while (self.mergeBestWordPair(merged_tokens, double_word_buffer)) {
-            merged_tokens = merged_tokens[0 .. merged_tokens.len - 1];
-        }
+    var merged_tokens = tokens[0..];
 
-        var merged_tokens_copy: []usize = try allocator.alloc(usize, merged_tokens.len);
-
-        @memcpy(merged_tokens_copy, merged_tokens);
-
-        return merged_tokens_copy;
+    while (self.mergeBestWordPair(merged_tokens, double_word_buffer)) {
+        merged_tokens = merged_tokens[0 .. merged_tokens.len - 1];
     }
 
-    pub fn decode(self: *const Self, current_token: usize, next_token: usize) []const u8 {
-        // https://github.com/karpathy/llama2.c/blob/7ac65cb2c2b169050747be92011b7bebdd1b4544/run.c#L425
-        const word = if (current_token == 1 and self.vocab[next_token][0] == ' ')
-            self.vocab[next_token][1..]
-        else
-            self.vocab[next_token];
+    var merged_tokens_copy: []usize = try allocator.alloc(usize, merged_tokens.len);
 
-        return word;
+    @memcpy(merged_tokens_copy, merged_tokens);
+
+    return merged_tokens_copy;
+}
+
+pub fn decode(self: *const Self, current_token: usize, next_token: usize) []const u8 {
+    // https://github.com/karpathy/llama2.c/blob/7ac65cb2c2b169050747be92011b7bebdd1b4544/run.c#L425
+    const word = if (current_token == 1 and self.vocab[next_token][0] == ' ')
+        self.vocab[next_token][1..]
+    else
+        self.vocab[next_token];
+
+    return word;
+}
+
+fn encodeCodepoints(
+    self: *const Self,
+    allocator: std.mem.Allocator,
+    text: []const u8,
+    prepend_bos_token: bool,
+    append_eos_token: bool,
+) ![]usize {
+    var tokens = std.ArrayList(usize).init(allocator);
+
+    errdefer tokens.deinit();
+
+    var text_view = try std.unicode.Utf8View.init(text);
+    var text_iterator = text_view.iterator();
+    var token_index: usize = 0;
+
+    if (prepend_bos_token) {
+        try tokens.append(1);
     }
 
-    fn encodeCodepoints(
-        self: *const Self,
-        allocator: std.mem.Allocator,
-        text: []const u8,
-        prepend_bos_token: bool,
-        append_eos_token: bool,
-    ) ![]usize {
-        var tokens = std.ArrayList(usize).init(allocator);
-
-        errdefer tokens.deinit();
-
-        var text_view = try std.unicode.Utf8View.init(text);
-        var text_iterator = text_view.iterator();
-        var token_index: usize = 0;
-
-        if (prepend_bos_token) {
-            try tokens.append(1);
+    while (text_iterator.nextCodepointSlice()) |codepoints| : (token_index += 1) {
+        if (token_index == 0) {
+            // https://github.com/karpathy/llama2.c/blob/7ac65cb2c2b169050747be92011b7bebdd1b4544/run.c#L483
+            try tokens.append(self.lookupToken(" ") orelse return error.BadVocab);
         }
 
-        while (text_iterator.nextCodepointSlice()) |codepoints| : (token_index += 1) {
-            if (token_index == 0) {
-                // https://github.com/karpathy/llama2.c/blob/7ac65cb2c2b169050747be92011b7bebdd1b4544/run.c#L483
-                try tokens.append(self.lookupToken(" ") orelse return error.BadVocab);
-            }
-
-            if (self.lookupToken(codepoints)) |token| {
-                try tokens.append(token);
-            } else {
-                // https://github.com/karpathy/llama2.c/blob/7ac65cb2c2b169050747be92011b7bebdd1b4544/run.c#L531
-                for (codepoints) |codepoint| {
-                    try tokens.append(@as(usize, codepoint) + 3);
-                }
+        if (self.lookupToken(codepoints)) |token| {
+            try tokens.append(token);
+        } else {
+            // https://github.com/karpathy/llama2.c/blob/7ac65cb2c2b169050747be92011b7bebdd1b4544/run.c#L531
+            for (codepoints) |codepoint| {
+                try tokens.append(@as(usize, codepoint) + 3);
             }
         }
-
-        if (append_eos_token) {
-            try tokens.append(2);
-        }
-
-        return tokens.toOwnedSlice();
     }
 
-    fn mergeBestWordPair(self: *const Self, tokens: []usize, double_word_buffer: []u8) bool {
-        if (tokens.len < 1) {
-            return false;
-        }
+    if (append_eos_token) {
+        try tokens.append(2);
+    }
 
-        var best_token: ?usize = null;
-        var best_token_index: ?usize = null;
-        var best_word_score = -std.math.floatMax(f32);
+    return tokens.toOwnedSlice();
+}
 
-        for (0..tokens.len - 1) |token_index| {
-            const word1 = self.vocab[tokens[token_index]];
-            const word2 = self.vocab[tokens[token_index + 1]];
-
-            @memcpy(double_word_buffer[0..word1.len], word1);
-            @memcpy(double_word_buffer[word1.len..(word1.len + word2.len)], word2);
-
-            const token =
-                self.lookupToken(double_word_buffer[0..(word1.len + word2.len)]) orelse continue;
-
-            const word_score = self.word_scores[token];
-
-            if (word_score > best_word_score) {
-                best_token = token;
-                best_token_index = token_index;
-                best_word_score = word_score;
-            }
-        }
-
-        if (best_token_index) |token_index| {
-            std.mem.copyForwards(
-                usize,
-                tokens[token_index + 1 .. tokens.len - 1],
-                tokens[token_index + 2 ..],
-            );
-
-            tokens[token_index] = best_token.?;
-
-            return true;
-        }
-
+fn mergeBestWordPair(self: *const Self, tokens: []usize, double_word_buffer: []u8) bool {
+    if (tokens.len < 1) {
         return false;
     }
 
-    fn lookupToken(self: *const Self, word: []const u8) ?usize {
-        var left: usize = 0;
-        var right = self.sorted_vocab.len;
+    var best_token: ?usize = null;
+    var best_token_index: ?usize = null;
+    var best_word_score = -std.math.floatMax(f32);
 
-        while (left < right) {
-            const mid = left + (right - left) / 2;
-            const vocab_entry = self.sorted_vocab[mid];
+    for (0..tokens.len - 1) |token_index| {
+        const word1 = self.vocab[tokens[token_index]];
+        const word2 = self.vocab[tokens[token_index + 1]];
 
-            if (std.mem.eql(u8, vocab_entry.word, word)) {
-                return vocab_entry.token;
-            }
+        @memcpy(double_word_buffer[0..word1.len], word1);
+        @memcpy(double_word_buffer[word1.len..(word1.len + word2.len)], word2);
 
-            if (std.mem.lessThan(u8, vocab_entry.word, word)) {
-                left = mid + 1;
-            } else {
-                right = mid;
-            }
+        const token =
+            self.lookupToken(double_word_buffer[0..(word1.len + word2.len)]) orelse continue;
+
+        const word_score = self.word_scores[token];
+
+        if (word_score > best_word_score) {
+            best_token = token;
+            best_token_index = token_index;
+            best_word_score = word_score;
+        }
+    }
+
+    if (best_token_index) |token_index| {
+        std.mem.copyForwards(
+            usize,
+            tokens[token_index + 1 .. tokens.len - 1],
+            tokens[token_index + 2 ..],
+        );
+
+        tokens[token_index] = best_token.?;
+
+        return true;
+    }
+
+    return false;
+}
+
+fn lookupToken(self: *const Self, word: []const u8) ?usize {
+    var left: usize = 0;
+    var right = self.sorted_vocab.len;
+
+    while (left < right) {
+        const mid = left + (right - left) / 2;
+        const vocab_entry = self.sorted_vocab[mid];
+
+        if (std.mem.eql(u8, vocab_entry.word, word)) {
+            return vocab_entry.token;
         }
 
-        return null;
+        if (std.mem.lessThan(u8, vocab_entry.word, word)) {
+            left = mid + 1;
+        } else {
+            right = mid;
+        }
     }
-};
+
+    return null;
+}
 
 const VocabEntry = struct { word: []const u8, token: usize };
 
@@ -234,7 +232,7 @@ fn lessThan(context: void, lhs: VocabEntry, rhs: VocabEntry) bool {
 // https://github.com/karpathy/llama2.c/pull/226
 // https://github.com/karpathy/llama2.c/pull/297
 test "encode utf-8" {
-    var tokenizer: Tokenizer = undefined;
+    var tokenizer: Self = undefined;
 
     try tokenizer.init(std.testing.allocator, "tokenizer.bin", 32000);
     defer tokenizer.deinit();
@@ -254,7 +252,7 @@ test "encode utf-8" {
 }
 
 test "encode empty string" {
-    var tokenizer: Tokenizer = undefined;
+    var tokenizer: Self = undefined;
 
     try tokenizer.init(std.testing.allocator, "tokenizer.bin", 32000);
     defer tokenizer.deinit();
@@ -274,7 +272,7 @@ test "encode empty string" {
 }
 
 test "encode unknown codepoint" {
-    var tokenizer: Tokenizer = undefined;
+    var tokenizer: Self = undefined;
 
     try tokenizer.init(std.testing.allocator, "tokenizer.bin", 32000);
     defer tokenizer.deinit();
@@ -294,7 +292,7 @@ test "encode unknown codepoint" {
 }
 
 test "encode single chars" {
-    var tokenizer: Tokenizer = undefined;
+    var tokenizer: Self = undefined;
 
     try tokenizer.init(std.testing.allocator, "tok512.bin", 512);
     defer tokenizer.deinit();
@@ -315,7 +313,7 @@ test "encode single chars" {
 
 // https://github.com/facebookresearch/llama/blob/ea9f33d6d3ea8ed7d560d270986407fd6c2e52b7/example_text_completion.py
 test "meta encoding example 1" {
-    var tokenizer: Tokenizer = undefined;
+    var tokenizer: Self = undefined;
 
     try tokenizer.init(std.testing.allocator, "tokenizer.bin", 32000);
     defer tokenizer.deinit();
@@ -335,7 +333,7 @@ test "meta encoding example 1" {
 }
 
 test "meta encoding example 2" {
-    var tokenizer: Tokenizer = undefined;
+    var tokenizer: Self = undefined;
 
     try tokenizer.init(std.testing.allocator, "tokenizer.bin", 32000);
     defer tokenizer.deinit();
@@ -355,7 +353,7 @@ test "meta encoding example 2" {
 }
 
 test "meta encoding example 3" {
-    var tokenizer: Tokenizer = undefined;
+    var tokenizer: Self = undefined;
 
     try tokenizer.init(std.testing.allocator, "tokenizer.bin", 32000);
     defer tokenizer.deinit();
@@ -375,7 +373,7 @@ test "meta encoding example 3" {
 }
 
 test "meta encoding example 4" {
-    var tokenizer: Tokenizer = undefined;
+    var tokenizer: Self = undefined;
 
     try tokenizer.init(std.testing.allocator, "tokenizer.bin", 32000);
     defer tokenizer.deinit();
