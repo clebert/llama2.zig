@@ -10,9 +10,10 @@ pub fn main() !void {
 
     defer arena.deinit();
 
-    const allocator = arena.allocator();
-    const stdout = std.io.getStdOut().writer();
+    try generate(arena.allocator());
+}
 
+fn generate(allocator: std.mem.Allocator) !void {
     var cli: Cli = undefined;
 
     try cli.init(allocator);
@@ -32,11 +33,9 @@ pub fn main() !void {
         cli.n_steps = checkpoint.seq_len;
     }
 
-    const vocab_size = checkpoint.vocab_size;
-
     var tokenizer: Tokenizer = undefined;
 
-    try tokenizer.init(allocator, cli.tokenizer_path, vocab_size);
+    try tokenizer.init(allocator, cli.tokenizer_path, checkpoint.vocab_size);
     defer tokenizer.deinit();
 
     var prompt_tokens = try tokenizer.encode(allocator, cli.input_prompt, true, false);
@@ -48,20 +47,22 @@ pub fn main() !void {
     try transformer.init(allocator, &checkpoint);
     defer transformer.deinit();
 
+    std.debug.assert(prompt_tokens.len > 0);
+
     var current_token: usize = prompt_tokens[0];
 
     prompt_tokens = prompt_tokens[1..];
 
-    var next_token: usize = 0; // TODO: null
-    var rng_state = cli.random_seed;
-
     var probability_index_pairs_buffer: []lib.ProbabilityIndexPair =
-        try allocator.alloc(lib.ProbabilityIndexPair, vocab_size);
+        try allocator.alloc(lib.ProbabilityIndexPair, checkpoint.vocab_size);
 
-    var step: usize = 0;
+    defer allocator.free(probability_index_pairs_buffer);
 
     var start_time: i64 = 0;
     var total_time: i64 = 0;
+    var next_token: usize = 1;
+    var rng_state = cli.random_seed;
+    var step: usize = 0;
 
     for (0..@min(cli.n_steps, checkpoint.seq_len)) |pos| {
         if (pos > 0) {
@@ -107,23 +108,12 @@ pub fn main() !void {
 
         const word = tokenizer.decode(current_token, next_token);
 
-        // https://github.com/karpathy/llama2.c/blob/c7a26264a233c32f396b1c67be4ac019d2d8a659/run.c#L427
-        if (word.len == 6 and std.mem.eql(u8, word[0..3], "<0x") and word[5] == '>') {
-            const byte: ?u8 = std.fmt.parseInt(u8, word[3..5], 16) catch null;
-
-            if (byte) |char| {
-                if (std.ascii.isPrint(char) or std.ascii.isWhitespace(char)) {
-                    try stdout.print("{s}", .{[_]u8{char}});
-                }
-            } else {
-                try stdout.print("{s}", .{word});
-            }
-        } else {
-            try stdout.print("{s}", .{word});
-        }
+        try lib.print(word);
 
         current_token = next_token;
     }
+
+    const stdout = std.io.getStdOut().writer();
 
     if (total_time > 0 and !cli.test_mode) {
         const average_time = @as(f32, @floatFromInt(total_time)) / @as(f32, @floatFromInt(step));
