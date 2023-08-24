@@ -22,8 +22,9 @@ Some deviations from the original include:
 
 ## Refactoring TODOs
 
-- cli
 - sampler
+- printer?
+- generator?
 - main
 
 ## Papers

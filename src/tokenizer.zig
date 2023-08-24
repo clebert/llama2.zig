@@ -41,7 +41,7 @@ pub const Tokenizer = struct {
         self.sorted_vocab = try sortVocab(allocator, vocab);
     }
 
-    pub fn deinit(self: *Self, allocator: std.mem.Allocator) void {
+    pub fn deinit(self: *const Self, allocator: std.mem.Allocator) void {
         for (self.vocab) |word| {
             allocator.free(word);
         }

@@ -140,7 +140,7 @@ pub const Checkpoint = struct {
         };
     }
 
-    pub fn deinit(self: *Self, optional_allocator: ?std.mem.Allocator) void {
+    pub fn deinit(self: *const Self, optional_allocator: ?std.mem.Allocator) void {
         if (optional_allocator) |allocator| {
             allocator.free(self.data);
         } else {

@@ -1,7 +1,7 @@
 const std = @import("std");
 
 const Checkpoint = @import("checkpoint.zig").Checkpoint;
-const cli = @import("cli.zig");
+const Cli = @import("cli.zig").Cli;
 const lib = @import("lib.zig");
 const Tokenizer = @import("tokenizer.zig").Tokenizer;
 const Transformer = @import("transformer.zig").Transformer;
@@ -14,29 +14,33 @@ pub fn main() !void {
     const allocator = arena.allocator();
     const stdout = std.io.getStdOut().writer();
 
-    var args = try cli.parseArgs(allocator);
+    var cli: Cli = undefined;
+
+    try cli.init(allocator);
+    defer cli.deinit();
+
     var checkpoint: Checkpoint = undefined;
 
-    if (args.mmap) {
-        try checkpoint.initMapFile(args.checkpoint_path);
+    if (cli.mmap) {
+        try checkpoint.initMapFile(cli.checkpoint_path);
     } else {
-        try checkpoint.initReadFile(allocator, args.checkpoint_path);
+        try checkpoint.initReadFile(allocator, cli.checkpoint_path);
     }
 
-    defer checkpoint.deinit(if (args.mmap) null else allocator);
+    defer checkpoint.deinit(if (cli.mmap) null else allocator);
 
-    if (args.n_steps == 0) {
-        args.n_steps = checkpoint.seq_len;
+    if (cli.n_steps == 0) {
+        cli.n_steps = checkpoint.seq_len;
     }
 
     const vocab_size = checkpoint.vocab_size;
 
     var tokenizer: Tokenizer = undefined;
 
-    try tokenizer.init(allocator, args.tokenizer_path, vocab_size);
+    try tokenizer.init(allocator, cli.tokenizer_path, vocab_size);
     defer tokenizer.deinit(allocator);
 
-    var prompt_tokens = try tokenizer.encode(allocator, args.input_prompt, true, false);
+    var prompt_tokens = try tokenizer.encode(allocator, cli.input_prompt, true, false);
 
     defer allocator.free(prompt_tokens);
 
@@ -50,7 +54,7 @@ pub fn main() !void {
     prompt_tokens = prompt_tokens[1..];
 
     var next_token: usize = 0; // TODO: null
-    var rng_state = args.random_seed;
+    var rng_state = cli.random_seed;
 
     var probability_index_pairs_buffer: []lib.ProbabilityIndexPair =
         try allocator.alloc(lib.ProbabilityIndexPair, vocab_size);
@@ -63,7 +67,7 @@ pub fn main() !void {
     var total_sampling_time: i64 = 0;
 
     // advance the state state machine
-    for (0..@min(args.n_steps, checkpoint.seq_len)) |pos| {
+    for (0..@min(cli.n_steps, checkpoint.seq_len)) |pos| {
         start_time = std.time.milliTimestamp();
 
         try transformer.forward(current_token, pos);
@@ -81,18 +85,18 @@ pub fn main() !void {
             next_token = prompt_tokens[0];
 
             prompt_tokens = prompt_tokens[1..];
-        } else if (args.temperature == 0) {
+        } else if (cli.temperature == 0) {
             next_token = lib.argmax(transformer.logits);
         } else {
             // apply the temperature to the logits
             for (transformer.logits) |*logit| {
-                logit.* /= args.temperature;
+                logit.* /= cli.temperature;
             }
 
             // apply softmax to the logits to get the probabilities for next token
             lib.softmax(transformer.logits);
 
-            if (args.top_p <= 0 or args.top_p >= 1) {
+            if (cli.top_p <= 0 or cli.top_p >= 1) {
                 // we sample from this distribution to get the next token
                 next_token = lib.sampleMultinomial(lib.random(&rng_state), transformer.logits);
             } else {
@@ -100,7 +104,7 @@ pub fn main() !void {
                 next_token = lib.sampleNucleus(
                     lib.random(&rng_state),
                     transformer.logits,
-                    args.top_p,
+                    cli.top_p,
                     probability_index_pairs_buffer,
                 );
             }
@@ -137,7 +141,7 @@ pub fn main() !void {
         current_token = next_token;
     }
 
-    if (step > 1 and !args.test_mode) {
+    if (step > 1 and !cli.test_mode) {
         const average_decoding_time: f32 =
             @as(f32, @floatFromInt(total_decoding_time - first_decoding_time)) /
             @as(f32, @floatFromInt(step - 1));

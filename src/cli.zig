@@ -1,6 +1,10 @@
 const std = @import("std");
 
-pub const Args = struct {
+const Option = enum { temperature, top_p, random_seed, n_steps, input_prompt, tokenizer_path };
+
+pub const Cli = struct {
+    const Self = @This();
+
     checkpoint_path: []const u8,
     temperature: f32,
     top_p: f32,
@@ -10,85 +14,85 @@ pub const Args = struct {
     tokenizer_path: []const u8,
     mmap: bool,
     test_mode: bool,
-};
 
-const Option = enum { temperature, top_p, random_seed, n_steps, input_prompt, tokenizer_path };
+    arg_iterator: std.process.ArgIterator,
 
-pub fn parseArgs(allocator: std.mem.Allocator) !Args {
-    // TODO: fix memory leak
-    var arg_iterator = try std.process.argsWithAllocator(allocator);
-    var current_option: ?Option = null;
-    var temperature: ?f32 = null;
-    var top_p: ?f32 = null;
-    var random_seed: ?u64 = null;
-    var n_steps: ?usize = null;
-    var input_prompt: ?[]const u8 = null;
-    var tokenizer_path: ?[]const u8 = null;
-    var mmap: bool = true;
-    var test_mode: bool = false;
+    pub fn init(self: *Self, allocator: std.mem.Allocator) !void {
+        self.arg_iterator = try std.process.argsWithAllocator(allocator);
 
-    _ = arg_iterator.next().?;
+        var current_option: ?Option = null;
+        var temperature: ?f32 = null;
+        var top_p: ?f32 = null;
+        var random_seed: ?u64 = null;
+        var n_steps: ?usize = null;
+        var input_prompt: ?[]const u8 = null;
+        var tokenizer_path: ?[]const u8 = null;
+        var mmap: bool = true;
+        var test_mode: bool = false;
 
-    const checkpoint_path = arg_iterator.next() orelse try exit();
+        _ = self.arg_iterator.next().?;
 
-    while (arg_iterator.next()) |arg| {
-        if (current_option) |option| {
-            if (option == .temperature and temperature == null) {
-                temperature = try std.fmt.parseFloat(f32, arg);
-            } else if (option == .top_p and top_p == null) {
-                top_p = try std.fmt.parseFloat(f32, arg);
-            } else if (option == .random_seed and random_seed == null) {
-                random_seed = try std.fmt.parseInt(u64, arg, 10);
-            } else if (option == .n_steps and n_steps == null) {
-                n_steps = try std.fmt.parseInt(usize, arg, 10);
-            } else if (option == .input_prompt and input_prompt == null) {
-                input_prompt = arg;
-            } else if (option == .tokenizer_path and tokenizer_path == null) {
-                tokenizer_path = arg;
+        const checkpoint_path = self.arg_iterator.next() orelse try exit();
+
+        while (self.arg_iterator.next()) |arg| {
+            if (current_option) |option| {
+                if (option == .temperature and temperature == null) {
+                    temperature = try std.fmt.parseFloat(f32, arg);
+                } else if (option == .top_p and top_p == null) {
+                    top_p = try std.fmt.parseFloat(f32, arg);
+                } else if (option == .random_seed and random_seed == null) {
+                    random_seed = try std.fmt.parseInt(u64, arg, 10);
+                } else if (option == .n_steps and n_steps == null) {
+                    n_steps = try std.fmt.parseInt(usize, arg, 10);
+                } else if (option == .input_prompt and input_prompt == null) {
+                    input_prompt = arg;
+                } else if (option == .tokenizer_path and tokenizer_path == null) {
+                    tokenizer_path = arg;
+                } else {
+                    try exit();
+                }
+
+                current_option = null;
+            } else if (std.mem.eql(u8, arg, "-t")) {
+                current_option = .temperature;
+            } else if (std.mem.eql(u8, arg, "-p")) {
+                current_option = .top_p;
+            } else if (std.mem.eql(u8, arg, "-s")) {
+                current_option = .random_seed;
+            } else if (std.mem.eql(u8, arg, "-n")) {
+                current_option = .n_steps;
+            } else if (std.mem.eql(u8, arg, "-i")) {
+                current_option = .input_prompt;
+            } else if (std.mem.eql(u8, arg, "-z")) {
+                current_option = .tokenizer_path;
+            } else if (std.mem.eql(u8, arg, "--no-mmap") and mmap) {
+                mmap = false;
+            } else if (std.mem.eql(u8, arg, "--test") and !test_mode) {
+                test_mode = true;
             } else {
                 try exit();
             }
+        }
 
-            current_option = null;
-        } else if (std.mem.eql(u8, arg, "-t")) {
-            current_option = .temperature;
-        } else if (std.mem.eql(u8, arg, "-p")) {
-            current_option = .top_p;
-        } else if (std.mem.eql(u8, arg, "-s")) {
-            current_option = .random_seed;
-        } else if (std.mem.eql(u8, arg, "-n")) {
-            current_option = .n_steps;
-        } else if (std.mem.eql(u8, arg, "-i")) {
-            current_option = .input_prompt;
-        } else if (std.mem.eql(u8, arg, "-z")) {
-            current_option = .tokenizer_path;
-        } else if (std.mem.eql(u8, arg, "--no-mmap") and mmap) {
-            mmap = false;
-        } else if (std.mem.eql(u8, arg, "--test") and !test_mode) {
-            test_mode = true;
-        } else {
+        if (current_option != null) {
             try exit();
         }
+
+        self.checkpoint_path = checkpoint_path;
+        self.temperature = @max(@min(temperature orelse 1, 1), 0);
+        self.top_p = @max(@min(top_p orelse 0.9, 1), 0);
+        self.random_seed = random_seed orelse @intCast(std.time.milliTimestamp());
+        self.n_steps = n_steps orelse 256;
+        self.input_prompt = input_prompt orelse "";
+        self.tokenizer_path = tokenizer_path orelse "tokenizer.bin";
+        self.mmap = mmap;
+        self.test_mode = test_mode;
     }
 
-    if (current_option != null) {
-        try exit();
+    pub fn deinit(self: *Self) void {
+        self.arg_iterator.deinit();
     }
-
-    const args = Args{
-        .checkpoint_path = checkpoint_path,
-        .temperature = @max(@min(temperature orelse 1, 1), 0),
-        .top_p = @max(@min(top_p orelse 0.9, 1), 0),
-        .random_seed = random_seed orelse @intCast(std.time.milliTimestamp()),
-        .n_steps = n_steps orelse 256,
-        .input_prompt = input_prompt orelse "",
-        .tokenizer_path = tokenizer_path orelse "tokenizer.bin",
-        .mmap = mmap,
-        .test_mode = test_mode,
-    };
-
-    return args;
-}
+};
 
 fn exit() !noreturn {
     const stderr = std.io.getStdErr().writer();
