@@ -62,7 +62,7 @@ fn generate(allocator: std.mem.Allocator) !void {
     var total_time: i64 = 0;
     var next_token: usize = 1;
     var rng_state = cli.random_seed;
-    var step: usize = 0;
+    var n_steps: usize = 0;
 
     for (0..@min(cli.n_steps, checkpoint.seq_len)) |pos| {
         if (pos > 0) {
@@ -99,7 +99,7 @@ fn generate(allocator: std.mem.Allocator) !void {
             }
         }
 
-        step += 1;
+        n_steps += 1;
 
         // https://github.com/karpathy/llama2.c/blob/c7a26264a233c32f396b1c67be4ac019d2d8a659/run.c#L765
         if (next_token == 1) {
@@ -116,7 +116,7 @@ fn generate(allocator: std.mem.Allocator) !void {
     const stdout = std.io.getStdOut().writer();
 
     if (total_time > 0 and !cli.test_mode) {
-        const average_time = @as(f32, @floatFromInt(total_time)) / @as(f32, @floatFromInt(step));
+        const average_time = @as(f32, @floatFromInt(total_time)) / @as(f32, @floatFromInt(n_steps));
 
         try stdout.print("\n\nachieved: {d:.3} tok/s\n", .{@as(f32, 1000 / average_time)});
     } else {
