@@ -1,4 +1,5 @@
 const Self = @This();
+
 const std = @import("std");
 
 checkpoint_path: []const u8,

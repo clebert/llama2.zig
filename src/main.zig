@@ -1,7 +1,7 @@
 const std = @import("std");
+const lib = @import("lib.zig");
 const Checkpoint = @import("checkpoint.zig");
 const Cli = @import("cli.zig");
-const lib = @import("lib.zig");
 const Tokenizer = @import("tokenizer.zig");
 const Transformer = @import("transformer.zig");
 

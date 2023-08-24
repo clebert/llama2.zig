@@ -1,9 +1,10 @@
 const Self = @This();
+
 const std = @import("std");
+const lib = @import("lib.zig");
 const Attention = @import("attention.zig");
 const Checkpoint = @import("checkpoint.zig");
 const FeedForward = @import("feed_forward.zig");
-const lib = @import("lib.zig");
 
 allocator: std.mem.Allocator,
 checkpoint: *const Checkpoint,
