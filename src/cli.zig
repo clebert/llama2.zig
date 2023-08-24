@@ -10,14 +10,11 @@ input_prompt: []const u8,
 tokenizer_path: []const u8,
 mmap: bool,
 test_mode: bool,
-
 arg_iterator: std.process.ArgIterator,
 
 const Option = enum { temperature, top_p, random_seed, n_steps, input_prompt, tokenizer_path };
 
-pub fn init(self: *Self, allocator: std.mem.Allocator) !void {
-    self.arg_iterator = try std.process.argsWithAllocator(allocator);
-
+pub fn init(allocator: std.mem.Allocator) !Self {
     var current_option: ?Option = null;
     var temperature: ?f32 = null;
     var top_p: ?f32 = null;
@@ -27,12 +24,13 @@ pub fn init(self: *Self, allocator: std.mem.Allocator) !void {
     var tokenizer_path: ?[]const u8 = null;
     var mmap: bool = true;
     var test_mode: bool = false;
+    var arg_iterator = try std.process.argsWithAllocator(allocator);
 
-    _ = self.arg_iterator.next().?;
+    _ = arg_iterator.next().?;
 
-    const checkpoint_path = self.arg_iterator.next() orelse try exit();
+    const checkpoint_path = arg_iterator.next() orelse try exit();
 
-    while (self.arg_iterator.next()) |arg| {
+    while (arg_iterator.next()) |arg| {
         if (current_option) |option| {
             if (option == .temperature and temperature == null) {
                 temperature = try std.fmt.parseFloat(f32, arg);
@@ -76,15 +74,18 @@ pub fn init(self: *Self, allocator: std.mem.Allocator) !void {
         try exit();
     }
 
-    self.checkpoint_path = checkpoint_path;
-    self.temperature = @max(@min(temperature orelse 1, 1), 0);
-    self.top_p = @max(@min(top_p orelse 0.9, 1), 0);
-    self.random_seed = random_seed orelse @intCast(std.time.milliTimestamp());
-    self.n_steps = @max(n_steps orelse 256, 1);
-    self.input_prompt = input_prompt orelse "";
-    self.tokenizer_path = tokenizer_path orelse "tokenizer.bin";
-    self.mmap = mmap;
-    self.test_mode = test_mode;
+    return Self{
+        .checkpoint_path = checkpoint_path,
+        .temperature = @max(@min(temperature orelse 1, 1), 0),
+        .top_p = @max(@min(top_p orelse 0.9, 1), 0),
+        .random_seed = random_seed orelse @intCast(std.time.milliTimestamp()),
+        .n_steps = @max(n_steps orelse 256, 1),
+        .input_prompt = input_prompt orelse "",
+        .tokenizer_path = tokenizer_path orelse "tokenizer.bin",
+        .mmap = mmap,
+        .test_mode = test_mode,
+        .arg_iterator = arg_iterator,
+    };
 }
 
 pub fn deinit(self: *Self) void {

@@ -10,9 +10,8 @@ pub fn main() !void {
 
     defer arena.deinit();
 
-    var cli: Cli = undefined;
+    var cli = try Cli.init(arena.allocator());
 
-    try cli.init(arena.allocator());
     defer cli.deinit();
 
     const stdout = std.io.getStdOut().writer();
@@ -21,33 +20,25 @@ pub fn main() !void {
 }
 
 fn generate(allocator: std.mem.Allocator, cli: *const Cli, writer: anytype) !void {
-    var checkpoint: Checkpoint = undefined;
-
-    if (cli.mmap) {
-        try checkpoint.initMmapFile(cli.checkpoint_path);
-    } else {
-        try checkpoint.initReadFile(allocator, cli.checkpoint_path);
-    }
+    const checkpoint = try Checkpoint.init(if (cli.mmap) null else allocator, cli.checkpoint_path);
 
     defer checkpoint.deinit();
 
-    var tokenizer: Tokenizer = undefined;
+    const tokenizer = try Tokenizer.init(allocator, cli.tokenizer_path, checkpoint.vocab_size);
 
-    try tokenizer.init(allocator, cli.tokenizer_path, checkpoint.vocab_size);
     defer tokenizer.deinit();
 
-    var prompt_tokens_offset: usize = 0;
-    var prompt_tokens = try tokenizer.encode(allocator, cli.input_prompt, true, false);
+    const prompt_tokens = try tokenizer.encode(allocator, cli.input_prompt, true, false);
 
     defer allocator.free(prompt_tokens);
 
-    var transformer: Transformer = undefined;
+    const transformer = try Transformer.init(allocator, &checkpoint, cli.n_steps);
 
-    try transformer.init(allocator, &checkpoint, cli.n_steps);
     defer transformer.deinit();
 
     std.debug.assert(prompt_tokens.len > 0);
 
+    var prompt_tokens_offset: usize = 0;
     var current_token: usize = prompt_tokens[prompt_tokens_offset];
 
     prompt_tokens_offset += 1;

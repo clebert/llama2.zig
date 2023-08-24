@@ -7,31 +7,25 @@ const lib = @import("lib.zig");
 
 allocator: std.mem.Allocator,
 checkpoint: *const Checkpoint,
-
 hidden_state: []f32,
 logits: []f32,
 attention: Attention,
 feed_forward: FeedForward,
 
-pub fn init(
-    self: *Self,
-    allocator: std.mem.Allocator,
-    checkpoint: *const Checkpoint,
-    seq_len: usize,
-) !void {
-    self.allocator = allocator;
-    self.checkpoint = checkpoint;
-    self.hidden_state = try allocator.alloc(f32, checkpoint.dim);
-    self.logits = try allocator.alloc(f32, checkpoint.vocab_size);
-
-    try self.attention.init(allocator, checkpoint, seq_len);
-    try self.feed_forward.init(allocator, checkpoint);
+pub fn init(allocator: std.mem.Allocator, checkpoint: *const Checkpoint, seq_len: usize) !Self {
+    return Self{
+        .allocator = allocator,
+        .checkpoint = checkpoint,
+        .hidden_state = try allocator.alloc(f32, checkpoint.dim),
+        .logits = try allocator.alloc(f32, checkpoint.vocab_size),
+        .attention = try Attention.init(allocator, checkpoint, seq_len),
+        .feed_forward = try FeedForward.init(allocator, checkpoint),
+    };
 }
 
 pub fn deinit(self: *const Self) void {
     self.allocator.free(self.hidden_state);
     self.allocator.free(self.logits);
-
     self.attention.deinit();
     self.feed_forward.deinit();
 }

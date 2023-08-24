@@ -6,7 +6,6 @@ const lib = @import("lib.zig");
 allocator: std.mem.Allocator,
 checkpoint: *const Checkpoint,
 seq_len: usize,
-
 input_buffer: []f32,
 output_buffer: []f32,
 scores_buffer: []f32,
@@ -16,28 +15,24 @@ values_buffer: []f32,
 key_cache: []f32,
 value_cache: []f32,
 
-pub fn init(
-    self: *Self,
-    allocator: std.mem.Allocator,
-    checkpoint: *const Checkpoint,
-    seq_len: usize,
-) !void {
-    self.allocator = allocator;
-    self.checkpoint = checkpoint;
-    self.seq_len = seq_len;
-
+pub fn init(allocator: std.mem.Allocator, checkpoint: *const Checkpoint, seq_len: usize) !Self {
     const dim = checkpoint.dim;
     const kv_dim = checkpoint.kv_dim;
     const kv_cache_dim = checkpoint.n_layers * seq_len * kv_dim;
 
-    self.input_buffer = try allocator.alloc(f32, dim);
-    self.output_buffer = try allocator.alloc(f32, dim);
-    self.scores_buffer = try allocator.alloc(f32, checkpoint.n_heads * seq_len);
-    self.queries_buffer = try allocator.alloc(f32, dim);
-    self.keys_buffer = try allocator.alloc(f32, kv_dim);
-    self.values_buffer = try allocator.alloc(f32, kv_dim);
-    self.key_cache = try allocator.alloc(f32, kv_cache_dim);
-    self.value_cache = try allocator.alloc(f32, kv_cache_dim);
+    return Self{
+        .allocator = allocator,
+        .checkpoint = checkpoint,
+        .seq_len = seq_len,
+        .input_buffer = try allocator.alloc(f32, dim),
+        .output_buffer = try allocator.alloc(f32, dim),
+        .scores_buffer = try allocator.alloc(f32, checkpoint.n_heads * seq_len),
+        .queries_buffer = try allocator.alloc(f32, dim),
+        .keys_buffer = try allocator.alloc(f32, kv_dim),
+        .values_buffer = try allocator.alloc(f32, kv_dim),
+        .key_cache = try allocator.alloc(f32, kv_cache_dim),
+        .value_cache = try allocator.alloc(f32, kv_cache_dim),
+    };
 }
 
 pub fn deinit(self: *const Self) void {

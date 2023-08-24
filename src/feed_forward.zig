@@ -5,23 +5,23 @@ const lib = @import("lib.zig");
 
 allocator: std.mem.Allocator,
 checkpoint: *const Checkpoint,
-
 input_buffer: []f32,
 hidden_buffer: []f32,
 residual_buffer: []f32,
 output_buffer: []f32,
 
-pub fn init(self: *Self, allocator: std.mem.Allocator, checkpoint: *const Checkpoint) !void {
-    self.allocator = allocator;
-    self.checkpoint = checkpoint;
-
+pub fn init(allocator: std.mem.Allocator, checkpoint: *const Checkpoint) !Self {
     const dim = checkpoint.dim;
     const hidden_dim = checkpoint.hidden_dim;
 
-    self.input_buffer = try allocator.alloc(f32, dim);
-    self.hidden_buffer = try allocator.alloc(f32, hidden_dim);
-    self.residual_buffer = try allocator.alloc(f32, hidden_dim);
-    self.output_buffer = try allocator.alloc(f32, dim);
+    return Self{
+        .allocator = allocator,
+        .checkpoint = checkpoint,
+        .input_buffer = try allocator.alloc(f32, dim),
+        .hidden_buffer = try allocator.alloc(f32, hidden_dim),
+        .residual_buffer = try allocator.alloc(f32, hidden_dim),
+        .output_buffer = try allocator.alloc(f32, dim),
+    };
 }
 
 pub fn deinit(self: *const Self) void {

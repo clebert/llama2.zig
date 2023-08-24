@@ -33,9 +33,93 @@ weights: struct {
 
 data: []align(std.mem.page_size) const u8,
 
-pub fn initReadFile(self: *Self, allocator: std.mem.Allocator, path: []const u8) !void {
-    self.allocator = allocator;
+pub fn init(no_mmap_allocator: ?std.mem.Allocator, path: []const u8) !Self {
+    const data = try if (no_mmap_allocator) |allocator|
+        readFile(allocator, path)
+    else
+        mmapFile(path);
 
+    const config_data: [*]const i32 = @alignCast(@ptrCast(data[0..28]));
+
+    const signed_vocab_size: i32 = config_data[5];
+    const dim: usize = @intCast(config_data[0]);
+    const hidden_dim: usize = @intCast(config_data[1]);
+    const n_layers: usize = @intCast(config_data[2]);
+    const n_heads: usize = @intCast(config_data[3]);
+    const n_kv_heads: usize = @intCast(config_data[4]);
+    const vocab_size: usize = std.math.absCast(signed_vocab_size);
+    const kv_dim: usize = (dim * n_kv_heads) / n_heads;
+    const head_size: usize = dim / n_heads;
+    const head_size_sqrt: f32 = std.math.sqrt(@as(f32, @floatFromInt(head_size)));
+    const n_groups: usize = n_heads / n_kv_heads;
+
+    var weights_data: [*]const f32 = @alignCast(@ptrCast(data[28..]));
+
+    const token_embedding = readFloatSlice(&weights_data, vocab_size * dim);
+    const attention_input_rms = readFloatSlice(&weights_data, n_layers * dim);
+    const attention_query = readFloatSlice(&weights_data, n_layers * dim * n_heads * head_size);
+    const attention_key = readFloatSlice(&weights_data, n_layers * dim * n_kv_heads * head_size);
+    const attention_value = readFloatSlice(&weights_data, n_layers * dim * n_kv_heads * head_size);
+    const attention_output = readFloatSlice(&weights_data, n_layers * n_heads * head_size * dim);
+    const ffn_input_rms = readFloatSlice(&weights_data, n_layers * dim);
+    const ffn_input_to_hidden = readFloatSlice(&weights_data, n_layers * dim * hidden_dim);
+    const ffn_hidden_to_output = readFloatSlice(&weights_data, n_layers * hidden_dim * dim);
+    const ffn_input_to_residual = readFloatSlice(&weights_data, n_layers * dim * hidden_dim);
+    const final_rms = readFloatSlice(&weights_data, dim);
+    const seq_len: usize = @intCast(config_data[6]);
+
+    _ = readFloatSlice(&weights_data, seq_len * head_size / 2);
+    _ = readFloatSlice(&weights_data, seq_len * head_size / 2);
+
+    return Self{
+        .allocator = no_mmap_allocator,
+        .dim = dim,
+        .hidden_dim = hidden_dim,
+        .n_layers = n_layers,
+        .n_heads = n_heads,
+        .n_kv_heads = n_kv_heads,
+        .vocab_size = vocab_size,
+        .kv_dim = kv_dim,
+        .head_size = head_size,
+        .head_size_sqrt = head_size_sqrt,
+        .n_groups = n_groups,
+
+        .weights = .{
+            .token_embedding = token_embedding,
+
+            .attention_input_rms = attention_input_rms,
+            .attention_query = attention_query,
+            .attention_key = attention_key,
+            .attention_value = attention_value,
+            .attention_output = attention_output,
+
+            .ffn_input_rms = ffn_input_rms,
+            .ffn_input_to_hidden = ffn_input_to_hidden,
+            .ffn_hidden_to_output = ffn_hidden_to_output,
+            .ffn_input_to_residual = ffn_input_to_residual,
+
+            .final_rms = final_rms,
+
+            // https://github.com/karpathy/llama2.c/commit/c3e0d73bd294e1f5e4d17425fac09aaec536400d
+            .classifier = if (signed_vocab_size > 0)
+                token_embedding
+            else
+                readFloatSlice(&weights_data, vocab_size * dim),
+        },
+
+        .data = data,
+    };
+}
+
+pub fn deinit(self: *const Self) void {
+    if (self.allocator) |allocator| {
+        allocator.free(self.data);
+    } else {
+        std.os.munmap(self.data);
+    }
+}
+
+fn readFile(allocator: std.mem.Allocator, path: []const u8) ![]align(std.mem.page_size) const u8 {
     const file = try std.fs.cwd().openFile(path, .{});
 
     defer file.close();
@@ -52,21 +136,17 @@ pub fn initReadFile(self: *Self, allocator: std.mem.Allocator, path: []const u8)
         return error.UnexpectedEndOfFile;
     }
 
-    self.data = data;
-
-    self.init();
+    return data;
 }
 
-pub fn initMmapFile(self: *Self, path: []const u8) !void {
-    self.allocator = null;
-
+fn mmapFile(path: []const u8) ![]align(std.mem.page_size) const u8 {
     const file = try std.fs.cwd().openFile(path, .{});
 
     defer file.close();
 
     const stat = try file.stat();
 
-    self.data = try std.os.mmap(
+    return std.os.mmap(
         null,
         stat.size,
         std.os.PROT.READ,
@@ -74,85 +154,6 @@ pub fn initMmapFile(self: *Self, path: []const u8) !void {
         file.handle,
         0,
     );
-
-    errdefer std.os.munmap(self.data);
-
-    self.init();
-}
-
-fn init(self: *Self) void {
-    var config_data: [*]const i32 = @alignCast(@ptrCast(self.data[0..28]));
-
-    const signed_vocab_size: i32 = config_data[5];
-
-    self.dim = @intCast(config_data[0]);
-    self.hidden_dim = @intCast(config_data[1]);
-    self.n_layers = @intCast(config_data[2]);
-    self.n_heads = @intCast(config_data[3]);
-    self.n_kv_heads = @intCast(config_data[4]);
-    self.vocab_size = std.math.absCast(signed_vocab_size);
-    self.kv_dim = (self.dim * self.n_kv_heads) / self.n_heads;
-    self.head_size = self.dim / self.n_heads;
-    self.head_size_sqrt = std.math.sqrt(@as(f32, @floatFromInt(self.head_size)));
-    self.n_groups = self.n_heads / self.n_kv_heads;
-
-    const dim = self.dim;
-    const n_layers = self.n_layers;
-    const n_heads = self.n_heads;
-    const n_kv_heads = self.n_kv_heads;
-
-    var weights_data: [*]const f32 = @alignCast(@ptrCast(self.data[28..]));
-
-    const token_embedding = readFloatSlice(&weights_data, self.vocab_size * dim);
-
-    const head_size = dim / n_heads;
-    const attention_input_rms = readFloatSlice(&weights_data, n_layers * dim);
-    const attention_query = readFloatSlice(&weights_data, n_layers * dim * n_heads * head_size);
-    const attention_key = readFloatSlice(&weights_data, n_layers * dim * n_kv_heads * head_size);
-    const attention_value = readFloatSlice(&weights_data, n_layers * dim * n_kv_heads * head_size);
-    const attention_output = readFloatSlice(&weights_data, n_layers * n_heads * head_size * dim);
-
-    const ffn_input_rms = readFloatSlice(&weights_data, n_layers * dim);
-    const ffn_input_to_hidden = readFloatSlice(&weights_data, n_layers * dim * self.hidden_dim);
-    const ffn_hidden_to_output = readFloatSlice(&weights_data, n_layers * self.hidden_dim * dim);
-    const ffn_input_to_residual = readFloatSlice(&weights_data, n_layers * dim * self.hidden_dim);
-
-    const final_rms = readFloatSlice(&weights_data, dim);
-    const seq_len: usize = @intCast(config_data[6]);
-
-    _ = readFloatSlice(&weights_data, seq_len * head_size / 2);
-    _ = readFloatSlice(&weights_data, seq_len * head_size / 2);
-
-    self.weights = .{
-        .token_embedding = token_embedding,
-
-        .attention_input_rms = attention_input_rms,
-        .attention_query = attention_query,
-        .attention_key = attention_key,
-        .attention_value = attention_value,
-        .attention_output = attention_output,
-
-        .ffn_input_rms = ffn_input_rms,
-        .ffn_input_to_hidden = ffn_input_to_hidden,
-        .ffn_hidden_to_output = ffn_hidden_to_output,
-        .ffn_input_to_residual = ffn_input_to_residual,
-
-        .final_rms = final_rms,
-
-        // https://github.com/karpathy/llama2.c/commit/c3e0d73bd294e1f5e4d17425fac09aaec536400d
-        .classifier = if (signed_vocab_size > 0)
-            token_embedding
-        else
-            readFloatSlice(&weights_data, self.vocab_size * dim),
-    };
-}
-
-pub fn deinit(self: *const Self) void {
-    if (self.allocator) |allocator| {
-        allocator.free(self.data);
-    } else {
-        std.os.munmap(self.data);
-    }
 }
 
 fn readFloatSlice(data: *[*]const f32, len: usize) []const f32 {
