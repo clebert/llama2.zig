@@ -19,8 +19,6 @@ extern "C"
 
     NS::Error *pError = nullptr;
 
-    // https://developer.apple.com/documentation/metal/mtldevice/1433380-newdefaultlibrary
-
     const char *pSource = R"(
       #include <metal_stdlib>
       using namespace metal;
