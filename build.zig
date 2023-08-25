@@ -24,6 +24,31 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    const metal = b.option(bool, "metal", "Use Metal for matrix multiplication") orelse false;
+
+    const build_options = b.addOptions();
+
+    exe.addOptions("build_options", build_options);
+
+    build_options.addOption(bool, "metal", metal);
+
+    if (metal) {
+        exe.linkLibC();
+        exe.linkLibCpp();
+
+        exe.linkFramework("Foundation");
+        exe.linkFramework("QuartzCore");
+        exe.linkFramework("Metal");
+
+        exe.addIncludePath(.{ .path = "metal-cpp" });
+        exe.addIncludePath(.{ .path = "src/lib" });
+
+        exe.addCSourceFile(.{
+            .file = .{ .path = "src/lib/matmul_metal.cpp" },
+            .flags = &.{"-std=c++17"},
+        });
+    }
+
     // This declares intent for the executable to be installed into the
     // standard location when the user invokes the "install" step (the default
     // step when running `zig build`).
@@ -60,6 +85,8 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+
+    tests.addOptions("build_options", build_options);
 
     const run_tests = b.addRunArtifact(tests);
 

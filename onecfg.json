@@ -32,7 +32,7 @@
     ],
     ".gitignore": [
       {
-        "value": ["/zig-cache", "/zig-out", "/*.bin"]
+        "value": ["/metal-cpp", "/zig-cache", "/zig-out", "/*.bin"]
       }
     ],
     ".prettierignore": [
