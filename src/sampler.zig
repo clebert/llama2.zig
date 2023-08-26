@@ -11,7 +11,7 @@ temperature: f32,
 top_p: f32,
 rng_state: u64,
 
-pub fn init(allocator: std.mem.Allocator, cli: *const Cli, vocab_size: usize) !Self {
+pub fn init(allocator: std.mem.Allocator, cli: Cli, vocab_size: usize) !Self {
     return Self{
         .allocator = allocator,
         .probability_index_pairs_buffer = try allocator.alloc(lib.ProbabilityIndexPair, vocab_size),

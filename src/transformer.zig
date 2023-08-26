@@ -4,31 +4,35 @@ const std = @import("std");
 const lib = @import("lib.zig");
 const Attention = @import("attention.zig");
 const Checkpoint = @import("checkpoint.zig");
+const Cli = @import("cli.zig");
 const FeedForward = @import("feed_forward.zig");
 
 allocator: std.mem.Allocator,
-checkpoint: *const Checkpoint,
-hidden_state: []f32,
-logits: []f32,
+checkpoint: Checkpoint,
 attention: Attention,
 feed_forward: FeedForward,
+hidden_state: []f32,
+logits: []f32,
 
-pub fn init(allocator: std.mem.Allocator, checkpoint: *const Checkpoint, seq_len: usize) !Self {
+pub fn init(allocator: std.mem.Allocator, cli: Cli) !Self {
+    const checkpoint = try Checkpoint.init(if (cli.mmap) null else allocator, cli.checkpoint_path);
+
     return Self{
         .allocator = allocator,
         .checkpoint = checkpoint,
+        .attention = try Attention.init(allocator, checkpoint, cli.n_steps),
+        .feed_forward = try FeedForward.init(allocator, checkpoint),
         .hidden_state = try allocator.alloc(f32, checkpoint.dim),
         .logits = try allocator.alloc(f32, checkpoint.vocab_size),
-        .attention = try Attention.init(allocator, checkpoint, seq_len),
-        .feed_forward = try FeedForward.init(allocator, checkpoint),
     };
 }
 
 pub fn deinit(self: *const Self) void {
-    self.allocator.free(self.hidden_state);
-    self.allocator.free(self.logits);
+    self.checkpoint.deinit();
     self.attention.deinit();
     self.feed_forward.deinit();
+    self.allocator.free(self.hidden_state);
+    self.allocator.free(self.logits);
 }
 
 pub fn forward(self: *const Self, token: usize, pos: usize) !void {

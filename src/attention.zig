@@ -5,7 +5,7 @@ const lib = @import("lib.zig");
 const Checkpoint = @import("checkpoint.zig");
 
 allocator: std.mem.Allocator,
-checkpoint: *const Checkpoint,
+checkpoint: Checkpoint,
 seq_len: usize,
 input_buffer: []f32,
 output_buffer: []f32,
@@ -16,7 +16,7 @@ values_buffer: []f32,
 key_cache: []f32,
 value_cache: []f32,
 
-pub fn init(allocator: std.mem.Allocator, checkpoint: *const Checkpoint, seq_len: usize) !Self {
+pub fn init(allocator: std.mem.Allocator, checkpoint: Checkpoint, seq_len: usize) !Self {
     const dim = checkpoint.dim;
     const kv_dim = checkpoint.kv_dim;
     const kv_cache_dim = checkpoint.n_layers * seq_len * kv_dim;

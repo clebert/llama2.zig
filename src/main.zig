@@ -17,29 +17,27 @@ pub fn main() !void {
 
     const stdout = std.io.getStdOut().writer();
 
-    try generate(arena.allocator(), &cli, stdout);
+    try generate(arena.allocator(), cli, stdout);
 }
 
-fn generate(allocator: std.mem.Allocator, cli: *const Cli, writer: anytype) !void {
-    const checkpoint = try Checkpoint.init(if (cli.mmap) null else allocator, cli.checkpoint_path);
+fn generate(allocator: std.mem.Allocator, cli: Cli, writer: anytype) !void {
+    const transformer = try Transformer.init(allocator, cli);
 
-    defer checkpoint.deinit();
+    defer transformer.deinit();
 
-    var sampler = try Sampler.init(allocator, cli, checkpoint.vocab_size);
+    const vocab_size = transformer.checkpoint.vocab_size;
+
+    var sampler = try Sampler.init(allocator, cli, vocab_size);
 
     defer sampler.deinit();
 
-    const tokenizer = try Tokenizer.init(allocator, cli.tokenizer_path, checkpoint.vocab_size);
+    const tokenizer = try Tokenizer.init(allocator, cli.tokenizer_path, vocab_size);
 
     defer tokenizer.deinit();
 
     const prompt_tokens = try tokenizer.encode(allocator, cli.prompt, true, false);
 
     defer allocator.free(prompt_tokens);
-
-    const transformer = try Transformer.init(allocator, &checkpoint, cli.n_steps);
-
-    defer transformer.deinit();
 
     var prompt_tokens_offset: usize = 0;
 
@@ -120,7 +118,7 @@ test "generate tiny story" {
         .arg_iterator = arg_iterator,
     };
 
-    try generate(std.testing.allocator, &cli, output.writer());
+    try generate(std.testing.allocator, cli, output.writer());
 
     try std.testing.expectEqualStrings("There was a good room\n", output.items);
 }

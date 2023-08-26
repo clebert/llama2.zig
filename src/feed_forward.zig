@@ -5,13 +5,13 @@ const lib = @import("lib.zig");
 const Checkpoint = @import("checkpoint.zig");
 
 allocator: std.mem.Allocator,
-checkpoint: *const Checkpoint,
+checkpoint: Checkpoint,
 input_buffer: []f32,
 hidden_buffer: []f32,
 residual_buffer: []f32,
 output_buffer: []f32,
 
-pub fn init(allocator: std.mem.Allocator, checkpoint: *const Checkpoint) !Self {
+pub fn init(allocator: std.mem.Allocator, checkpoint: Checkpoint) !Self {
     const dim = checkpoint.dim;
     const hidden_dim = checkpoint.hidden_dim;
 
