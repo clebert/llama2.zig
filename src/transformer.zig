@@ -14,7 +14,7 @@ feed_forward: FeedForward,
 hidden_state: []f32,
 logits: []f32,
 
-pub fn init(allocator: std.mem.Allocator, cli: Cli) !Self {
+pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
     const checkpoint = try Checkpoint.init(if (cli.mmap) null else allocator, cli.checkpoint_path);
 
     return Self{
