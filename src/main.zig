@@ -37,13 +37,14 @@ fn generate(allocator: std.mem.Allocator, cli: *const Cli, writer: anytype) !voi
 
     defer allocator.free(prompt_tokens);
 
-    std.debug.assert(prompt_tokens.len > 0);
-
     const transformer = try Transformer.init(allocator, &checkpoint, cli.n_steps);
 
     defer transformer.deinit();
 
     var prompt_tokens_offset: usize = 0;
+
+    std.debug.assert(prompt_tokens.len > 0);
+
     var current_token: usize = prompt_tokens[prompt_tokens_offset];
 
     prompt_tokens_offset += 1;
@@ -73,9 +74,8 @@ fn generate(allocator: std.mem.Allocator, cli: *const Cli, writer: anytype) !voi
 
         n_steps += 1;
 
-        // https://github.com/karpathy/llama2.c/blob/c7a26264a233c32f396b1c67be4ac019d2d8a659/run.c#L765
         if (next_token == 1) {
-            break;
+            break; // the BOS (=1) token delimits sequences
         }
 
         const word = tokenizer.decode(current_token, next_token);
