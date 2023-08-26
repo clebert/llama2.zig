@@ -22,7 +22,7 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli, vocab_size: usize) !S
 }
 
 pub fn deinit(self: *const Self) void {
-    defer self.allocator.free(self.probability_index_pairs_buffer);
+    self.allocator.free(self.probability_index_pairs_buffer);
 }
 
 pub fn sample(self: *Self, probability_distribution: []f32) usize {
