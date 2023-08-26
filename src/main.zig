@@ -2,6 +2,7 @@ const std = @import("std");
 const lib = @import("lib.zig");
 const Checkpoint = @import("checkpoint.zig");
 const Cli = @import("cli.zig");
+const Sampler = @import("sampler.zig");
 const Tokenizer = @import("tokenizer.zig");
 const Transformer = @import("transformer.zig");
 
@@ -24,6 +25,10 @@ fn generate(allocator: std.mem.Allocator, cli: *const Cli, writer: anytype) !voi
 
     defer checkpoint.deinit();
 
+    var sampler = try Sampler.init(allocator, cli, checkpoint.vocab_size);
+
+    defer sampler.deinit();
+
     const tokenizer = try Tokenizer.init(allocator, cli.tokenizer_path, checkpoint.vocab_size);
 
     defer tokenizer.deinit();
@@ -32,26 +37,20 @@ fn generate(allocator: std.mem.Allocator, cli: *const Cli, writer: anytype) !voi
 
     defer allocator.free(prompt_tokens);
 
+    std.debug.assert(prompt_tokens.len > 0);
+
     const transformer = try Transformer.init(allocator, &checkpoint, cli.n_steps);
 
     defer transformer.deinit();
-
-    std.debug.assert(prompt_tokens.len > 0);
 
     var prompt_tokens_offset: usize = 0;
     var current_token: usize = prompt_tokens[prompt_tokens_offset];
 
     prompt_tokens_offset += 1;
 
-    var probability_index_pairs_buffer: []lib.ProbabilityIndexPair =
-        try allocator.alloc(lib.ProbabilityIndexPair, checkpoint.vocab_size);
-
-    defer allocator.free(probability_index_pairs_buffer);
-
     var start_time: i64 = 0;
     var total_time: i64 = 0;
     var next_token: usize = 1;
-    var rng_state = cli.random_seed;
     var n_steps: usize = 0;
 
     for (0..cli.n_steps) |pos| {
@@ -68,25 +67,8 @@ fn generate(allocator: std.mem.Allocator, cli: *const Cli, writer: anytype) !voi
         if (prompt_tokens_offset < prompt_tokens.len) {
             next_token = prompt_tokens[prompt_tokens_offset];
             prompt_tokens_offset += 1;
-        } else if (cli.temperature == 0) {
-            next_token = lib.argmax(transformer.logits);
         } else {
-            for (transformer.logits) |*logit| {
-                logit.* /= cli.temperature;
-            }
-
-            lib.softmax(transformer.logits);
-
-            if (cli.top_p <= 0 or cli.top_p >= 1) {
-                next_token = lib.sampleMultinomial(lib.random(&rng_state), transformer.logits);
-            } else {
-                next_token = lib.sampleNucleus(
-                    lib.random(&rng_state),
-                    transformer.logits,
-                    cli.top_p,
-                    probability_index_pairs_buffer,
-                );
-            }
+            next_token = sampler.sample(transformer.logits);
         }
 
         n_steps += 1;

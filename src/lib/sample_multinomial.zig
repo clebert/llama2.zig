@@ -3,7 +3,7 @@ const std = @import("std");
 
 const tolerance: comptime_float = std.math.sqrt(std.math.floatEps(f32));
 
-pub fn sampleMultinomial(probability_threshold: f32, probability_distribution: []f32) usize {
+pub fn sampleMultinomial(probability_threshold: f32, probability_distribution: []const f32) usize {
     std.debug.assert(probability_distribution.len > 0);
 
     var cumulative_probability: f32 = 0;
