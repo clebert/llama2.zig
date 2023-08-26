@@ -10,7 +10,7 @@ n_steps: usize,
 prompt: []const u8,
 tokenizer_path: []const u8,
 mmap: bool,
-test_mode: bool,
+timer: bool,
 arg_iterator: std.process.ArgIterator,
 
 const Option = enum { temperature, top_p, random_seed, n_steps, prompt, tokenizer_path };
@@ -24,7 +24,7 @@ pub fn init(allocator: std.mem.Allocator) !Self {
     var prompt: ?[]const u8 = null;
     var tokenizer_path: ?[]const u8 = null;
     var mmap: bool = true;
-    var test_mode: bool = false;
+    var timer: bool = true;
     var arg_iterator = try std.process.argsWithAllocator(allocator);
 
     _ = arg_iterator.next().?;
@@ -64,8 +64,8 @@ pub fn init(allocator: std.mem.Allocator) !Self {
             current_option = .tokenizer_path;
         } else if (std.mem.eql(u8, arg, "--no-mmap") and mmap) {
             mmap = false;
-        } else if (std.mem.eql(u8, arg, "--test") and !test_mode) {
-            test_mode = true;
+        } else if (std.mem.eql(u8, arg, "--no-timer") and timer) {
+            timer = false;
         } else {
             try exit();
         }
@@ -84,7 +84,7 @@ pub fn init(allocator: std.mem.Allocator) !Self {
         .prompt = prompt orelse "",
         .tokenizer_path = tokenizer_path orelse "tokenizer.bin",
         .mmap = mmap,
-        .test_mode = test_mode,
+        .timer = timer,
         .arg_iterator = arg_iterator,
     };
 }
@@ -105,7 +105,8 @@ fn exit() !noreturn {
     try stderr.print("  -n <int>    n_steps        = 256\n", .{});
     try stderr.print("  -i <string> prompt         = \"\"\n", .{});
     try stderr.print("  -z <string> tokenizer_path = \"tokenizer.bin\"\n", .{});
-    try stderr.print("  --no-mmap\n\n", .{});
+    try stderr.print("  --no-mmap\n", .{});
+    try stderr.print("  --no-timer\n\n", .{});
 
     try stderr.print("Example: llama2 model.bin -i \"Once upon a time\"\n", .{});
 

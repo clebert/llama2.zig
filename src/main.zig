@@ -85,7 +85,7 @@ fn generate(allocator: std.mem.Allocator, cli: *const Cli, writer: anytype) !voi
         current_token = next_token;
     }
 
-    if (total_time > 0 and !cli.test_mode) {
+    if (total_time > 0 and cli.timer) {
         const average_time = @as(f32, @floatFromInt(total_time)) / @as(f32, @floatFromInt(n_steps));
 
         try writer.print("\n\nachieved: {d:.3} tok/s\n", .{@as(f32, 1000 / average_time)});
@@ -116,7 +116,7 @@ test "generate tiny story" {
         .prompt = "There was",
         .tokenizer_path = "tok512.bin",
         .mmap = false,
-        .test_mode = true,
+        .timer = false,
         .arg_iterator = arg_iterator,
     };
 
