@@ -28,7 +28,7 @@ fn generate(allocator: std.mem.Allocator, cli: *const Cli, writer: anytype) !voi
 
     defer tokenizer.deinit();
 
-    const prompt_tokens = try tokenizer.encode(allocator, cli.input_prompt, true, false);
+    const prompt_tokens = try tokenizer.encode(allocator, cli.prompt, true, false);
 
     defer allocator.free(prompt_tokens);
 
@@ -131,7 +131,7 @@ test "generate tiny story" {
         .top_p = 0.9,
         .random_seed = 42,
         .n_steps = 10,
-        .input_prompt = "There was",
+        .prompt = "There was",
         .tokenizer_path = "tok512.bin",
         .mmap = false,
         .test_mode = true,
