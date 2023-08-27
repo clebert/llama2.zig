@@ -12,9 +12,12 @@ top_p: f32,
 rng_state: u64,
 
 pub fn init(allocator: std.mem.Allocator, cli: *const Cli, vocab_size: usize) !Self {
+    const probability_index_pairs_buffer =
+        try allocator.alloc(lib.ProbabilityIndexPair, vocab_size);
+
     return Self{
         .allocator = allocator,
-        .probability_index_pairs_buffer = try allocator.alloc(lib.ProbabilityIndexPair, vocab_size),
+        .probability_index_pairs_buffer = probability_index_pairs_buffer,
         .temperature = cli.temperature,
         .top_p = cli.top_p,
         .rng_state = cli.random_seed,

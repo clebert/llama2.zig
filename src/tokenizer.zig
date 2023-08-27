@@ -39,12 +39,14 @@ pub fn init(allocator: std.mem.Allocator, path: []const u8, vocab_size: usize) !
         vocab[word_index] = word;
     }
 
+    const sorted_vocab = try sortVocab(allocator, vocab);
+
     return Self{
         .allocator = allocator,
         .max_word_length = max_word_length,
         .vocab = vocab,
         .word_scores = word_scores,
-        .sorted_vocab = try sortVocab(allocator, vocab),
+        .sorted_vocab = sorted_vocab,
     };
 }
 

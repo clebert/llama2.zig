@@ -30,12 +30,14 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
 
     errdefer sampler.deinit();
 
+    const prompt_tokens = try tokenizer.encode(allocator, cli.prompt, true, false);
+
     return Self{
         .allocator = allocator,
         .transformer = transformer,
         .tokenizer = tokenizer,
         .sampler = sampler,
-        .prompt_tokens = try tokenizer.encode(allocator, cli.prompt, true, false),
+        .prompt_tokens = prompt_tokens,
         .n_steps = cli.n_steps,
         .timer = cli.timer,
     };
