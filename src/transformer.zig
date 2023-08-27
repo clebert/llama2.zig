@@ -17,13 +17,29 @@ logits: []f32,
 pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
     const checkpoint = try Checkpoint.init(if (cli.mmap) null else allocator, cli.checkpoint_path);
 
+    errdefer checkpoint.deinit();
+
+    const attention = try Attention.init(allocator, checkpoint, cli.n_steps);
+
+    errdefer attention.deinit();
+
+    const feed_forward = try FeedForward.init(allocator, checkpoint);
+
+    errdefer feed_forward.deinit();
+
+    const hidden_state = try allocator.alloc(f32, checkpoint.dim);
+
+    errdefer allocator.free(hidden_state);
+
+    const logits = try allocator.alloc(f32, checkpoint.vocab_size);
+
     return Self{
         .allocator = allocator,
         .checkpoint = checkpoint,
-        .attention = try Attention.init(allocator, checkpoint, cli.n_steps),
-        .feed_forward = try FeedForward.init(allocator, checkpoint),
-        .hidden_state = try allocator.alloc(f32, checkpoint.dim),
-        .logits = try allocator.alloc(f32, checkpoint.vocab_size),
+        .attention = attention,
+        .feed_forward = feed_forward,
+        .hidden_state = hidden_state,
+        .logits = logits,
     };
 }
 

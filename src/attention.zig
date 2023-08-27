@@ -21,18 +21,48 @@ pub fn init(allocator: std.mem.Allocator, checkpoint: Checkpoint, seq_len: usize
     const kv_dim = checkpoint.kv_dim;
     const kv_cache_dim = checkpoint.n_layers * seq_len * kv_dim;
 
+    const input_buffer = try allocator.alloc(f32, dim);
+
+    errdefer allocator.free(input_buffer);
+
+    const output_buffer = try allocator.alloc(f32, dim);
+
+    errdefer allocator.free(output_buffer);
+
+    const scores_buffer = try allocator.alloc(f32, checkpoint.n_heads * seq_len);
+
+    errdefer allocator.free(scores_buffer);
+
+    const queries_buffer = try allocator.alloc(f32, dim);
+
+    errdefer allocator.free(queries_buffer);
+
+    const keys_buffer = try allocator.alloc(f32, kv_dim);
+
+    errdefer allocator.free(keys_buffer);
+
+    const values_buffer = try allocator.alloc(f32, kv_dim);
+
+    errdefer allocator.free(values_buffer);
+
+    const key_cache = try allocator.alloc(f32, kv_cache_dim);
+
+    errdefer allocator.free(key_cache);
+
+    const value_cache = try allocator.alloc(f32, kv_cache_dim);
+
     return Self{
         .allocator = allocator,
         .checkpoint = checkpoint,
         .seq_len = seq_len,
-        .input_buffer = try allocator.alloc(f32, dim),
-        .output_buffer = try allocator.alloc(f32, dim),
-        .scores_buffer = try allocator.alloc(f32, checkpoint.n_heads * seq_len),
-        .queries_buffer = try allocator.alloc(f32, dim),
-        .keys_buffer = try allocator.alloc(f32, kv_dim),
-        .values_buffer = try allocator.alloc(f32, kv_dim),
-        .key_cache = try allocator.alloc(f32, kv_cache_dim),
-        .value_cache = try allocator.alloc(f32, kv_cache_dim),
+        .input_buffer = input_buffer,
+        .output_buffer = output_buffer,
+        .scores_buffer = scores_buffer,
+        .queries_buffer = queries_buffer,
+        .keys_buffer = keys_buffer,
+        .values_buffer = values_buffer,
+        .key_cache = key_cache,
+        .value_cache = value_cache,
     };
 }
 

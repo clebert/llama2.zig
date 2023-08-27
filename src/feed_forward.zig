@@ -15,13 +15,27 @@ pub fn init(allocator: std.mem.Allocator, checkpoint: Checkpoint) !Self {
     const dim = checkpoint.dim;
     const hidden_dim = checkpoint.hidden_dim;
 
+    const input_buffer = try allocator.alloc(f32, dim);
+
+    errdefer allocator.free(input_buffer);
+
+    const hidden_buffer = try allocator.alloc(f32, hidden_dim);
+
+    errdefer allocator.free(hidden_buffer);
+
+    const residual_buffer = try allocator.alloc(f32, hidden_dim);
+
+    errdefer allocator.free(residual_buffer);
+
+    const output_buffer = try allocator.alloc(f32, dim);
+
     return Self{
         .allocator = allocator,
         .checkpoint = checkpoint,
-        .input_buffer = try allocator.alloc(f32, dim),
-        .hidden_buffer = try allocator.alloc(f32, hidden_dim),
-        .residual_buffer = try allocator.alloc(f32, hidden_dim),
-        .output_buffer = try allocator.alloc(f32, dim),
+        .input_buffer = input_buffer,
+        .hidden_buffer = hidden_buffer,
+        .residual_buffer = residual_buffer,
+        .output_buffer = output_buffer,
     };
 }
 

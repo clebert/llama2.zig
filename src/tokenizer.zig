@@ -10,7 +10,16 @@ sorted_vocab: []const VocabEntry,
 
 pub fn init(allocator: std.mem.Allocator, path: []const u8, vocab_size: usize) !Self {
     var vocab = try allocator.alloc([]u8, vocab_size);
+
+    errdefer for (vocab) |word| {
+        allocator.free(word);
+    };
+
+    errdefer allocator.free(vocab);
+
     var word_scores = try allocator.alloc(f32, vocab_size);
+
+    errdefer allocator.free(word_scores);
 
     const file = try std.fs.cwd().openFile(path, .{});
 

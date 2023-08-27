@@ -15,7 +15,6 @@ through the following linked [tests](./test.sh).
 ## TODOs
 
 - Add support for chat (https://github.com/karpathy/llama2.c/pull/343)
-- Use `errdefer` in all init methods (see generator)
 
 ## Usage
 

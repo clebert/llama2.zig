@@ -25,7 +25,10 @@ pub fn init(allocator: std.mem.Allocator) !Self {
     var tokenizer_path: ?[]const u8 = null;
     var mmap: bool = true;
     var timer: bool = true;
+
     var arg_iterator = try std.process.argsWithAllocator(allocator);
+
+    errdefer arg_iterator.deinit();
 
     _ = arg_iterator.next().?;
 
