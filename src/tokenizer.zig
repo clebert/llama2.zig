@@ -64,19 +64,12 @@ pub fn encode(
     self: *const Self,
     allocator: std.mem.Allocator,
     text: []const u8,
-    prepend_bos_token: bool,
-    append_eos_token: bool,
 ) ![]usize {
     var double_word_buffer = try allocator.alloc(u8, self.max_word_length * 2);
 
     defer allocator.free(double_word_buffer);
 
-    var tokens = try self.encodeCodepoints(
-        allocator,
-        text,
-        prepend_bos_token,
-        append_eos_token,
-    );
+    var tokens = try self.encodeCodepoints(allocator, text);
 
     defer allocator.free(tokens);
 
@@ -93,23 +86,14 @@ pub fn encode(
     return merged_tokens_copy;
 }
 
-pub fn decode(self: *const Self, current_token: usize, next_token: usize) []const u8 {
-    // https://github.com/karpathy/llama2.c/blob/7ac65cb2c2b169050747be92011b7bebdd1b4544/run.c#L425
-    const word = if (current_token == 1 and self.vocab[next_token][0] == ' ')
-        self.vocab[next_token][1..]
-    else
-        self.vocab[next_token];
+pub fn decode(self: *const Self, token: usize, bos: bool) []const u8 {
+    const word = self.vocab[token];
 
-    return word;
+    // https://github.com/karpathy/llama2.c/blob/7ac65cb2c2b169050747be92011b7bebdd1b4544/run.c#L425
+    return if (bos and word[0] == ' ') word[1..] else word;
 }
 
-fn encodeCodepoints(
-    self: *const Self,
-    allocator: std.mem.Allocator,
-    text: []const u8,
-    prepend_bos_token: bool,
-    append_eos_token: bool,
-) ![]usize {
+fn encodeCodepoints(self: *const Self, allocator: std.mem.Allocator, text: []const u8) ![]usize {
     var tokens = std.ArrayList(usize).init(allocator);
 
     errdefer tokens.deinit();
@@ -117,10 +101,6 @@ fn encodeCodepoints(
     var text_view = try std.unicode.Utf8View.init(text);
     var text_iterator = text_view.iterator();
     var token_index: usize = 0;
-
-    if (prepend_bos_token) {
-        try tokens.append(1);
-    }
 
     while (text_iterator.nextCodepointSlice()) |codepoints| : (token_index += 1) {
         if (token_index == 0) {
@@ -136,10 +116,6 @@ fn encodeCodepoints(
                 try tokens.append(@as(usize, codepoint) + 3);
             }
         }
-    }
-
-    if (append_eos_token) {
-        try tokens.append(2);
     }
 
     return tokens.toOwnedSlice();
@@ -243,13 +219,7 @@ test "encode utf-8" {
     defer tokenizer.deinit();
 
     const expected = [_]usize{ 365, 1691, 1018, 3963, 669, 29871, 31409, 30607, 30437, 30564 };
-
-    const actual = try tokenizer.encode(
-        std.testing.allocator,
-        "Lets try ö & 株式会社",
-        false,
-        false,
-    );
+    const actual = try tokenizer.encode(std.testing.allocator, "Lets try ö & 株式会社");
 
     defer std.testing.allocator.free(actual);
 
@@ -262,13 +232,7 @@ test "encode empty string" {
     defer tokenizer.deinit();
 
     const expected = [_]usize{};
-
-    const actual = try tokenizer.encode(
-        std.testing.allocator,
-        "",
-        false,
-        false,
-    );
+    const actual = try tokenizer.encode(std.testing.allocator, "");
 
     defer std.testing.allocator.free(actual);
 
@@ -281,13 +245,7 @@ test "encode unknown codepoint" {
     defer tokenizer.deinit();
 
     const expected = [_]usize{ 29871, 243, 149, 145, 154, 243, 150, 147, 144 };
-
-    const actual = try tokenizer.encode(
-        std.testing.allocator,
-        "𒎗𓐍",
-        false,
-        false,
-    );
+    const actual = try tokenizer.encode(std.testing.allocator, "𒎗𓐍");
 
     defer std.testing.allocator.free(actual);
 
@@ -300,13 +258,7 @@ test "encode single chars" {
     defer tokenizer.deinit();
 
     const expected = [_]usize{ 261, 430, 429, 418, 411, 431, 428, 415 };
-
-    const actual = try tokenizer.encode(
-        std.testing.allocator,
-        "abcdefgh",
-        false,
-        false,
-    );
+    const actual = try tokenizer.encode(std.testing.allocator, "abcdefgh");
 
     defer std.testing.allocator.free(actual);
 
@@ -319,14 +271,8 @@ test "meta encoding example 1" {
 
     defer tokenizer.deinit();
 
-    const expected = [_]usize{ 1, 306, 4658, 278, 6593, 310, 2834, 338 };
-
-    const actual = try tokenizer.encode(
-        std.testing.allocator,
-        "I believe the meaning of life is",
-        true,
-        false,
-    );
+    const expected = [_]usize{ 306, 4658, 278, 6593, 310, 2834, 338 };
+    const actual = try tokenizer.encode(std.testing.allocator, "I believe the meaning of life is");
 
     defer std.testing.allocator.free(actual);
 
@@ -338,13 +284,11 @@ test "meta encoding example 2" {
 
     defer tokenizer.deinit();
 
-    const expected = [_]usize{ 1, 3439, 17632, 1925, 29892, 278, 6368, 310, 14215, 537, 5922, 393, 29871, 2 };
+    const expected = [_]usize{ 3439, 17632, 1925, 29892, 278, 6368, 310, 14215, 537, 5922, 393, 29871 };
 
     const actual = try tokenizer.encode(
         std.testing.allocator,
         "Simply put, the theory of relativity states that ",
-        true,
-        true,
     );
 
     defer std.testing.allocator.free(actual);
@@ -357,13 +301,11 @@ test "meta encoding example 3" {
 
     defer tokenizer.deinit();
 
-    const expected = [_]usize{ 1, 319, 11473, 2643, 378, 629, 271, 18099, 278, 3815, 373, 278, 6826, 29901, 13, 13, 4706, 6324, 14332, 29892, 13, 13, 4706, 306, 925, 29871 };
+    const expected = [_]usize{ 319, 11473, 2643, 378, 629, 271, 18099, 278, 3815, 373, 278, 6826, 29901, 13, 13, 4706, 6324, 14332, 29892, 13, 13, 4706, 306, 925, 29871 };
 
     const actual = try tokenizer.encode(
         std.testing.allocator,
         "A brief message congratulating the team on the launch:\n\n        Hi everyone,\n\n        I just ",
-        true,
-        false,
     );
 
     defer std.testing.allocator.free(actual);
@@ -376,13 +318,11 @@ test "meta encoding example 4" {
 
     defer tokenizer.deinit();
 
-    const expected = [_]usize{ 1, 4103, 9632, 4223, 304, 5176, 29901, 13, 13, 4706, 7205, 4932, 357, 1149, 301, 449, 276, 316, 2778, 13, 4706, 1236, 407, 837, 524, 1149, 6042, 354, 772, 440, 29878, 1318, 13, 4706, 715, 1878, 330, 3055, 1725, 1149, 330, 3055, 1725, 4639, 28754, 13, 4706, 923, 968, 1149 };
+    const expected = [_]usize{ 4103, 9632, 4223, 304, 5176, 29901, 13, 13, 4706, 7205, 4932, 357, 1149, 301, 449, 276, 316, 2778, 13, 4706, 1236, 407, 837, 524, 1149, 6042, 354, 772, 440, 29878, 1318, 13, 4706, 715, 1878, 330, 3055, 1725, 1149, 330, 3055, 1725, 4639, 28754, 13, 4706, 923, 968, 1149 };
 
     const actual = try tokenizer.encode(
         std.testing.allocator,
         "Translate English to French:\n\n        sea otter => loutre de mer\n        peppermint => menthe poivrée\n        plush girafe => girafe peluche\n        cheese =>",
-        true,
-        false,
     );
 
     defer std.testing.allocator.free(actual);

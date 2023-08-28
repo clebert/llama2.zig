@@ -2,7 +2,6 @@ const Self = @This();
 
 const std = @import("std");
 const lib = @import("lib.zig");
-const Checkpoint = @import("checkpoint.zig");
 const Cli = @import("cli.zig");
 const Sampler = @import("sampler.zig");
 const Tokenizer = @import("tokenizer.zig");
@@ -30,7 +29,7 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
 
     errdefer sampler.deinit();
 
-    const prompt_tokens = try tokenizer.encode(allocator, cli.prompt, true, false);
+    const prompt_tokens = try tokenizer.encode(allocator, cli.prompt);
 
     return Self{
         .allocator = allocator,
@@ -50,57 +49,55 @@ pub fn deinit(self: *const Self) void {
     self.allocator.free(self.prompt_tokens);
 }
 
+const bos_token = 1; // beginning of sequence
+const eos_token = 2; // end of sequence
+
 pub fn generate(self: *Self, writer: anytype) !void {
-    std.debug.assert(self.prompt_tokens.len > 0);
-
-    var prompt_tokens_offset: usize = 0;
-    var current_token: usize = self.prompt_tokens[prompt_tokens_offset];
-
-    prompt_tokens_offset += 1;
-
+    var token: usize = bos_token;
+    var next_token: usize = eos_token;
+    var prompt_tokens_index: usize = 0;
+    var n_timed_steps: usize = 0;
     var start_time: i64 = 0;
     var total_time: i64 = 0;
-    var next_token: usize = 1;
-    var n_steps: usize = 0;
 
     for (0..self.n_steps) |pos| {
         if (pos > 0) {
+            n_timed_steps += 1;
             start_time = std.time.milliTimestamp();
         }
 
-        try self.transformer.forward(current_token, pos);
+        try self.transformer.forward(token, pos);
 
         if (start_time > 0) {
             total_time += std.time.milliTimestamp() - start_time;
         }
 
-        if (prompt_tokens_offset < self.prompt_tokens.len) {
-            next_token = self.prompt_tokens[prompt_tokens_offset];
-            prompt_tokens_offset += 1;
+        if (prompt_tokens_index < self.prompt_tokens.len) {
+            next_token = self.prompt_tokens[prompt_tokens_index];
+            prompt_tokens_index += 1;
         } else {
             next_token = self.sampler.sample(self.transformer.logits);
         }
 
-        n_steps += 1;
-
-        if (next_token == 1) {
-            break; // the BOS (=1) token delimits sequences
+        if (next_token == bos_token or next_token == eos_token) {
+            break;
         }
 
-        const word = self.tokenizer.decode(current_token, next_token);
+        const word = self.tokenizer.decode(next_token, token == bos_token);
 
         try lib.print(word, writer);
 
-        current_token = next_token;
+        token = next_token;
     }
 
-    if (total_time > 0 and self.timer) {
-        const average_time = @as(f32, @floatFromInt(total_time)) / @as(f32, @floatFromInt(n_steps));
+    if (n_timed_steps > 0 and self.timer) {
+        const average_time =
+            @as(f32, @floatFromInt(total_time)) / @as(f32, @floatFromInt(n_timed_steps));
 
-        try writer.print("\n\nachieved: {d:.3} tok/s\n", .{@as(f32, 1000 / average_time)});
-    } else {
-        try writer.print("\n", .{});
+        try writer.print("\n\nachieved: {d:.3} tok/s", .{@as(f32, 1000 / average_time)});
     }
+
+    try writer.print("\n", .{});
 }
 
 test "generate tiny story" {

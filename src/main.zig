@@ -3,8 +3,6 @@ const Cli = @import("cli.zig");
 const Generator = @import("generator.zig");
 
 pub fn main() !void {
-    const stdout = std.io.getStdOut().writer();
-
     var cli = try Cli.init(std.heap.page_allocator);
 
     defer cli.deinit();
@@ -13,7 +11,7 @@ pub fn main() !void {
 
     defer generator.deinit();
 
-    try generator.generate(stdout);
+    try generator.generate(std.io.getStdOut().writer());
 }
 
 test {
