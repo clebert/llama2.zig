@@ -9,11 +9,22 @@ random_seed: u64,
 n_steps: usize,
 prompt: []const u8,
 tokenizer_path: []const u8,
+chat: bool,
+system_prompt: []const u8,
 mmap: bool,
 timer: bool,
 arg_iterator: std.process.ArgIterator,
 
-const Option = enum { temperature, top_p, random_seed, n_steps, prompt, tokenizer_path };
+const Option = enum {
+    temperature,
+    top_p,
+    random_seed,
+    n_steps,
+    prompt,
+    tokenizer_path,
+    mode,
+    system_prompt,
+};
 
 pub fn init(allocator: std.mem.Allocator) !Self {
     var current_option: ?Option = null;
@@ -23,6 +34,8 @@ pub fn init(allocator: std.mem.Allocator) !Self {
     var n_steps: ?usize = null;
     var prompt: ?[]const u8 = null;
     var tokenizer_path: ?[]const u8 = null;
+    var mode: ?[]const u8 = null;
+    var system_prompt: ?[]const u8 = null;
     var mmap: bool = true;
     var timer: bool = true;
 
@@ -48,6 +61,14 @@ pub fn init(allocator: std.mem.Allocator) !Self {
                 prompt = arg;
             } else if (option == .tokenizer_path and tokenizer_path == null) {
                 tokenizer_path = arg;
+            } else if (option == .mode and mode == null) {
+                if (std.mem.eql(u8, arg, "generate") or std.mem.eql(u8, arg, "chat")) {
+                    mode = arg;
+                } else {
+                    try exit();
+                }
+            } else if (option == .system_prompt and system_prompt == null) {
+                system_prompt = arg;
             } else {
                 try exit();
             }
@@ -65,6 +86,10 @@ pub fn init(allocator: std.mem.Allocator) !Self {
             current_option = .prompt;
         } else if (std.mem.eql(u8, arg, "-z")) {
             current_option = .tokenizer_path;
+        } else if (std.mem.eql(u8, arg, "-m")) {
+            current_option = .mode;
+        } else if (std.mem.eql(u8, arg, "-y")) {
+            current_option = .system_prompt;
         } else if (std.mem.eql(u8, arg, "--no-mmap") and mmap) {
             mmap = false;
         } else if (std.mem.eql(u8, arg, "--no-timer") and timer) {
@@ -86,6 +111,8 @@ pub fn init(allocator: std.mem.Allocator) !Self {
         .n_steps = @max(n_steps orelse 256, 1),
         .prompt = prompt orelse "",
         .tokenizer_path = tokenizer_path orelse "tokenizer.bin",
+        .chat = if (mode) |arg| std.mem.eql(u8, arg, "chat") else false,
+        .system_prompt = system_prompt orelse "",
         .mmap = mmap,
         .timer = timer,
         .arg_iterator = arg_iterator,
@@ -108,6 +135,8 @@ fn exit() !noreturn {
     try stderr.print("  -n <int>    n_steps        = 256\n", .{});
     try stderr.print("  -i <string> prompt         = \"\"\n", .{});
     try stderr.print("  -z <string> tokenizer_path = \"tokenizer.bin\"\n", .{});
+    try stderr.print("  -m <string> mode           = \"generate\"; (alt. \"chat\")\n", .{});
+    try stderr.print("  -y <string> system_prompt  = \"\"\n", .{});
     try stderr.print("  --no-mmap\n", .{});
     try stderr.print("  --no-timer\n\n", .{});
 

@@ -54,7 +54,7 @@ const eos_token = 2; // end of sequence
 
 pub fn generate(self: *Self, writer: anytype) !void {
     var token: usize = bos_token;
-    var next_token: usize = eos_token;
+    var next_token: usize = 0;
     var prompt_tokens_index: usize = 0;
     var n_timed_steps: usize = 0;
     var start_time: i64 = 0;
@@ -117,6 +117,8 @@ test "generate tiny story" {
         .n_steps = 10,
         .prompt = "There was",
         .tokenizer_path = "tok512.bin",
+        .chat = false,
+        .system_prompt = "",
         .mmap = false,
         .timer = false,
         .arg_iterator = arg_iterator,

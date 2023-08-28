@@ -90,7 +90,7 @@ pub fn decode(self: *const Self, token: usize, bos: bool) []const u8 {
     const word = self.vocab[token];
 
     // https://github.com/karpathy/llama2.c/blob/7ac65cb2c2b169050747be92011b7bebdd1b4544/run.c#L425
-    return if (bos and word[0] == ' ') word[1..] else word;
+    return if (bos and std.ascii.isWhitespace(word[0])) word[1..] else word;
 }
 
 fn encodeCodepoints(self: *const Self, allocator: std.mem.Allocator, text: []const u8) ![]usize {

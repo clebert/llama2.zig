@@ -5,16 +5,12 @@
 This is a Zig port of [llama2.c](https://github.com/karpathy/llama2.c).
 
 The current code is based on:
-https://github.com/karpathy/llama2.c/blob/c7a26264a233c32f396b1c67be4ac019d2d8a659/run.c
+https://github.com/karpathy/llama2.c/blob/7325bab657406c427e7c1ca6575bace9a5982744/run.c
 
 I have significantly diverged from the original in terms of architecture and implementation.
 However, my goal is to continue porting the improvements and new features of Andrej's C version into
 this codebase. At present, my Zig port produces the same output as the C version. I ensure this
 through the following linked [tests](./test.sh).
-
-## TODOs
-
-- Add support for chat (https://github.com/karpathy/llama2.c/pull/343)
 
 ## Usage
 
