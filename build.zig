@@ -24,11 +24,11 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    const metal = b.option(bool, "metal", "Use Metal for matrix multiplication") orelse false;
-
     const build_options = b.addOptions();
 
     exe.addOptions("build_options", build_options);
+
+    const metal = b.option(bool, "metal", "Use the Metal framework") orelse false;
 
     build_options.addOption(bool, "metal", metal);
 
@@ -44,8 +44,26 @@ pub fn build(b: *std.Build) void {
         exe.addIncludePath(.{ .path = "src/lib" });
 
         exe.addCSourceFile(.{
-            .file = .{ .path = "src/lib/matmul_metal.cpp" },
+            .file = .{ .path = "src/lib/metal_mul_matrix_vector.cpp" },
             .flags = &.{"-std=c++17"},
+        });
+    }
+
+    const accelerate = b.option(bool, "accelerate", "Use the Accelerate framework") orelse false;
+
+    build_options.addOption(bool, "accelerate", accelerate);
+
+    if (accelerate) {
+        exe.linkLibC();
+        exe.linkLibCpp();
+
+        exe.linkFramework("Accelerate");
+
+        exe.addIncludePath(.{ .path = "src/lib" });
+
+        exe.addCSourceFile(.{
+            .file = .{ .path = "src/lib/accelerate_mul_matrix_vector.c" },
+            .flags = &.{},
         });
     }
 

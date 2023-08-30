@@ -18,15 +18,19 @@ through the following linked [tests](./test.sh).
 zig build -Doptimize=ReleaseFast run -- stories260K.bin -z tok512.bin -i "Once upon a time"
 ```
 
-## Experimental Metal Support
-
-Most of the time is spent on matrix multiplication. I am currently experimenting with speeding this
-up using Metal. Currently, my Metal implementation is still much slower. The focus was initially on
-getting it to perform the calculations correctly on the GPU.
+## Experimental Metal Framework Support
 
 ```sh
 ./download-metal-cpp.sh
 zig build -Dmetal=true run -- stories260K.bin -z tok512.bin -i "Once upon a time"
+```
+
+- TODO: Investigate the usage of the [MPSMatrixVectorMultiplication](https://developer.apple.com/documentation/metalperformanceshaders/mpsmatrixvectormultiplication) kernel.
+
+## Experimental Accelerate Framework Support
+
+```sh
+zig build -Daccelerate=true run -- stories260K.bin -z tok512.bin -i "Once upon a time"
 ```
 
 ## Papers
@@ -39,3 +43,7 @@ zig build -Dmetal=true run -- stories260K.bin -z tok512.bin -i "Once upon a time
 - Rotary positional embeddings: [RoFormer: Enhanced Transformer with Rotary Position Embedding](https://arxiv.org/abs/2104.09864)
 - Grouped-query attention: [GQA: Training Generalized Multi-Query Transformer Models from Multi-Head Checkpoints](https://arxiv.org/abs/2305.13245v1)
 - Nucleus sampling: [The Curious Case of Neural Text Degeneration](https://arxiv.org/abs/1904.09751)
+
+## Links
+
+- [Finding the top-p elements as used in Nucleus Sampling](https://blog.virtual-void.net/2023/08/29/calculating-top-p/)

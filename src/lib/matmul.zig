@@ -2,12 +2,20 @@ const build_options = @import("build_options");
 const std = @import("std");
 const dot = @import("dot.zig").dot;
 
-extern fn matmulMetal(
-    result: [*c]f32,
-    a: [*c]const f32,
-    b: [*c]const f32,
-    result_len: usize,
-    a_len: usize,
+extern fn accelerateMulMatrixVector(
+    row_major_matrix: [*c]const f32,
+    input_vector: [*c]const f32,
+    output_vector: [*c]f32,
+    m_rows: i64,
+    n_cols: i64,
+) void;
+
+extern fn metalMulMatrixVector(
+    row_major_matrix: [*c]const f32,
+    input_vector: [*c]const f32,
+    output_vector: [*c]f32,
+    m_rows: u64,
+    n_cols: u64,
 ) void;
 
 pub const VectorArray = struct {
@@ -83,13 +91,27 @@ pub const Matrix = struct {
         std.debug.assert(input_vector.len == self.n_cols);
         std.debug.assert(output_vector.len == self.m_rows);
 
-        if (build_options.metal) {
-            matmulMetal(output_vector.ptr, input_vector.ptr, self.ptr, self.m_rows, self.n_cols);
+        if (build_options.accelerate) {
+            accelerateMulMatrixVector(
+                self.row_major_data.ptr,
+                input_vector.ptr,
+                output_vector.ptr,
+                @intCast(self.m_rows),
+                @intCast(self.n_cols),
+            );
+        } else if (build_options.metal) {
+            metalMulMatrixVector(
+                self.row_major_data.ptr,
+                input_vector.ptr,
+                output_vector.ptr,
+                self.m_rows,
+                self.n_cols,
+            );
         } else {
             for (output_vector, 0..) |*element, index| {
                 element.* = dot(
-                    input_vector,
                     self.row_major_data[(index * self.n_cols)..][0..self.n_cols],
+                    input_vector,
                 );
             }
         }
