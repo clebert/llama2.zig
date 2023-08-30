@@ -54,16 +54,13 @@ pub fn forward(self: *const Self, layer: usize) !void {
     const hidden_dim = checkpoint.hidden_dim;
     const weights = checkpoint.weights;
 
-    const weights_size = dim * hidden_dim;
-    const weights_offset = layer * weights_size;
+    const hidden_matrix = weights.feed_forward_hidden_matrices.getMatrix(layer);
+    const residual_matrix = weights.feed_forward_residual_matrices.getMatrix(layer);
+    const output_matrix = weights.feed_forward_output_matrices.getMatrix(layer);
 
-    const input_to_hidden = weights.ffn_input_to_hidden[weights_offset..][0..weights_size];
-    const input_to_residual = weights.ffn_input_to_residual[weights_offset..][0..weights_size];
-    const hidden_to_output = weights.ffn_hidden_to_output[weights_offset..][0..weights_size];
-
-    try lib.matmul2(
-        .{ self.hidden_buffer, self.input_buffer, input_to_hidden },
-        .{ self.residual_buffer, self.input_buffer, input_to_residual },
+    try lib.Matrix.multiplyVector2(
+        .{ &hidden_matrix, self.input_buffer, self.hidden_buffer },
+        .{ &residual_matrix, self.input_buffer, self.residual_buffer },
         dim >= 4096,
     );
 
@@ -71,7 +68,7 @@ pub fn forward(self: *const Self, layer: usize) !void {
         self.hidden_buffer[index] = silu(self.hidden_buffer[index]) * self.residual_buffer[index];
     }
 
-    lib.matmul(self.output_buffer, self.hidden_buffer, hidden_to_output);
+    output_matrix.multiplyVector(self.hidden_buffer, self.output_buffer);
 }
 
 // GLU Variants Improve Transformer (https://arxiv.org/abs/2002.05202)

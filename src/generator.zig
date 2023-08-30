@@ -76,7 +76,7 @@ pub fn generate(self: *Self, writer: anytype) !void {
             next_token = self.prompt_tokens[prompt_tokens_index];
             prompt_tokens_index += 1;
         } else {
-            next_token = self.sampler.sample(self.transformer.logits);
+            next_token = self.sampler.sample(self.transformer.logits_vector);
         }
 
         if (next_token == bos_token or next_token == eos_token) {

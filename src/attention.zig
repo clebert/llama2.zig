@@ -83,25 +83,15 @@ pub fn forward(self: *const Self, pos: usize, layer: usize) !void {
     const kv_dim = checkpoint.kv_dim;
     const weights = checkpoint.weights;
 
-    const query_weights_dim = dim * dim;
-    const kv_weights_dim = dim * kv_dim;
+    const query_matrix = weights.attention_query_matrices.getMatrix(layer);
+    const key_matrix = weights.attention_key_matrices.getMatrix(layer);
+    const value_matrix = weights.attention_value_matrices.getMatrix(layer);
+    const output_matrix = weights.attention_output_matrices.getMatrix(layer);
 
-    try lib.matmul3(
-        .{
-            self.queries_buffer,
-            self.input_buffer,
-            weights.attention_query[(layer * query_weights_dim)..][0..query_weights_dim],
-        },
-        .{
-            self.keys_buffer,
-            self.input_buffer,
-            weights.attention_key[(layer * kv_weights_dim)..][0..kv_weights_dim],
-        },
-        .{
-            self.values_buffer,
-            self.input_buffer,
-            weights.attention_value[(layer * kv_weights_dim)..][0..kv_weights_dim],
-        },
+    try lib.Matrix.multiplyVector3(
+        .{ &query_matrix, self.input_buffer, self.queries_buffer },
+        .{ &key_matrix, self.input_buffer, self.keys_buffer },
+        .{ &value_matrix, self.input_buffer, self.values_buffer },
         dim >= 4096,
     );
 
@@ -124,11 +114,7 @@ pub fn forward(self: *const Self, pos: usize, layer: usize) !void {
         self.compute_weighted_values(pos, head, kv_cache_layer_offset);
     }
 
-    lib.matmul(
-        self.output_buffer,
-        self.input_buffer,
-        weights.attention_output[(layer * dim * dim)..][0..(dim * dim)],
-    );
+    output_matrix.multiplyVector(self.input_buffer, self.output_buffer);
 }
 
 fn compute_weighted_values(

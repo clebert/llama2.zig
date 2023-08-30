@@ -131,7 +131,7 @@ pub fn start(self: *Self, allocator: std.mem.Allocator) !void {
         user_prompt_tokens_index += 1;
 
         if (next_token == 0) {
-            next_token = self.sampler.sample(self.transformer.logits);
+            next_token = self.sampler.sample(self.transformer.logits_vector);
         }
 
         if (next_token == eos_token) {

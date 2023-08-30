@@ -1,6 +1,7 @@
 const Self = @This();
 
 const std = @import("std");
+const lib = @import("./lib.zig");
 
 allocator: ?std.mem.Allocator,
 dim: usize,
@@ -15,21 +16,21 @@ head_size_sqrt: f32,
 n_groups: usize,
 
 weights: struct {
-    token_embedding: []const f32,
+    token_embedding_vectors: lib.VectorArray,
 
-    attention_input_rms: []const f32,
-    attention_query: []const f32,
-    attention_key: []const f32,
-    attention_value: []const f32,
-    attention_output: []const f32,
+    attention_norm_vectors: lib.VectorArray,
+    attention_query_matrices: lib.MatrixArray,
+    attention_key_matrices: lib.MatrixArray,
+    attention_value_matrices: lib.MatrixArray,
+    attention_output_matrices: lib.MatrixArray,
 
-    ffn_input_rms: []const f32,
-    ffn_input_to_hidden: []const f32, // w1
-    ffn_hidden_to_output: []const f32, // w2
-    ffn_input_to_residual: []const f32, // w3
+    feed_forward_norm_vectors: lib.VectorArray,
+    feed_forward_hidden_matrices: lib.MatrixArray,
+    feed_forward_output_matrices: lib.MatrixArray,
+    feed_forward_residual_matrices: lib.MatrixArray,
 
-    final_rms: []const f32,
-    classifier: []const f32,
+    final_norm_vector: []const f32,
+    classifier_matrix: lib.Matrix,
 },
 
 data: []align(std.mem.page_size) const u8,
@@ -56,17 +57,64 @@ pub fn init(no_mmap_allocator: ?std.mem.Allocator, path: []const u8) !Self {
 
     var weights_data: [*]const f32 = @alignCast(@ptrCast(data[28..]));
 
-    const token_embedding = readFloatSlice(&weights_data, vocab_size * dim);
-    const attention_input_rms = readFloatSlice(&weights_data, n_layers * dim);
-    const attention_query = readFloatSlice(&weights_data, n_layers * dim * n_heads * head_size);
-    const attention_key = readFloatSlice(&weights_data, n_layers * dim * n_kv_heads * head_size);
-    const attention_value = readFloatSlice(&weights_data, n_layers * dim * n_kv_heads * head_size);
-    const attention_output = readFloatSlice(&weights_data, n_layers * n_heads * head_size * dim);
-    const ffn_input_rms = readFloatSlice(&weights_data, n_layers * dim);
-    const ffn_input_to_hidden = readFloatSlice(&weights_data, n_layers * dim * hidden_dim);
-    const ffn_hidden_to_output = readFloatSlice(&weights_data, n_layers * hidden_dim * dim);
-    const ffn_input_to_residual = readFloatSlice(&weights_data, n_layers * dim * hidden_dim);
-    const final_rms = readFloatSlice(&weights_data, dim);
+    const token_embedding_vectors = lib.VectorArray.init(
+        dim,
+        readFloatSlice(&weights_data, vocab_size * dim),
+    );
+
+    const attention_norm_vectors = lib.VectorArray.init(
+        dim,
+        readFloatSlice(&weights_data, n_layers * dim),
+    );
+
+    const attention_query_matrices = lib.MatrixArray.init(
+        dim,
+        dim,
+        readFloatSlice(&weights_data, n_layers * (dim * dim)),
+    );
+
+    const attention_key_matrices = lib.MatrixArray.init(
+        kv_dim,
+        dim,
+        readFloatSlice(&weights_data, n_layers * (kv_dim * dim)),
+    );
+
+    const attention_value_matrices = lib.MatrixArray.init(
+        kv_dim,
+        dim,
+        readFloatSlice(&weights_data, n_layers * (kv_dim * dim)),
+    );
+
+    const attention_output_matrices = lib.MatrixArray.init(
+        dim,
+        dim,
+        readFloatSlice(&weights_data, n_layers * (dim * dim)),
+    );
+
+    const feed_forward_norm_vectors = lib.VectorArray.init(
+        dim,
+        readFloatSlice(&weights_data, n_layers * dim),
+    );
+
+    const feed_forward_hidden_matrices = lib.MatrixArray.init(
+        hidden_dim,
+        dim,
+        readFloatSlice(&weights_data, n_layers * (hidden_dim * dim)),
+    );
+
+    const feed_forward_output_matrices = lib.MatrixArray.init(
+        dim,
+        hidden_dim,
+        readFloatSlice(&weights_data, n_layers * (dim * hidden_dim)),
+    );
+
+    const feed_forward_residual_matrices = lib.MatrixArray.init(
+        hidden_dim,
+        dim,
+        readFloatSlice(&weights_data, n_layers * (hidden_dim * dim)),
+    );
+
+    const final_norm_vector = readFloatSlice(&weights_data, dim);
     const seq_len: usize = @intCast(config_data[6]);
 
     _ = readFloatSlice(&weights_data, seq_len * head_size / 2);
@@ -86,26 +134,26 @@ pub fn init(no_mmap_allocator: ?std.mem.Allocator, path: []const u8) !Self {
         .n_groups = n_groups,
 
         .weights = .{
-            .token_embedding = token_embedding,
+            .token_embedding_vectors = token_embedding_vectors,
 
-            .attention_input_rms = attention_input_rms,
-            .attention_query = attention_query,
-            .attention_key = attention_key,
-            .attention_value = attention_value,
-            .attention_output = attention_output,
+            .attention_norm_vectors = attention_norm_vectors,
+            .attention_query_matrices = attention_query_matrices,
+            .attention_key_matrices = attention_key_matrices,
+            .attention_value_matrices = attention_value_matrices,
+            .attention_output_matrices = attention_output_matrices,
 
-            .ffn_input_rms = ffn_input_rms,
-            .ffn_input_to_hidden = ffn_input_to_hidden,
-            .ffn_hidden_to_output = ffn_hidden_to_output,
-            .ffn_input_to_residual = ffn_input_to_residual,
+            .feed_forward_norm_vectors = feed_forward_norm_vectors,
+            .feed_forward_hidden_matrices = feed_forward_hidden_matrices,
+            .feed_forward_output_matrices = feed_forward_output_matrices,
+            .feed_forward_residual_matrices = feed_forward_residual_matrices,
 
-            .final_rms = final_rms,
+            .final_norm_vector = final_norm_vector,
 
             // https://github.com/karpathy/llama2.c/commit/c3e0d73bd294e1f5e4d17425fac09aaec536400d
-            .classifier = if (signed_vocab_size > 0)
-                token_embedding
+            .classifier_matrix = lib.Matrix.init(vocab_size, dim, if (signed_vocab_size > 0)
+                token_embedding_vectors.data
             else
-                readFloatSlice(&weights_data, vocab_size * dim),
+                readFloatSlice(&weights_data, vocab_size * dim)),
         },
 
         .data = data,
