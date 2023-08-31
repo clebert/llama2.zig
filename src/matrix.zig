@@ -1,8 +1,8 @@
 const build_options = @import("build_options");
 const std = @import("std");
-const dot = @import("dot.zig").dot;
+const lib = @import("lib.zig");
 
-extern fn accelerateMulMatrixVector(
+extern fn matvecmulAccelerate(
     row_major_matrix: [*c]const f32,
     input_vector: [*c]const f32,
     output_vector: [*c]f32,
@@ -10,30 +10,13 @@ extern fn accelerateMulMatrixVector(
     n_cols: i64,
 ) void;
 
-extern fn metalMulMatrixVector(
+extern fn matvecmulMetal(
     row_major_matrix: [*c]const f32,
     input_vector: [*c]const f32,
     output_vector: [*c]f32,
     m_rows: u64,
     n_cols: u64,
 ) void;
-
-pub const VectorArray = struct {
-    vector_dim: usize,
-    data: []const f32,
-
-    pub fn init(vector_dim: usize, data: []const f32) VectorArray {
-        std.debug.assert(data.len % vector_dim == 0);
-
-        return VectorArray{ .vector_dim = vector_dim, .data = data };
-    }
-
-    pub fn getVector(self: *const VectorArray, index: usize) []const f32 {
-        const dim = self.vector_dim;
-
-        return self.data[(index * dim)..][0..dim];
-    }
-};
 
 pub const MatrixArray = struct {
     matrix_m_rows: usize,
@@ -92,7 +75,7 @@ pub const Matrix = struct {
         std.debug.assert(output_vector.len == self.m_rows);
 
         if (build_options.accelerate) {
-            accelerateMulMatrixVector(
+            matvecmulAccelerate(
                 self.row_major_data.ptr,
                 input_vector.ptr,
                 output_vector.ptr,
@@ -100,7 +83,7 @@ pub const Matrix = struct {
                 @intCast(self.n_cols),
             );
         } else if (build_options.metal) {
-            metalMulMatrixVector(
+            matvecmulMetal(
                 self.row_major_data.ptr,
                 input_vector.ptr,
                 output_vector.ptr,
@@ -109,7 +92,7 @@ pub const Matrix = struct {
             );
         } else {
             for (output_vector, 0..) |*element, index| {
-                element.* = dot(
+                element.* = lib.dot(
                     self.row_major_data[(index * self.n_cols)..][0..self.n_cols],
                     input_vector,
                 );

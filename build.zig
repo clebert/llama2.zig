@@ -41,10 +41,10 @@ pub fn build(b: *std.Build) void {
         exe.linkFramework("Metal");
 
         exe.addIncludePath(.{ .path = "metal-cpp" });
-        exe.addIncludePath(.{ .path = "src/lib" });
+        exe.addIncludePath(.{ .path = "src/lib-cpp" });
 
         exe.addCSourceFile(.{
-            .file = .{ .path = "src/lib/metal_mul_matrix_vector.cpp" },
+            .file = .{ .path = "src/lib-cpp/matvecmul_metal.cpp" },
             .flags = &.{"-std=c++17"},
         });
     }
@@ -59,10 +59,10 @@ pub fn build(b: *std.Build) void {
 
         exe.linkFramework("Accelerate");
 
-        exe.addIncludePath(.{ .path = "src/lib" });
+        exe.addIncludePath(.{ .path = "src/lib-c" });
 
         exe.addCSourceFile(.{
-            .file = .{ .path = "src/lib/accelerate_mul_matrix_vector.c" },
+            .file = .{ .path = "src/lib-c/matvecmul_accelerate.c" },
             .flags = &.{},
         });
     }

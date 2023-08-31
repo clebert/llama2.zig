@@ -1,9 +1,6 @@
 pub const add = @import("lib/add.zig").add;
 pub const argmax = @import("lib/argmax.zig").argmax;
 pub const dot = @import("lib/dot.zig").dot;
-pub const Matrix = @import("lib/matmul.zig").Matrix;
-pub const MatrixArray = @import("lib/matmul.zig").MatrixArray;
-pub const VectorArray = @import("lib/matmul.zig").VectorArray;
 pub const print = @import("lib/print.zig").print;
 pub const random = @import("lib/random.zig").random;
 pub const rmsnorm = @import("lib/rmsnorm.zig").rmsnorm;

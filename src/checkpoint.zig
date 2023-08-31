@@ -1,7 +1,8 @@
 const Self = @This();
 
 const std = @import("std");
-const lib = @import("./lib.zig");
+const matrix = @import("./matrix.zig");
+const vector = @import("./vector.zig");
 
 allocator: ?std.mem.Allocator,
 dim: usize,
@@ -16,21 +17,21 @@ head_size_sqrt: f32,
 n_groups: usize,
 
 weights: struct {
-    token_embedding_vectors: lib.VectorArray,
+    token_embedding_vectors: vector.VectorArray,
 
-    attention_norm_vectors: lib.VectorArray,
-    attention_query_matrices: lib.MatrixArray,
-    attention_key_matrices: lib.MatrixArray,
-    attention_value_matrices: lib.MatrixArray,
-    attention_output_matrices: lib.MatrixArray,
+    attention_norm_vectors: vector.VectorArray,
+    attention_query_matrices: matrix.MatrixArray,
+    attention_key_matrices: matrix.MatrixArray,
+    attention_value_matrices: matrix.MatrixArray,
+    attention_output_matrices: matrix.MatrixArray,
 
-    feed_forward_norm_vectors: lib.VectorArray,
-    feed_forward_hidden_matrices: lib.MatrixArray,
-    feed_forward_output_matrices: lib.MatrixArray,
-    feed_forward_residual_matrices: lib.MatrixArray,
+    feed_forward_norm_vectors: vector.VectorArray,
+    feed_forward_hidden_matrices: matrix.MatrixArray,
+    feed_forward_output_matrices: matrix.MatrixArray,
+    feed_forward_residual_matrices: matrix.MatrixArray,
 
     final_norm_vector: []const f32,
-    classifier_matrix: lib.Matrix,
+    classifier_matrix: matrix.Matrix,
 },
 
 data: []align(std.mem.page_size) const u8,
@@ -57,58 +58,58 @@ pub fn init(no_mmap_allocator: ?std.mem.Allocator, path: []const u8) !Self {
 
     var weights_data: [*]const f32 = @alignCast(@ptrCast(data[28..]));
 
-    const token_embedding_vectors = lib.VectorArray.init(
+    const token_embedding_vectors = vector.VectorArray.init(
         dim,
         readFloatSlice(&weights_data, vocab_size * dim),
     );
 
-    const attention_norm_vectors = lib.VectorArray.init(
+    const attention_norm_vectors = vector.VectorArray.init(
         dim,
         readFloatSlice(&weights_data, n_layers * dim),
     );
 
-    const attention_query_matrices = lib.MatrixArray.init(
+    const attention_query_matrices = matrix.MatrixArray.init(
         dim,
         dim,
         readFloatSlice(&weights_data, n_layers * (dim * dim)),
     );
 
-    const attention_key_matrices = lib.MatrixArray.init(
+    const attention_key_matrices = matrix.MatrixArray.init(
         kv_dim,
         dim,
         readFloatSlice(&weights_data, n_layers * (kv_dim * dim)),
     );
 
-    const attention_value_matrices = lib.MatrixArray.init(
+    const attention_value_matrices = matrix.MatrixArray.init(
         kv_dim,
         dim,
         readFloatSlice(&weights_data, n_layers * (kv_dim * dim)),
     );
 
-    const attention_output_matrices = lib.MatrixArray.init(
+    const attention_output_matrices = matrix.MatrixArray.init(
         dim,
         dim,
         readFloatSlice(&weights_data, n_layers * (dim * dim)),
     );
 
-    const feed_forward_norm_vectors = lib.VectorArray.init(
+    const feed_forward_norm_vectors = vector.VectorArray.init(
         dim,
         readFloatSlice(&weights_data, n_layers * dim),
     );
 
-    const feed_forward_hidden_matrices = lib.MatrixArray.init(
+    const feed_forward_hidden_matrices = matrix.MatrixArray.init(
         hidden_dim,
         dim,
         readFloatSlice(&weights_data, n_layers * (hidden_dim * dim)),
     );
 
-    const feed_forward_output_matrices = lib.MatrixArray.init(
+    const feed_forward_output_matrices = matrix.MatrixArray.init(
         dim,
         hidden_dim,
         readFloatSlice(&weights_data, n_layers * (dim * hidden_dim)),
     );
 
-    const feed_forward_residual_matrices = lib.MatrixArray.init(
+    const feed_forward_residual_matrices = matrix.MatrixArray.init(
         hidden_dim,
         dim,
         readFloatSlice(&weights_data, n_layers * (hidden_dim * dim)),
@@ -150,7 +151,7 @@ pub fn init(no_mmap_allocator: ?std.mem.Allocator, path: []const u8) !Self {
             .final_norm_vector = final_norm_vector,
 
             // https://github.com/karpathy/llama2.c/commit/c3e0d73bd294e1f5e4d17425fac09aaec536400d
-            .classifier_matrix = lib.Matrix.init(vocab_size, dim, if (signed_vocab_size > 0)
+            .classifier_matrix = matrix.Matrix.init(vocab_size, dim, if (signed_vocab_size > 0)
                 token_embedding_vectors.data
             else
                 readFloatSlice(&weights_data, vocab_size * dim)),

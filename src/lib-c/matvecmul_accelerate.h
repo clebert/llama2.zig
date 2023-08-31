@@ -1,6 +1,6 @@
 #include <stdint.h>
 
-void accelerateMulMatrixVector(
+void matvecmulAccelerate(
     const float *row_major_matrix,
     const float *input_vector,
     float *output_vector,

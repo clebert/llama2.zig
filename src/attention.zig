@@ -3,6 +3,7 @@ const Self = @This();
 const std = @import("std");
 const lib = @import("lib.zig");
 const Checkpoint = @import("checkpoint.zig");
+const matrix = @import("matrix.zig");
 
 allocator: std.mem.Allocator,
 checkpoint: Checkpoint,
@@ -88,7 +89,7 @@ pub fn forward(self: *const Self, pos: usize, layer: usize) !void {
     const value_matrix = weights.attention_value_matrices.getMatrix(layer);
     const output_matrix = weights.attention_output_matrices.getMatrix(layer);
 
-    try lib.Matrix.multiplyVector3(
+    try matrix.Matrix.multiplyVector3(
         .{ &query_matrix, self.input_buffer, self.queries_buffer },
         .{ &key_matrix, self.input_buffer, self.keys_buffer },
         .{ &value_matrix, self.input_buffer, self.values_buffer },

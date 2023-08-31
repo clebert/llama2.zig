@@ -5,11 +5,11 @@
 #include <Foundation/Foundation.hpp>
 #include "QuartzCore/QuartzCore.hpp"
 #include <Metal/Metal.hpp>
-#include "metal_mul_matrix_vector.h"
+#include "matvecmul_metal.h"
 
 extern "C"
 {
-  void metalMulMatrixVector(
+  void matvecmulMetal(
       const float *row_major_matrix,
       const float *input_vector,
       float *output_vector,
@@ -28,7 +28,7 @@ extern "C"
       #include <metal_stdlib>
       using namespace metal;
 
-      kernel void mulMatrixVector(
+      kernel void matvecmul(
         const device float* row_major_matrix [[ buffer(0) ]],
         const device float* input_vector [[ buffer(1) ]],
         device float* output_vector [[ buffer(2) ]],
@@ -57,7 +57,7 @@ extern "C"
     pLibrary->autorelease();
 
     MTL::Function *pFunction =
-        pLibrary->newFunction(NS::String::string("mulMatrixVector", NS::UTF8StringEncoding));
+        pLibrary->newFunction(NS::String::string("matvecmul", NS::UTF8StringEncoding));
 
     if (!pFunction)
     {

@@ -2,9 +2,9 @@
 #define ACCELERATE_LAPACK_ILP64
 
 #include <Accelerate/Accelerate.h>
-#include "accelerate_mul_matrix_vector.h"
+#include "matvecmul_accelerate.h"
 
-void accelerateMulMatrixVector(
+void matvecmulAccelerate(
     const float *row_major_matrix,
     const float *input_vector,
     float *output_vector,

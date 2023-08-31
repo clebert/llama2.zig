@@ -1,8 +1,8 @@
 const Self = @This();
 
 const std = @import("std");
-const lib = @import("lib.zig");
 const Checkpoint = @import("checkpoint.zig");
+const matrix = @import("matrix.zig");
 
 allocator: std.mem.Allocator,
 checkpoint: Checkpoint,
@@ -58,7 +58,7 @@ pub fn forward(self: *const Self, layer: usize) !void {
     const residual_matrix = weights.feed_forward_residual_matrices.getMatrix(layer);
     const output_matrix = weights.feed_forward_output_matrices.getMatrix(layer);
 
-    try lib.Matrix.multiplyVector2(
+    try matrix.Matrix.multiplyVector2(
         .{ &hidden_matrix, self.input_buffer, self.hidden_buffer },
         .{ &residual_matrix, self.input_buffer, self.residual_buffer },
         dim >= 4096,
