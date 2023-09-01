@@ -15,7 +15,7 @@ hidden_state_vector: []f32,
 logits_vector: []f32,
 
 pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
-    const checkpoint = try Checkpoint.init(if (cli.mmap) null else allocator, cli.checkpoint_path);
+    const checkpoint = try Checkpoint.init(allocator, cli);
 
     errdefer checkpoint.deinit();
 
@@ -55,16 +55,13 @@ pub fn forward(self: *const Self, token: usize, pos: usize) !void {
     const checkpoint = self.checkpoint;
     const weights = checkpoint.weights;
 
-    @memcpy(
-        self.hidden_state_vector,
-        weights.token_embedding_vectors.getVector(token),
-    );
+    @memcpy(self.hidden_state_vector, weights.token_embedding_vector.at(token));
 
     for (0..checkpoint.n_layers) |layer| {
         lib.rmsnorm(
-            self.attention.input_buffer,
             self.hidden_state_vector,
-            weights.attention_norm_vectors.getVector(layer),
+            weights.attention_norm_vector.at(layer),
+            self.attention.input_buffer,
         );
 
         try self.attention.forward(pos, layer);
@@ -72,9 +69,9 @@ pub fn forward(self: *const Self, token: usize, pos: usize) !void {
         lib.add(self.hidden_state_vector, self.attention.output_buffer);
 
         lib.rmsnorm(
-            self.feed_forward.input_buffer,
             self.hidden_state_vector,
-            weights.feed_forward_norm_vectors.getVector(layer),
+            weights.feed_forward_norm_vector.at(layer),
+            self.feed_forward.input_buffer,
         );
 
         try self.feed_forward.forward(layer);
@@ -82,7 +79,11 @@ pub fn forward(self: *const Self, token: usize, pos: usize) !void {
         lib.add(self.hidden_state_vector, self.feed_forward.output_buffer);
     }
 
-    lib.rmsnorm(self.hidden_state_vector, self.hidden_state_vector, weights.final_norm_vector);
+    lib.rmsnorm(
+        self.hidden_state_vector,
+        weights.final_norm_vector,
+        self.hidden_state_vector,
+    );
 
-    weights.classifier_matrix.multiplyVector(self.hidden_state_vector, self.logits_vector);
+    try weights.classifier_matrix.multiplyVector(0, self.hidden_state_vector, self.logits_vector);
 }

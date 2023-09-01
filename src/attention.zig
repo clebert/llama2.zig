@@ -80,20 +80,25 @@ pub fn deinit(self: *const Self) void {
 
 pub fn forward(self: *const Self, pos: usize, layer: usize) !void {
     const checkpoint = self.checkpoint;
-    const dim = checkpoint.dim;
     const kv_dim = checkpoint.kv_dim;
     const weights = checkpoint.weights;
 
-    const query_matrix = weights.attention_query_matrices.getMatrix(layer);
-    const key_matrix = weights.attention_key_matrices.getMatrix(layer);
-    const value_matrix = weights.attention_value_matrices.getMatrix(layer);
-    const output_matrix = weights.attention_output_matrices.getMatrix(layer);
+    try weights.attention_queries_matrix.multiplyVector(
+        layer,
+        self.input_buffer,
+        self.queries_buffer,
+    );
 
-    try matrix.Matrix.multiplyVector3(
-        .{ &query_matrix, self.input_buffer, self.queries_buffer },
-        .{ &key_matrix, self.input_buffer, self.keys_buffer },
-        .{ &value_matrix, self.input_buffer, self.values_buffer },
-        dim >= 4096,
+    try weights.attention_keys_matrix.multiplyVector(
+        layer,
+        self.input_buffer,
+        self.keys_buffer,
+    );
+
+    try weights.attention_values_matrix.multiplyVector(
+        layer,
+        self.input_buffer,
+        self.values_buffer,
     );
 
     lib.rope(pos, checkpoint.head_size, self.queries_buffer, self.keys_buffer);
@@ -115,7 +120,11 @@ pub fn forward(self: *const Self, pos: usize, layer: usize) !void {
         self.compute_weighted_values(pos, head, kv_cache_layer_offset);
     }
 
-    output_matrix.multiplyVector(self.input_buffer, self.output_buffer);
+    try weights.attention_output_matrix.multiplyVector(
+        layer,
+        self.input_buffer,
+        self.output_buffer,
+    );
 }
 
 fn compute_weighted_values(

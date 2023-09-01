@@ -1,10 +1,12 @@
 const Self = @This();
 
 const std = @import("std");
-const matrix = @import("./matrix.zig");
-const vector = @import("./vector.zig");
+const Cli = @import("./cli.zig");
+const Matrix = @import("./matrix.zig");
+const Vector = @import("./vector.zig");
 
-allocator: ?std.mem.Allocator,
+allocator: std.mem.Allocator,
+mmap: bool,
 dim: usize,
 hidden_dim: usize,
 n_layers: usize,
@@ -17,30 +19,36 @@ head_size_sqrt: f32,
 n_groups: usize,
 
 weights: struct {
-    token_embedding_vectors: vector.VectorArray,
+    token_embedding_vector: Vector,
 
-    attention_norm_vectors: vector.VectorArray,
-    attention_query_matrices: matrix.MatrixArray,
-    attention_key_matrices: matrix.MatrixArray,
-    attention_value_matrices: matrix.MatrixArray,
-    attention_output_matrices: matrix.MatrixArray,
+    attention_norm_vector: Vector,
+    attention_queries_matrix: Matrix,
+    attention_keys_matrix: Matrix,
+    attention_values_matrix: Matrix,
+    attention_output_matrix: Matrix,
 
-    feed_forward_norm_vectors: vector.VectorArray,
-    feed_forward_hidden_matrices: matrix.MatrixArray,
-    feed_forward_output_matrices: matrix.MatrixArray,
-    feed_forward_residual_matrices: matrix.MatrixArray,
+    feed_forward_norm_vector: Vector,
+    feed_forward_hidden_matrix: Matrix,
+    feed_forward_output_matrix: Matrix,
+    feed_forward_residual_matrix: Matrix,
 
     final_norm_vector: []const f32,
-    classifier_matrix: matrix.Matrix,
+    classifier_matrix: Matrix,
 },
 
 data: []align(std.mem.page_size) const u8,
 
-pub fn init(no_mmap_allocator: ?std.mem.Allocator, path: []const u8) !Self {
-    const data = try if (no_mmap_allocator) |allocator|
-        readFile(allocator, path)
+pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
+    const data = try if (cli.mmap)
+        mmapFile(cli.checkpoint_path)
     else
-        mmapFile(path);
+        readFile(allocator, cli.checkpoint_path);
+
+    errdefer if (cli.mmap) {
+        std.os.munmap(data);
+    } else {
+        allocator.free(data);
+    };
 
     const config_data: [*]const i32 = @alignCast(@ptrCast(data[0..28]));
 
@@ -58,62 +66,90 @@ pub fn init(no_mmap_allocator: ?std.mem.Allocator, path: []const u8) !Self {
 
     var weights_data: [*]const f32 = @alignCast(@ptrCast(data[28..]));
 
-    const token_embedding_vectors = vector.VectorArray.init(
+    const token_embedding_vector = Vector.init(
         dim,
         readFloatSlice(&weights_data, vocab_size * dim),
     );
 
-    const attention_norm_vectors = vector.VectorArray.init(
+    const attention_norm_vector = Vector.init(
         dim,
         readFloatSlice(&weights_data, n_layers * dim),
     );
 
-    const attention_query_matrices = matrix.MatrixArray.init(
+    const attention_queries_matrix = try Matrix.init(
+        allocator,
+        cli.multithreading,
         dim,
         dim,
         readFloatSlice(&weights_data, n_layers * (dim * dim)),
     );
 
-    const attention_key_matrices = matrix.MatrixArray.init(
+    errdefer attention_queries_matrix.deinit();
+
+    const attention_keys_matrix = try Matrix.init(
+        allocator,
+        cli.multithreading,
         kv_dim,
         dim,
         readFloatSlice(&weights_data, n_layers * (kv_dim * dim)),
     );
 
-    const attention_value_matrices = matrix.MatrixArray.init(
+    errdefer attention_keys_matrix.deinit();
+
+    const attention_values_matrix = try Matrix.init(
+        allocator,
+        cli.multithreading,
         kv_dim,
         dim,
         readFloatSlice(&weights_data, n_layers * (kv_dim * dim)),
     );
 
-    const attention_output_matrices = matrix.MatrixArray.init(
+    errdefer attention_values_matrix.deinit();
+
+    const attention_output_matrix = try Matrix.init(
+        allocator,
+        cli.multithreading,
         dim,
         dim,
         readFloatSlice(&weights_data, n_layers * (dim * dim)),
     );
 
-    const feed_forward_norm_vectors = vector.VectorArray.init(
+    errdefer attention_output_matrix.deinit();
+
+    const feed_forward_norm_vector = Vector.init(
         dim,
         readFloatSlice(&weights_data, n_layers * dim),
     );
 
-    const feed_forward_hidden_matrices = matrix.MatrixArray.init(
+    const feed_forward_hidden_matrix = try Matrix.init(
+        allocator,
+        cli.multithreading,
         hidden_dim,
         dim,
         readFloatSlice(&weights_data, n_layers * (hidden_dim * dim)),
     );
 
-    const feed_forward_output_matrices = matrix.MatrixArray.init(
+    errdefer feed_forward_hidden_matrix.deinit();
+
+    const feed_forward_output_matrix = try Matrix.init(
+        allocator,
+        cli.multithreading,
         dim,
         hidden_dim,
         readFloatSlice(&weights_data, n_layers * (dim * hidden_dim)),
     );
 
-    const feed_forward_residual_matrices = matrix.MatrixArray.init(
+    errdefer feed_forward_output_matrix.deinit();
+
+    const feed_forward_residual_matrix = try Matrix.init(
+        allocator,
+        cli.multithreading,
         hidden_dim,
         dim,
         readFloatSlice(&weights_data, n_layers * (hidden_dim * dim)),
     );
+
+    errdefer feed_forward_residual_matrix.deinit();
 
     const final_norm_vector = readFloatSlice(&weights_data, dim);
     const seq_len: usize = @intCast(config_data[6]);
@@ -122,7 +158,8 @@ pub fn init(no_mmap_allocator: ?std.mem.Allocator, path: []const u8) !Self {
     _ = readFloatSlice(&weights_data, seq_len * head_size / 2);
 
     return Self{
-        .allocator = no_mmap_allocator,
+        .allocator = allocator,
+        .mmap = cli.mmap,
         .dim = dim,
         .hidden_dim = hidden_dim,
         .n_layers = n_layers,
@@ -135,26 +172,32 @@ pub fn init(no_mmap_allocator: ?std.mem.Allocator, path: []const u8) !Self {
         .n_groups = n_groups,
 
         .weights = .{
-            .token_embedding_vectors = token_embedding_vectors,
+            .token_embedding_vector = token_embedding_vector,
 
-            .attention_norm_vectors = attention_norm_vectors,
-            .attention_query_matrices = attention_query_matrices,
-            .attention_key_matrices = attention_key_matrices,
-            .attention_value_matrices = attention_value_matrices,
-            .attention_output_matrices = attention_output_matrices,
+            .attention_norm_vector = attention_norm_vector,
+            .attention_queries_matrix = attention_queries_matrix,
+            .attention_keys_matrix = attention_keys_matrix,
+            .attention_values_matrix = attention_values_matrix,
+            .attention_output_matrix = attention_output_matrix,
 
-            .feed_forward_norm_vectors = feed_forward_norm_vectors,
-            .feed_forward_hidden_matrices = feed_forward_hidden_matrices,
-            .feed_forward_output_matrices = feed_forward_output_matrices,
-            .feed_forward_residual_matrices = feed_forward_residual_matrices,
+            .feed_forward_norm_vector = feed_forward_norm_vector,
+            .feed_forward_hidden_matrix = feed_forward_hidden_matrix,
+            .feed_forward_output_matrix = feed_forward_output_matrix,
+            .feed_forward_residual_matrix = feed_forward_residual_matrix,
 
             .final_norm_vector = final_norm_vector,
 
             // https://github.com/karpathy/llama2.c/commit/c3e0d73bd294e1f5e4d17425fac09aaec536400d
-            .classifier_matrix = matrix.Matrix.init(vocab_size, dim, if (signed_vocab_size > 0)
-                token_embedding_vectors.data
-            else
-                readFloatSlice(&weights_data, vocab_size * dim)),
+            .classifier_matrix = try Matrix.init(
+                allocator,
+                cli.multithreading,
+                vocab_size,
+                dim,
+                if (signed_vocab_size > 0)
+                    token_embedding_vector.data
+                else
+                    readFloatSlice(&weights_data, vocab_size * dim),
+            ),
         },
 
         .data = data,
@@ -162,10 +205,19 @@ pub fn init(no_mmap_allocator: ?std.mem.Allocator, path: []const u8) !Self {
 }
 
 pub fn deinit(self: *const Self) void {
-    if (self.allocator) |allocator| {
-        allocator.free(self.data);
-    } else {
+    self.weights.attention_queries_matrix.deinit();
+    self.weights.attention_keys_matrix.deinit();
+    self.weights.attention_values_matrix.deinit();
+    self.weights.attention_output_matrix.deinit();
+    self.weights.feed_forward_hidden_matrix.deinit();
+    self.weights.feed_forward_output_matrix.deinit();
+    self.weights.feed_forward_residual_matrix.deinit();
+    self.weights.classifier_matrix.deinit();
+
+    if (self.mmap) {
         std.os.munmap(self.data);
+    } else {
+        self.allocator.free(self.data);
     }
 }
 

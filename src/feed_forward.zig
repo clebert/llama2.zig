@@ -50,25 +50,30 @@ pub fn forward(self: *const Self, layer: usize) !void {
     @setFloatMode(.Optimized);
 
     const checkpoint = self.checkpoint;
-    const dim = checkpoint.dim;
     const hidden_dim = checkpoint.hidden_dim;
     const weights = checkpoint.weights;
 
-    const hidden_matrix = weights.feed_forward_hidden_matrices.getMatrix(layer);
-    const residual_matrix = weights.feed_forward_residual_matrices.getMatrix(layer);
-    const output_matrix = weights.feed_forward_output_matrices.getMatrix(layer);
+    try weights.feed_forward_hidden_matrix.multiplyVector(
+        layer,
+        self.input_buffer,
+        self.hidden_buffer,
+    );
 
-    try matrix.Matrix.multiplyVector2(
-        .{ &hidden_matrix, self.input_buffer, self.hidden_buffer },
-        .{ &residual_matrix, self.input_buffer, self.residual_buffer },
-        dim >= 4096,
+    try weights.feed_forward_residual_matrix.multiplyVector(
+        layer,
+        self.input_buffer,
+        self.residual_buffer,
     );
 
     for (0..hidden_dim) |index| {
         self.hidden_buffer[index] = silu(self.hidden_buffer[index]) * self.residual_buffer[index];
     }
 
-    output_matrix.multiplyVector(self.hidden_buffer, self.output_buffer);
+    try weights.feed_forward_output_matrix.multiplyVector(
+        layer,
+        self.hidden_buffer,
+        self.output_buffer,
+    );
 }
 
 // GLU Variants Improve Transformer (https://arxiv.org/abs/2002.05202)

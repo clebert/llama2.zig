@@ -1,3 +1,5 @@
+const Self = @This();
+
 const build_options = @import("build_options");
 const std = @import("std");
 const lib = @import("lib.zig");
@@ -18,123 +20,119 @@ extern fn matvecmulMetal(
     n_cols: u64,
 ) void;
 
-pub const MatrixArray = struct {
-    matrix_m_rows: usize,
-    matrix_n_cols: usize,
-    row_major_data: []const f32,
+allocator: std.mem.Allocator,
+m_rows: usize,
+m_rows_main_thread: usize,
+m_rows_worker_thread: usize,
+n_cols: usize,
 
-    pub fn init(
-        matrix_m_rows: usize,
-        matrix_n_cols: usize,
-        row_major_data: []const f32,
-    ) MatrixArray {
-        const matrix_dim = matrix_m_rows * matrix_n_cols;
+// 0x0 0x1 ... 0xN
+// 1x0 1x1 ... 1xN
+// ... ... ... ...
+// Mx0 Mx1 ... MxN
+//
+// => 0x0, 0x1, 0xN, 1x0 1x1, 1xN, Mx0, Mx1, MxN
+row_major_data: []const f32,
 
-        std.debug.assert(row_major_data.len % matrix_dim == 0);
+worker_threads: []std.Thread,
 
-        return MatrixArray{
-            .matrix_m_rows = matrix_m_rows,
-            .matrix_n_cols = matrix_n_cols,
-            .row_major_data = row_major_data,
-        };
-    }
-
-    pub fn getMatrix(self: *const MatrixArray, index: usize) Matrix {
-        const m_rows = self.matrix_m_rows;
-        const n_cols = self.matrix_n_cols;
-        const dim = m_rows * n_cols;
-
-        return Matrix.init(m_rows, n_cols, self.row_major_data[(index * dim)..][0..dim]);
-    }
-};
-
-pub const Matrix = struct {
+pub fn init(
+    allocator: std.mem.Allocator,
+    multithreading: bool,
     m_rows: usize,
     n_cols: usize,
-
-    // 0x0 0x1 ... 0xN
-    // 1x0 1x1 ... 1xN
-    // ... ... ... ...
-    // Mx0 Mx1 ... MxN
-
-    // 0x0, 0x1, 0xN, 1x0 1x1, 1xN, Mx0, Mx1, MxN
     row_major_data: []const f32,
+) !Self {
+    const matrix_dim = m_rows * n_cols;
 
-    pub fn init(m_rows: usize, n_cols: usize, row_major_data: []const f32) Matrix {
-        std.debug.assert(m_rows * n_cols == row_major_data.len);
+    std.debug.assert(row_major_data.len % matrix_dim == 0);
 
-        return Matrix{ .m_rows = m_rows, .n_cols = n_cols, .row_major_data = row_major_data };
-    }
+    const n_worker_threads = if (!multithreading or build_options.accelerate or build_options.metal)
+        0
+    else
+        std.Thread.getCpuCount() catch 1;
 
-    pub fn multiplyVector(
-        self: *const Matrix,
-        input_vector: []const f32,
-        output_vector: []f32,
-    ) void {
-        std.debug.assert(input_vector.len == self.n_cols);
-        std.debug.assert(output_vector.len == self.m_rows);
+    const m_rows_main_thread = if (n_worker_threads > 0) m_rows % n_worker_threads else m_rows;
+    const m_rows_worker_thread = if (n_worker_threads > 0) m_rows / n_worker_threads else 0;
 
-        if (build_options.accelerate) {
-            matvecmulAccelerate(
-                self.row_major_data.ptr,
-                input_vector.ptr,
-                output_vector.ptr,
-                @intCast(self.m_rows),
-                @intCast(self.n_cols),
-            );
-        } else if (build_options.metal) {
-            matvecmulMetal(
-                self.row_major_data.ptr,
-                input_vector.ptr,
-                output_vector.ptr,
-                self.m_rows,
-                self.n_cols,
-            );
-        } else {
-            for (output_vector, 0..) |*element, index| {
-                element.* = lib.dot(
-                    self.row_major_data[(index * self.n_cols)..][0..self.n_cols],
-                    input_vector,
-                );
-            }
+    return Self{
+        .allocator = allocator,
+        .m_rows = m_rows,
+        .m_rows_main_thread = m_rows_main_thread,
+        .m_rows_worker_thread = m_rows_worker_thread,
+        .n_cols = n_cols,
+        .row_major_data = row_major_data,
+        .worker_threads = try allocator.alloc(std.Thread, n_worker_threads),
+    };
+}
+
+pub fn deinit(self: *const Self) void {
+    self.allocator.free(self.worker_threads);
+}
+
+pub fn multiplyVector(
+    self: *const Self,
+    matrix_index: usize,
+    input_vector: []const f32,
+    output_vector: []f32,
+) !void {
+    const m_rows = self.m_rows;
+    const n_cols = self.n_cols;
+
+    std.debug.assert(input_vector.len == n_cols);
+    std.debug.assert(output_vector.len == m_rows);
+
+    const matrix_dim = m_rows * n_cols;
+    const row_major_data = self.row_major_data[(matrix_index * matrix_dim)..][0..matrix_dim];
+
+    if (build_options.accelerate) {
+        matvecmulAccelerate(
+            row_major_data.ptr,
+            input_vector.ptr,
+            output_vector.ptr,
+            @intCast(m_rows),
+            @intCast(n_cols),
+        );
+    } else if (build_options.metal) {
+        matvecmulMetal(row_major_data.ptr, input_vector.ptr, output_vector.ptr, m_rows, n_cols);
+    } else {
+        const m_rows_worker_thread = self.m_rows_worker_thread;
+        const n_worker_thread_cols = m_rows_worker_thread * n_cols;
+
+        for (self.worker_threads, 0..) |*worker_thread, worker_thread_index| {
+            const worker_thread_row = worker_thread_index * n_worker_thread_cols;
+            const output_vector_offset = worker_thread_index * m_rows_worker_thread;
+
+            worker_thread.* = try std.Thread.spawn(.{}, matvecmul, .{
+                row_major_data[worker_thread_row..][0..n_worker_thread_cols],
+                input_vector,
+                output_vector[output_vector_offset..][0..m_rows_worker_thread],
+                n_cols,
+            });
+        }
+
+        const main_thread_row = self.worker_threads.len * n_worker_thread_cols;
+
+        matvecmul(
+            row_major_data[main_thread_row..],
+            input_vector,
+            output_vector[(self.worker_threads.len * m_rows_worker_thread)..],
+            n_cols,
+        );
+
+        for (self.worker_threads) |worker_thread| {
+            worker_thread.join();
         }
     }
+}
 
-    pub fn multiplyVector2(args_1: anytype, args_2: anytype, multi_threaded: bool) !void {
-        const cpu_count = std.Thread.getCpuCount() catch 1;
-
-        if (!build_options.metal and multi_threaded and cpu_count > 2) {
-            const thread_1 = try std.Thread.spawn(.{}, Matrix.multiplyVector, args_1);
-            const thread_2 = try std.Thread.spawn(.{}, Matrix.multiplyVector, args_2);
-
-            thread_1.join();
-            thread_2.join();
-        } else {
-            @call(.auto, Matrix.multiplyVector, args_1);
-            @call(.auto, Matrix.multiplyVector, args_2);
-        }
+fn matvecmul(
+    row_major_data: []const f32,
+    input_vector: []const f32,
+    output_vector: []f32,
+    n_cols: usize,
+) void {
+    for (output_vector, 0..) |*element, row| {
+        element.* = lib.dot(row_major_data[(row * n_cols)..][0..n_cols], input_vector);
     }
-
-    pub fn multiplyVector3(
-        args_1: anytype,
-        args_2: anytype,
-        args_3: anytype,
-        multi_threaded: bool,
-    ) !void {
-        const cpu_count = std.Thread.getCpuCount() catch 1;
-
-        if (!build_options.metal and multi_threaded and cpu_count > 2) {
-            const thread_1 = try std.Thread.spawn(.{}, Matrix.multiplyVector, args_1);
-            const thread_2 = try std.Thread.spawn(.{}, Matrix.multiplyVector, args_2);
-            const thread_3 = try std.Thread.spawn(.{}, Matrix.multiplyVector, args_3);
-
-            thread_1.join();
-            thread_2.join();
-            thread_3.join();
-        } else {
-            @call(.auto, Matrix.multiplyVector, args_1);
-            @call(.auto, Matrix.multiplyVector, args_2);
-            @call(.auto, Matrix.multiplyVector, args_3);
-        }
-    }
-};
+}
