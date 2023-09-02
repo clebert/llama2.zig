@@ -38,10 +38,10 @@ worker_threads: []std.Thread,
 
 pub fn init(
     allocator: std.mem.Allocator,
-    multithreading: bool,
     m_rows: usize,
     n_cols: usize,
     row_major_data: []const f32,
+    multithreading: bool,
 ) !Self {
     const matrix_dim = m_rows * n_cols;
 

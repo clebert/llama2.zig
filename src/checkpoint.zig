@@ -78,40 +78,40 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
 
     const attention_queries_matrix = try Matrix.init(
         allocator,
-        cli.multithreading,
         dim,
         dim,
         readFloatSlice(&weights_data, n_layers * (dim * dim)),
+        cli.multithreading,
     );
 
     errdefer attention_queries_matrix.deinit();
 
     const attention_keys_matrix = try Matrix.init(
         allocator,
-        cli.multithreading,
         kv_dim,
         dim,
         readFloatSlice(&weights_data, n_layers * (kv_dim * dim)),
+        cli.multithreading,
     );
 
     errdefer attention_keys_matrix.deinit();
 
     const attention_values_matrix = try Matrix.init(
         allocator,
-        cli.multithreading,
         kv_dim,
         dim,
         readFloatSlice(&weights_data, n_layers * (kv_dim * dim)),
+        cli.multithreading,
     );
 
     errdefer attention_values_matrix.deinit();
 
     const attention_output_matrix = try Matrix.init(
         allocator,
-        cli.multithreading,
         dim,
         dim,
         readFloatSlice(&weights_data, n_layers * (dim * dim)),
+        cli.multithreading,
     );
 
     errdefer attention_output_matrix.deinit();
@@ -123,30 +123,30 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
 
     const feed_forward_hidden_matrix = try Matrix.init(
         allocator,
-        cli.multithreading,
         hidden_dim,
         dim,
         readFloatSlice(&weights_data, n_layers * (hidden_dim * dim)),
+        cli.multithreading,
     );
 
     errdefer feed_forward_hidden_matrix.deinit();
 
     const feed_forward_output_matrix = try Matrix.init(
         allocator,
-        cli.multithreading,
         dim,
         hidden_dim,
         readFloatSlice(&weights_data, n_layers * (dim * hidden_dim)),
+        cli.multithreading,
     );
 
     errdefer feed_forward_output_matrix.deinit();
 
     const feed_forward_residual_matrix = try Matrix.init(
         allocator,
-        cli.multithreading,
         hidden_dim,
         dim,
         readFloatSlice(&weights_data, n_layers * (hidden_dim * dim)),
+        cli.multithreading,
     );
 
     errdefer feed_forward_residual_matrix.deinit();
@@ -156,6 +156,18 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
 
     _ = readFloatSlice(&weights_data, seq_len * head_size / 2);
     _ = readFloatSlice(&weights_data, seq_len * head_size / 2);
+
+    // https://github.com/karpathy/llama2.c/commit/c3e0d73bd294e1f5e4d17425fac09aaec536400d
+    const classifier_matrix = try Matrix.init(
+        allocator,
+        vocab_size,
+        dim,
+        if (signed_vocab_size > 0)
+            token_embedding_vector.data
+        else
+            readFloatSlice(&weights_data, vocab_size * dim),
+        cli.multithreading,
+    );
 
     return Self{
         .allocator = allocator,
@@ -186,18 +198,7 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
             .feed_forward_residual_matrix = feed_forward_residual_matrix,
 
             .final_norm_vector = final_norm_vector,
-
-            // https://github.com/karpathy/llama2.c/commit/c3e0d73bd294e1f5e4d17425fac09aaec536400d
-            .classifier_matrix = try Matrix.init(
-                allocator,
-                cli.multithreading,
-                vocab_size,
-                dim,
-                if (signed_vocab_size > 0)
-                    token_embedding_vector.data
-                else
-                    readFloatSlice(&weights_data, vocab_size * dim),
-            ),
+            .classifier_matrix = classifier_matrix,
         },
 
         .data = data,
