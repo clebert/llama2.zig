@@ -81,7 +81,7 @@ pub fn forward(self: *const Self, token: usize, pos: usize) !void {
 
     lib.rmsnorm(
         self.hidden_state_vector,
-        weights.final_norm_vector,
+        weights.final_norm_vector.at(0),
         self.hidden_state_vector,
     );
 

@@ -32,7 +32,7 @@ weights: struct {
     feed_forward_output_matrix: Matrix,
     feed_forward_residual_matrix: Matrix,
 
-    final_norm_vector: []const f32,
+    final_norm_vector: Vector,
     classifier_matrix: Matrix,
 },
 
@@ -151,7 +151,7 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
 
     errdefer feed_forward_residual_matrix.deinit();
 
-    const final_norm_vector = readFloatSlice(&weights_data, dim);
+    const final_norm_vector = Vector.init(dim, readFloatSlice(&weights_data, dim));
     const seq_len: usize = @intCast(config_data[6]);
 
     _ = readFloatSlice(&weights_data, seq_len * head_size / 2);
