@@ -12,7 +12,6 @@ transformer: Transformer,
 tokenizer: Tokenizer,
 sampler: Sampler,
 prompt_tokens: []usize,
-n_steps: usize,
 timer: bool,
 
 pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
@@ -37,7 +36,6 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
         .tokenizer = tokenizer,
         .sampler = sampler,
         .prompt_tokens = prompt_tokens,
-        .n_steps = cli.n_steps,
         .timer = cli.timer,
     };
 }
@@ -60,7 +58,7 @@ pub fn generate(self: *Self, writer: anytype) !void {
     var start_time: i64 = 0;
     var total_time: i64 = 0;
 
-    for (0..self.n_steps) |pos| {
+    for (0..self.transformer.sequence_length) |pos| {
         if (pos > 0) {
             n_timed_steps += 1;
             start_time = std.time.milliTimestamp();
@@ -76,7 +74,7 @@ pub fn generate(self: *Self, writer: anytype) !void {
             next_token = self.prompt_tokens[prompt_tokens_index];
             prompt_tokens_index += 1;
         } else {
-            next_token = self.sampler.sample(self.transformer.logits_vector);
+            next_token = self.sampler.sample(self.transformer.logits);
         }
 
         if (next_token == bos_token or next_token == eos_token) {

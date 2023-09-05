@@ -11,7 +11,6 @@ allocator: std.mem.Allocator,
 transformer: Transformer,
 tokenizer: Tokenizer,
 sampler: Sampler,
-n_steps: usize,
 user_prompt: []const u8,
 system_prompt: []const u8,
 
@@ -34,7 +33,6 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
         .transformer = transformer,
         .tokenizer = tokenizer,
         .sampler = sampler,
-        .n_steps = cli.n_steps,
         .user_prompt = cli.prompt,
         .system_prompt = cli.system_prompt,
     };
@@ -69,7 +67,7 @@ pub fn start(self: *Self, allocator: std.mem.Allocator) !void {
         allocator.free(prompt_tokens);
     };
 
-    for (0..self.n_steps) |pos| {
+    for (0..self.transformer.sequence_length) |pos| {
         try self.transformer.forward(token, pos);
 
         if (token == bos_token and user_turn) {
@@ -131,7 +129,7 @@ pub fn start(self: *Self, allocator: std.mem.Allocator) !void {
         user_prompt_tokens_index += 1;
 
         if (next_token == 0) {
-            next_token = self.sampler.sample(self.transformer.logits_vector);
+            next_token = self.sampler.sample(self.transformer.logits);
         }
 
         if (next_token == eos_token) {

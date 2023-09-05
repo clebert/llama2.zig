@@ -43,9 +43,9 @@ pub fn init(
     row_major_data: []const f32,
     multithreading: bool,
 ) !Self {
-    const matrix_dim = m_rows * n_cols;
+    const matrix_size = m_rows * n_cols;
 
-    std.debug.assert(row_major_data.len % matrix_dim == 0);
+    std.debug.assert(row_major_data.len % matrix_size == 0);
 
     const n_worker_threads = if (!multithreading or build_options.accelerate or build_options.metal)
         0
@@ -82,8 +82,8 @@ pub fn multiplyVector(
     std.debug.assert(input_vector.len == n_cols);
     std.debug.assert(output_vector.len == m_rows);
 
-    const matrix_dim = m_rows * n_cols;
-    const row_major_data = self.row_major_data[(matrix_index * matrix_dim)..][0..matrix_dim];
+    const matrix_size = m_rows * n_cols;
+    const row_major_data = self.row_major_data[(matrix_index * matrix_size)..][0..matrix_size];
 
     if (build_options.accelerate) {
         matvecmulAccelerate(

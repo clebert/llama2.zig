@@ -112,7 +112,7 @@ pub fn init(allocator: std.mem.Allocator) !Self {
         .temperature = @max(@min(temperature orelse 1, 1), 0),
         .top_p = @max(@min(top_p orelse 0.9, 1), 0),
         .random_seed = random_seed orelse @intCast(std.time.milliTimestamp()),
-        .n_steps = @max(n_steps orelse 256, 1),
+        .n_steps = n_steps orelse 0,
         .prompt = prompt orelse "",
         .tokenizer_path = tokenizer_path orelse "tokenizer.bin",
         .chat = if (mode) |arg| std.mem.eql(u8, arg, "chat") else false,
@@ -137,7 +137,7 @@ fn exit() !noreturn {
     try stderr.print("  -t <float>  temperature    = 1\n", .{});
     try stderr.print("  -p <float>  top_p          = 0.9; 1 == off\n", .{});
     try stderr.print("  -s <int>    random_seed    = milli_timestamp\n", .{});
-    try stderr.print("  -n <int>    n_steps        = 256\n", .{});
+    try stderr.print("  -n <int>    n_steps        = max_sequence_length\n", .{});
     try stderr.print("  -i <string> prompt         = \"\"\n", .{});
     try stderr.print("  -z <string> tokenizer_path = \"tokenizer.bin\"\n", .{});
     try stderr.print("  -m <string> mode           = \"generate\"; (alt. \"chat\")\n", .{});

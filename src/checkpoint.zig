@@ -2,38 +2,36 @@ const Self = @This();
 
 const std = @import("std");
 const Cli = @import("./cli.zig");
-const Matrix = @import("./matrix.zig");
-const Vector = @import("./vector.zig");
+const MatrixArray = @import("./matrix_array.zig");
+const VectorArray = @import("./vector_array.zig");
 
 allocator: std.mem.Allocator,
 mmap: bool,
-dim: usize,
-hidden_dim: usize,
+
+embedding_size: usize,
+intermediate_size: usize,
 n_layers: usize,
-n_heads: usize,
-n_kv_heads: usize,
+n_query_heads: usize,
+n_query_head_groups: usize,
 vocab_size: usize,
-kv_dim: usize,
-head_size: usize,
-head_size_sqrt: f32,
-n_groups: usize,
+max_sequence_length: usize,
+
+query_head_size: usize,
+query_head_size_sqrt: f32,
 
 weights: struct {
-    token_embedding_vector: Vector,
-
-    attention_norm_vector: Vector,
-    attention_queries_matrix: Matrix,
-    attention_keys_matrix: Matrix,
-    attention_values_matrix: Matrix,
-    attention_output_matrix: Matrix,
-
-    feed_forward_norm_vector: Vector,
-    feed_forward_hidden_matrix: Matrix,
-    feed_forward_output_matrix: Matrix,
-    feed_forward_residual_matrix: Matrix,
-
-    final_norm_vector: Vector,
-    classifier_matrix: Matrix,
+    embedding_vectors: VectorArray,
+    attention_norm_vectors: VectorArray,
+    attention_query_matrices: MatrixArray,
+    attention_key_matrices: MatrixArray,
+    attention_value_matrices: MatrixArray,
+    attention_output_matrices: MatrixArray,
+    feed_forward_norm_vectors: VectorArray,
+    feed_forward_hidden_matrices: MatrixArray,
+    feed_forward_output_matrices: MatrixArray,
+    feed_forward_scaling_matrices: MatrixArray,
+    final_norm_vector: []const f32,
+    classifier_matrices: MatrixArray,
 },
 
 data: []align(std.mem.page_size) const u8,
@@ -52,153 +50,152 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
 
     const config_data: [*]const i32 = @alignCast(@ptrCast(data[0..28]));
 
-    const signed_vocab_size: i32 = config_data[5];
-    const dim: usize = @intCast(config_data[0]);
-    const hidden_dim: usize = @intCast(config_data[1]);
+    const embedding_size: usize = @intCast(config_data[0]);
+    const intermediate_size: usize = @intCast(config_data[1]);
     const n_layers: usize = @intCast(config_data[2]);
-    const n_heads: usize = @intCast(config_data[3]);
-    const n_kv_heads: usize = @intCast(config_data[4]);
+    const n_query_heads: usize = @intCast(config_data[3]);
+    const n_query_head_groups: usize = @intCast(config_data[4]);
+    const signed_vocab_size: i32 = config_data[5];
     const vocab_size: usize = std.math.absCast(signed_vocab_size);
-    const kv_dim: usize = (dim * n_kv_heads) / n_heads;
-    const head_size: usize = dim / n_heads;
-    const head_size_sqrt: f32 = std.math.sqrt(@as(f32, @floatFromInt(head_size)));
-    const n_groups: usize = n_heads / n_kv_heads;
+    const max_sequence_length: usize = @intCast(config_data[6]);
+
+    const query_head_size: usize = embedding_size / n_query_heads;
+    const query_head_size_sqrt: f32 = std.math.sqrt(@as(f32, @floatFromInt(query_head_size)));
 
     var weights_data: [*]const f32 = @alignCast(@ptrCast(data[28..]));
 
-    const token_embedding_vector = Vector.init(
-        dim,
-        readFloatSlice(&weights_data, vocab_size * dim),
+    const embedding_vectors = VectorArray.init(
+        embedding_size,
+        readFloatSlice(&weights_data, vocab_size * embedding_size),
     );
 
-    const attention_norm_vector = Vector.init(
-        dim,
-        readFloatSlice(&weights_data, n_layers * dim),
+    const attention_norm_vectors = VectorArray.init(
+        embedding_size,
+        readFloatSlice(&weights_data, n_layers * embedding_size),
     );
 
-    const attention_queries_matrix = try Matrix.init(
+    const attention_query_matrices = try MatrixArray.init(
         allocator,
-        dim,
-        dim,
-        readFloatSlice(&weights_data, n_layers * (dim * dim)),
+        embedding_size,
+        embedding_size,
+        readFloatSlice(&weights_data, n_layers * (embedding_size * embedding_size)),
         cli.multithreading,
     );
 
-    errdefer attention_queries_matrix.deinit();
+    errdefer attention_query_matrices.deinit();
 
-    const attention_keys_matrix = try Matrix.init(
+    const key_value_size: usize = query_head_size * n_query_head_groups;
+
+    const attention_key_matrices = try MatrixArray.init(
         allocator,
-        kv_dim,
-        dim,
-        readFloatSlice(&weights_data, n_layers * (kv_dim * dim)),
+        key_value_size,
+        embedding_size,
+        readFloatSlice(&weights_data, n_layers * (key_value_size * embedding_size)),
         cli.multithreading,
     );
 
-    errdefer attention_keys_matrix.deinit();
+    errdefer attention_key_matrices.deinit();
 
-    const attention_values_matrix = try Matrix.init(
+    const attention_value_matrices = try MatrixArray.init(
         allocator,
-        kv_dim,
-        dim,
-        readFloatSlice(&weights_data, n_layers * (kv_dim * dim)),
+        key_value_size,
+        embedding_size,
+        readFloatSlice(&weights_data, n_layers * (key_value_size * embedding_size)),
         cli.multithreading,
     );
 
-    errdefer attention_values_matrix.deinit();
+    errdefer attention_value_matrices.deinit();
 
-    const attention_output_matrix = try Matrix.init(
+    const attention_output_matrices = try MatrixArray.init(
         allocator,
-        dim,
-        dim,
-        readFloatSlice(&weights_data, n_layers * (dim * dim)),
+        embedding_size,
+        embedding_size,
+        readFloatSlice(&weights_data, n_layers * (embedding_size * embedding_size)),
         cli.multithreading,
     );
 
-    errdefer attention_output_matrix.deinit();
+    errdefer attention_output_matrices.deinit();
 
-    const feed_forward_norm_vector = Vector.init(
-        dim,
-        readFloatSlice(&weights_data, n_layers * dim),
+    const feed_forward_norm_vectors = VectorArray.init(
+        embedding_size,
+        readFloatSlice(&weights_data, n_layers * embedding_size),
     );
 
-    const feed_forward_hidden_matrix = try Matrix.init(
+    const feed_forward_hidden_matrices = try MatrixArray.init(
         allocator,
-        hidden_dim,
-        dim,
-        readFloatSlice(&weights_data, n_layers * (hidden_dim * dim)),
+        intermediate_size,
+        embedding_size,
+        readFloatSlice(&weights_data, n_layers * (intermediate_size * embedding_size)),
         cli.multithreading,
     );
 
-    errdefer feed_forward_hidden_matrix.deinit();
+    errdefer feed_forward_hidden_matrices.deinit();
 
-    const feed_forward_output_matrix = try Matrix.init(
+    const feed_forward_output_matrices = try MatrixArray.init(
         allocator,
-        dim,
-        hidden_dim,
-        readFloatSlice(&weights_data, n_layers * (dim * hidden_dim)),
+        embedding_size,
+        intermediate_size,
+        readFloatSlice(&weights_data, n_layers * (embedding_size * intermediate_size)),
         cli.multithreading,
     );
 
-    errdefer feed_forward_output_matrix.deinit();
+    errdefer feed_forward_output_matrices.deinit();
 
-    const feed_forward_residual_matrix = try Matrix.init(
+    const feed_forward_scaling_matrices = try MatrixArray.init(
         allocator,
-        hidden_dim,
-        dim,
-        readFloatSlice(&weights_data, n_layers * (hidden_dim * dim)),
+        intermediate_size,
+        embedding_size,
+        readFloatSlice(&weights_data, n_layers * (intermediate_size * embedding_size)),
         cli.multithreading,
     );
 
-    errdefer feed_forward_residual_matrix.deinit();
+    errdefer feed_forward_scaling_matrices.deinit();
 
-    const final_norm_vector = Vector.init(dim, readFloatSlice(&weights_data, dim));
-    const seq_len: usize = @intCast(config_data[6]);
+    const final_norm_vector = readFloatSlice(&weights_data, embedding_size);
 
-    _ = readFloatSlice(&weights_data, seq_len * head_size / 2);
-    _ = readFloatSlice(&weights_data, seq_len * head_size / 2);
+    _ = readFloatSlice(&weights_data, max_sequence_length * query_head_size / 2);
+    _ = readFloatSlice(&weights_data, max_sequence_length * query_head_size / 2);
 
     // https://github.com/karpathy/llama2.c/commit/c3e0d73bd294e1f5e4d17425fac09aaec536400d
-    const classifier_matrix = try Matrix.init(
+    const classifier_matrices = try MatrixArray.init(
         allocator,
         vocab_size,
-        dim,
+        embedding_size,
         if (signed_vocab_size > 0)
-            token_embedding_vector.data
+            embedding_vectors.data
         else
-            readFloatSlice(&weights_data, vocab_size * dim),
+            readFloatSlice(&weights_data, vocab_size * embedding_size),
         cli.multithreading,
     );
 
     return Self{
         .allocator = allocator,
         .mmap = cli.mmap,
-        .dim = dim,
-        .hidden_dim = hidden_dim,
+
+        .embedding_size = embedding_size,
+        .intermediate_size = intermediate_size,
         .n_layers = n_layers,
-        .n_heads = n_heads,
-        .n_kv_heads = n_kv_heads,
+        .n_query_heads = n_query_heads,
+        .n_query_head_groups = n_query_head_groups,
         .vocab_size = vocab_size,
-        .kv_dim = kv_dim,
-        .head_size = head_size,
-        .head_size_sqrt = head_size_sqrt,
-        .n_groups = n_groups,
+        .max_sequence_length = max_sequence_length,
+
+        .query_head_size = query_head_size,
+        .query_head_size_sqrt = query_head_size_sqrt,
 
         .weights = .{
-            .token_embedding_vector = token_embedding_vector,
-
-            .attention_norm_vector = attention_norm_vector,
-            .attention_queries_matrix = attention_queries_matrix,
-            .attention_keys_matrix = attention_keys_matrix,
-            .attention_values_matrix = attention_values_matrix,
-            .attention_output_matrix = attention_output_matrix,
-
-            .feed_forward_norm_vector = feed_forward_norm_vector,
-            .feed_forward_hidden_matrix = feed_forward_hidden_matrix,
-            .feed_forward_output_matrix = feed_forward_output_matrix,
-            .feed_forward_residual_matrix = feed_forward_residual_matrix,
-
+            .embedding_vectors = embedding_vectors,
+            .attention_norm_vectors = attention_norm_vectors,
+            .attention_query_matrices = attention_query_matrices,
+            .attention_key_matrices = attention_key_matrices,
+            .attention_value_matrices = attention_value_matrices,
+            .attention_output_matrices = attention_output_matrices,
+            .feed_forward_norm_vectors = feed_forward_norm_vectors,
+            .feed_forward_hidden_matrices = feed_forward_hidden_matrices,
+            .feed_forward_output_matrices = feed_forward_output_matrices,
+            .feed_forward_scaling_matrices = feed_forward_scaling_matrices,
             .final_norm_vector = final_norm_vector,
-            .classifier_matrix = classifier_matrix,
+            .classifier_matrices = classifier_matrices,
         },
 
         .data = data,
@@ -206,14 +203,14 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
 }
 
 pub fn deinit(self: *const Self) void {
-    self.weights.attention_queries_matrix.deinit();
-    self.weights.attention_keys_matrix.deinit();
-    self.weights.attention_values_matrix.deinit();
-    self.weights.attention_output_matrix.deinit();
-    self.weights.feed_forward_hidden_matrix.deinit();
-    self.weights.feed_forward_output_matrix.deinit();
-    self.weights.feed_forward_residual_matrix.deinit();
-    self.weights.classifier_matrix.deinit();
+    self.weights.attention_query_matrices.deinit();
+    self.weights.attention_key_matrices.deinit();
+    self.weights.attention_value_matrices.deinit();
+    self.weights.attention_output_matrices.deinit();
+    self.weights.feed_forward_hidden_matrices.deinit();
+    self.weights.feed_forward_output_matrices.deinit();
+    self.weights.feed_forward_scaling_matrices.deinit();
+    self.weights.classifier_matrices.deinit();
 
     if (self.mmap) {
         std.os.munmap(self.data);
