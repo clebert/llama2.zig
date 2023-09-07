@@ -12,7 +12,7 @@ embedding_size: usize,
 intermediate_size: usize,
 n_layers: usize,
 n_heads: usize,
-n_groups: usize,
+n_query_groups: usize,
 vocab_size: usize,
 max_sequence_length: usize,
 
@@ -51,7 +51,7 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
     const intermediate_size: usize = @intCast(config_data[1]);
     const n_layers: usize = @intCast(config_data[2]);
     const n_heads: usize = @intCast(config_data[3]);
-    const n_groups: usize = @intCast(config_data[4]);
+    const n_query_groups: usize = @intCast(config_data[4]);
     const signed_vocab_size: i32 = config_data[5];
     const vocab_size: usize = std.math.absCast(signed_vocab_size);
     const max_sequence_length: usize = @intCast(config_data[6]);
@@ -79,13 +79,13 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
     errdefer attention_query_matrices.deinit();
 
     const head_size: usize = embedding_size / n_heads;
-    const keys_values_size: usize = head_size * n_groups;
+    const multi_head_key_value_size: usize = head_size * n_query_groups;
 
     const attention_key_matrices = try MatrixArray.init(
         allocator,
-        keys_values_size,
+        multi_head_key_value_size,
         embedding_size,
-        readFloatSlice(&weights_data, n_layers * (keys_values_size * embedding_size)),
+        readFloatSlice(&weights_data, n_layers * (multi_head_key_value_size * embedding_size)),
         cli.multithreading,
     );
 
@@ -93,9 +93,9 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
 
     const attention_value_matrices = try MatrixArray.init(
         allocator,
-        keys_values_size,
+        multi_head_key_value_size,
         embedding_size,
-        readFloatSlice(&weights_data, n_layers * (keys_values_size * embedding_size)),
+        readFloatSlice(&weights_data, n_layers * (multi_head_key_value_size * embedding_size)),
         cli.multithreading,
     );
 
@@ -171,7 +171,7 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
         .intermediate_size = intermediate_size,
         .n_layers = n_layers,
         .n_heads = n_heads,
-        .n_groups = n_groups,
+        .n_query_groups = n_query_groups,
         .vocab_size = vocab_size,
         .max_sequence_length = max_sequence_length,
 

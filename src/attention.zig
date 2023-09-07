@@ -9,7 +9,7 @@ const VectorArray = @import("./vector_array.zig").VectorArray([]f32);
 allocator: std.mem.Allocator,
 
 n_heads: usize,
-n_groups: usize,
+n_query_groups: usize,
 head_size: usize,
 head_size_sqrt: f32,
 sequence_length: usize,
@@ -35,7 +35,7 @@ pub fn init(
     const embedding_size = checkpoint.embedding_size;
     const n_layers = checkpoint.n_layers;
     const n_heads = checkpoint.n_heads;
-    const n_groups = checkpoint.n_groups;
+    const n_query_groups = checkpoint.n_query_groups;
     const weights = checkpoint.weights;
 
     const input_vector = try allocator.alloc(f32, embedding_size);
@@ -55,12 +55,12 @@ pub fn init(
 
     errdefer allocator.free(query_vectors.data);
 
-    const key_value_cache_data_size = n_layers * sequence_length * n_groups * head_size;
-    const key_cache_data = try allocator.alloc(f32, key_value_cache_data_size);
+    const key_value_cache_size = n_layers * sequence_length * n_query_groups * head_size;
+    const key_cache_data = try allocator.alloc(f32, key_value_cache_size);
 
     errdefer allocator.free(key_cache_data);
 
-    const value_cache_data = try allocator.alloc(f32, key_value_cache_data_size);
+    const value_cache_data = try allocator.alloc(f32, key_value_cache_size);
 
     errdefer allocator.free(value_cache_data);
 
@@ -72,7 +72,7 @@ pub fn init(
         .allocator = allocator,
 
         .n_heads = n_heads,
-        .n_groups = n_groups,
+        .n_query_groups = n_query_groups,
         .head_size = head_size,
         .head_size_sqrt = std.math.sqrt(@as(f32, @floatFromInt(head_size))),
         .sequence_length = sequence_length,
@@ -102,15 +102,32 @@ pub fn deinit(self: *const Self) void {
 }
 
 pub fn forward(self: *const Self, layer: usize, position: usize) !void {
-    const query_data = self.query_vectors.data;
-    const key_data = self.getCacheDataSlice(self.key_cache_data, layer, position, null);
-    const value_data = self.getCacheDataSlice(self.value_cache_data, layer, position, null);
+    const multi_head_query_data = self.query_vectors.data;
 
-    try self.query_projection_matrices.multiplyVector(layer, self.input_vector, query_data);
-    try self.key_projection_matrices.multiplyVector(layer, self.input_vector, key_data);
-    try self.value_projection_matrices.multiplyVector(layer, self.input_vector, value_data);
+    try self.query_projection_matrices.multiplyVector(
+        layer,
+        self.input_vector,
+        multi_head_query_data,
+    );
 
-    self.applyRotaryPositionEmbedding(position, key_data);
+    const multi_head_key_data = self.getCacheDataSlice(self.key_cache_data, layer, position, null);
+
+    try self.key_projection_matrices.multiplyVector(
+        layer,
+        self.input_vector,
+        multi_head_key_data,
+    );
+
+    const multi_head_value_data =
+        self.getCacheDataSlice(self.value_cache_data, layer, position, null);
+
+    try self.value_projection_matrices.multiplyVector(
+        layer,
+        self.input_vector,
+        multi_head_value_data,
+    );
+
+    self.applyRotaryPositionEmbedding(position, multi_head_key_data);
 
     for (0..self.n_heads) |head| {
         self.computeAttention(position, layer, head);
@@ -124,16 +141,20 @@ pub fn forward(self: *const Self, layer: usize, position: usize) !void {
 }
 
 // RoFormer: Enhanced Transformer with Rotary Position Embedding (https://arxiv.org/abs/2104.09864)
-fn applyRotaryPositionEmbedding(self: *const Self, position: usize, key_data: []f32) void {
+fn applyRotaryPositionEmbedding(
+    self: *const Self,
+    position: usize,
+    multi_head_key_data: []f32,
+) void {
     @setFloatMode(.Optimized);
 
-    const query_data = self.query_vectors.data;
+    const multi_head_query_data = self.query_vectors.data;
 
-    std.debug.assert(key_data.len <= query_data.len);
+    std.debug.assert(multi_head_key_data.len <= multi_head_query_data.len);
 
     var index: usize = 0;
 
-    while (index < query_data.len) : (index += 2) {
+    while (index < multi_head_query_data.len) : (index += 2) {
         const head: f32 = @floatFromInt(index % self.head_size);
 
         const frequency =
@@ -143,18 +164,18 @@ fn applyRotaryPositionEmbedding(self: *const Self, position: usize, key_data: []
         const real_rotation_value: f32 = std.math.cos(rotation_scaling_factor);
         const imag_rotation_value: f32 = std.math.sin(rotation_scaling_factor);
 
-        const q_0 = query_data[index];
-        const q_1 = query_data[index + 1];
+        const q_0 = multi_head_query_data[index];
+        const q_1 = multi_head_query_data[index + 1];
 
-        query_data[index] = q_0 * real_rotation_value - q_1 * imag_rotation_value;
-        query_data[index + 1] = q_0 * imag_rotation_value + q_1 * real_rotation_value;
+        multi_head_query_data[index] = q_0 * real_rotation_value - q_1 * imag_rotation_value;
+        multi_head_query_data[index + 1] = q_0 * imag_rotation_value + q_1 * real_rotation_value;
 
-        if (index < key_data.len) {
-            const k_0 = key_data[index];
-            const k_1 = key_data[index + 1];
+        if (index < multi_head_key_data.len) {
+            const k_0 = multi_head_key_data[index];
+            const k_1 = multi_head_key_data[index + 1];
 
-            key_data[index] = k_0 * real_rotation_value - k_1 * imag_rotation_value;
-            key_data[index + 1] = k_0 * imag_rotation_value + k_1 * real_rotation_value;
+            multi_head_key_data[index] = k_0 * real_rotation_value - k_1 * imag_rotation_value;
+            multi_head_key_data[index + 1] = k_0 * imag_rotation_value + k_1 * real_rotation_value;
         }
     }
 }
@@ -162,12 +183,17 @@ fn applyRotaryPositionEmbedding(self: *const Self, position: usize, key_data: []
 fn computeAttention(self: *const Self, current_position: usize, layer: usize, head: usize) void {
     @setFloatMode(.Optimized);
 
-    const group = head / (self.n_heads / self.n_groups);
+    const query_group = head / (self.n_heads / self.n_query_groups);
     const query_vector = self.query_vectors.at(head);
     const next_position = current_position + 1;
 
     for (0..next_position) |position| {
-        const key_vector = self.getCacheDataSlice(self.key_cache_data, layer, position, group);
+        const key_vector = self.getCacheDataSlice(
+            self.key_cache_data,
+            layer,
+            position,
+            query_group,
+        );
 
         self.scores[position] = lib.dot(query_vector, key_vector) / self.head_size_sqrt;
     }
@@ -179,7 +205,13 @@ fn computeAttention(self: *const Self, current_position: usize, layer: usize, he
     @memset(attention_values, 0);
 
     for (0..next_position) |position| {
-        const value_vector = self.getCacheDataSlice(self.value_cache_data, layer, position, group);
+        const value_vector = self.getCacheDataSlice(
+            self.value_cache_data,
+            layer,
+            position,
+            query_group,
+        );
+
         const weight = self.scores[position];
 
         for (0..self.head_size) |index| {
@@ -193,20 +225,22 @@ fn getCacheDataSlice(
     cache_data: []f32,
     layer: usize,
     position: usize,
-    optional_group: ?usize,
+    query_group: ?usize,
 ) []f32 {
-    const sequence_cache_size = self.n_groups * self.head_size;
+    const multi_head_cache_size = self.n_query_groups * self.head_size;
 
-    const layer_cache_size = self.sequence_length * sequence_cache_size;
+    const layer_cache_size = self.sequence_length * multi_head_cache_size;
     const layer_cache_offset = layer * layer_cache_size;
     const layer_cache_data = cache_data[layer_cache_offset..][0..layer_cache_size];
 
-    const position_cache_offset = position * sequence_cache_size;
-    const position_cache_data = layer_cache_data[position_cache_offset..][0..sequence_cache_size];
+    const multi_head_cache_offset = position * multi_head_cache_size;
 
-    if (optional_group) |group| {
-        return position_cache_data[(group * self.head_size)..][0..self.head_size];
+    const multi_head_cache_data =
+        layer_cache_data[multi_head_cache_offset..][0..multi_head_cache_size];
+
+    if (query_group) |group| {
+        return multi_head_cache_data[(group * self.head_size)..][0..self.head_size];
     }
 
-    return position_cache_data;
+    return multi_head_cache_data;
 }
