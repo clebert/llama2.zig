@@ -113,7 +113,7 @@ pub fn forward(self: *const Self, layer: usize, position: usize) !void {
     self.applyRotaryPositionEmbedding(position, multi_head_key);
 
     for (0..self.n_heads) |head| {
-        self.computeAttention(position, layer, head);
+        self.computeGroupedQueryAttention(position, layer, head);
     }
 
     try self.output_projection_matrices.multiplyVector(
@@ -164,7 +164,12 @@ fn applyRotaryPositionEmbedding(
 }
 
 // https://arxiv.org/abs/1706.03762
-fn computeAttention(self: *const Self, current_position: usize, layer: usize, head: usize) void {
+fn computeGroupedQueryAttention(
+    self: *const Self,
+    current_position: usize,
+    layer: usize,
+    head: usize,
+) void {
     @setFloatMode(.Optimized);
 
     const query_group = head / (self.n_heads / self.n_query_groups);
