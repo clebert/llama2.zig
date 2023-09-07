@@ -3,141 +3,157 @@ const Self = @This();
 const std = @import("std");
 const lib = @import("lib.zig");
 const Checkpoint = @import("checkpoint.zig");
+const KeyValueCache = @import("key_value_cache.zig");
+const MatrixArray = @import("./matrix_array.zig");
+const VectorArray = @import("./vector_array.zig").VectorArray([]f32);
 
 allocator: std.mem.Allocator,
-checkpoint: Checkpoint,
+
+n_heads: usize,
+n_groups: usize,
+head_size: usize,
+head_size_sqrt: f32,
 sequence_length: usize,
-input_buffer: []f32,
-output_buffer: []f32,
-scores_buffer: []f32,
-queries_buffer: []f32,
-key_cache: []f32,
-value_cache: []f32,
+
+query_projection_matrices: MatrixArray,
+key_projection_matrices: MatrixArray,
+value_projection_matrices: MatrixArray,
+output_projection_matrices: MatrixArray,
+
+input_vector: []f32,
+output_vector: []f32,
+
+query_vectors: VectorArray,
+scores: []f32,
+key_cache: KeyValueCache,
+value_cache: KeyValueCache,
 
 pub fn init(allocator: std.mem.Allocator, checkpoint: Checkpoint, sequence_length: usize) !Self {
     const embedding_size = checkpoint.embedding_size;
-    const input_buffer = try allocator.alloc(f32, embedding_size);
+    const n_layers = checkpoint.n_layers;
+    const n_heads = checkpoint.n_heads;
+    const n_groups = checkpoint.n_groups;
+    const weights = checkpoint.weights;
 
-    errdefer allocator.free(input_buffer);
+    const input_vector = try allocator.alloc(f32, embedding_size);
 
-    const output_buffer = try allocator.alloc(f32, embedding_size);
+    errdefer allocator.free(input_vector);
 
-    errdefer allocator.free(output_buffer);
+    const output_vector = try allocator.alloc(f32, embedding_size);
 
-    const scores_buffer = try allocator.alloc(f32, checkpoint.n_query_heads * sequence_length);
+    errdefer allocator.free(output_vector);
 
-    errdefer allocator.free(scores_buffer);
+    const head_size: usize = embedding_size / n_heads;
 
-    const queries_buffer = try allocator.alloc(f32, embedding_size);
+    const query_vectors = VectorArray.init(
+        head_size,
+        try allocator.alloc(f32, n_heads * head_size),
+    );
 
-    errdefer allocator.free(queries_buffer);
+    errdefer allocator.free(query_vectors.data);
 
-    const key_value_size = checkpoint.n_query_head_groups * checkpoint.query_head_size;
-    const key_value_cache_size = checkpoint.n_layers * sequence_length * key_value_size;
-    const key_cache = try allocator.alloc(f32, key_value_cache_size);
+    const scores = try allocator.alloc(f32, sequence_length);
 
-    errdefer allocator.free(key_cache);
+    errdefer allocator.free(scores);
 
-    const value_cache = try allocator.alloc(f32, key_value_cache_size);
+    const key_cache = try KeyValueCache.init(
+        allocator,
+        n_layers,
+        n_groups,
+        head_size,
+        sequence_length,
+    );
+
+    errdefer key_cache.deinit();
+
+    const value_cache = try KeyValueCache.init(
+        allocator,
+        n_layers,
+        n_groups,
+        head_size,
+        sequence_length,
+    );
 
     return Self{
         .allocator = allocator,
-        .checkpoint = checkpoint,
+
+        .n_heads = n_heads,
+        .n_groups = n_groups,
+        .head_size = head_size,
+        .head_size_sqrt = std.math.sqrt(@as(f32, @floatFromInt(head_size))),
         .sequence_length = sequence_length,
-        .input_buffer = input_buffer,
-        .output_buffer = output_buffer,
-        .scores_buffer = scores_buffer,
-        .queries_buffer = queries_buffer,
+
+        .query_projection_matrices = weights.attention_query_matrices,
+        .key_projection_matrices = weights.attention_key_matrices,
+        .value_projection_matrices = weights.attention_value_matrices,
+        .output_projection_matrices = weights.attention_output_matrices,
+
+        .input_vector = input_vector,
+        .output_vector = output_vector,
+
+        .scores = scores,
+        .query_vectors = query_vectors,
         .key_cache = key_cache,
         .value_cache = value_cache,
     };
 }
 
 pub fn deinit(self: *const Self) void {
-    self.allocator.free(self.input_buffer);
-    self.allocator.free(self.output_buffer);
-    self.allocator.free(self.scores_buffer);
-    self.allocator.free(self.queries_buffer);
-    self.allocator.free(self.key_cache);
-    self.allocator.free(self.value_cache);
+    self.allocator.free(self.input_vector);
+    self.allocator.free(self.output_vector);
+    self.allocator.free(self.scores);
+    self.allocator.free(self.query_vectors.data);
+    self.key_cache.deinit();
+    self.value_cache.deinit();
 }
 
-pub fn forward(self: *const Self, pos: usize, layer: usize) !void {
-    const checkpoint = self.checkpoint;
-    const weights = checkpoint.weights;
+pub fn forward(self: *const Self, position: usize, layer: usize) !void {
+    const query_data = self.query_vectors.data;
+    const key_data = self.key_cache.at(layer, null).at(position);
+    const value_data = self.value_cache.at(layer, null).at(position);
 
-    try weights.attention_query_matrices.multiplyVector(
-        layer,
-        self.input_buffer,
-        self.queries_buffer,
-    );
+    try self.query_projection_matrices.multiplyVector(layer, self.input_vector, query_data);
+    try self.key_projection_matrices.multiplyVector(layer, self.input_vector, key_data);
+    try self.value_projection_matrices.multiplyVector(layer, self.input_vector, value_data);
 
-    const query_head_size = checkpoint.query_head_size;
-    const key_value_size = checkpoint.n_query_head_groups * query_head_size;
-    const key_value_cache_offset = layer * (self.sequence_length * key_value_size);
+    lib.rope(position, self.head_size, query_data, key_data);
 
-    const key_cache = self.key_cache[key_value_cache_offset..];
-    const keys_buffer = key_cache[(pos * key_value_size)..][0..key_value_size];
-
-    const value_cache = self.value_cache[key_value_cache_offset..];
-    const values_buffer = value_cache[(pos * key_value_size)..][0..key_value_size];
-
-    try weights.attention_key_matrices.multiplyVector(layer, self.input_buffer, keys_buffer);
-
-    lib.rope(pos, query_head_size, self.queries_buffer, keys_buffer);
-
-    try weights.attention_value_matrices.multiplyVector(layer, self.input_buffer, values_buffer);
-
-    for (0..checkpoint.n_query_heads) |query_head| {
-        self.compute_weighted_values(pos, query_head, key_cache, value_cache);
+    for (0..self.n_heads) |head| {
+        self.compute_attention(position, layer, head);
     }
 
-    try weights.attention_output_matrices.multiplyVector(
+    try self.output_projection_matrices.multiplyVector(
         layer,
-        self.input_buffer,
-        self.output_buffer,
+        self.input_vector,
+        self.output_vector,
     );
 }
 
-fn compute_weighted_values(
-    self: *const Self,
-    pos: usize,
-    query_head: usize,
-    key_cache: []const f32,
-    value_cache: []const f32,
-) void {
+fn compute_attention(self: *const Self, current_position: usize, layer: usize, head: usize) void {
     @setFloatMode(.Optimized);
 
-    const checkpoint = self.checkpoint;
-    const n_query_head_groups = checkpoint.n_query_head_groups;
-    const query_head_group = query_head / (checkpoint.n_query_heads / n_query_head_groups);
-    const query_head_size = checkpoint.query_head_size;
-    const query_head_offset = query_head * query_head_size;
-    const query = self.queries_buffer[query_head_offset..][0..query_head_size];
-    const key_value_size = n_query_head_groups * query_head_size;
-    const key_value_head_offset = query_head_group * query_head_size;
-    const scores = self.scores_buffer[(query_head * self.sequence_length)..];
+    const group = head / (self.n_heads / self.n_groups);
+    const query_vector = self.query_vectors.at(head);
+    const next_position = current_position + 1;
 
-    for (0..(pos + 1)) |prev_pos| {
-        const key_value_cache_offset = prev_pos * key_value_size + key_value_head_offset;
-        const key = key_cache[key_value_cache_offset..][0..query_head_size];
+    for (0..next_position) |position| {
+        const key_vector = self.key_cache.at(layer, position).at(group);
 
-        scores[prev_pos] = lib.dot(query, key) / checkpoint.query_head_size_sqrt;
+        self.scores[position] = lib.dot(query_vector, key_vector) / self.head_size_sqrt;
     }
 
-    lib.softmax(scores[0..(pos + 1)]);
+    lib.softmax(self.scores[0..next_position]);
 
-    const weighted_values = self.input_buffer[query_head_offset..][0..query_head_size];
+    const attention_values = VectorArray.init(self.head_size, self.input_vector).at(head);
 
-    @memset(weighted_values, 0);
+    @memset(attention_values, 0);
 
-    for (0..(pos + 1)) |prev_pos| {
-        const key_value_cache_offset = prev_pos * key_value_size + key_value_head_offset;
-        const value = value_cache[key_value_cache_offset..];
-        const weight = scores[prev_pos];
+    for (0..next_position) |position| {
+        const value_vector = self.value_cache.at(layer, position).at(group);
+        const weight = self.scores[position];
 
-        for (0..query_head_size) |index| {
-            weighted_values[index] += weight * value[index];
+        for (0..self.head_size) |index| {
+            attention_values[index] += value_vector[index] * weight;
         }
     }
 }

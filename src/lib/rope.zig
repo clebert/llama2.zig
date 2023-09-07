@@ -1,40 +1,32 @@
 const std = @import("std");
 
 // RoFormer: Enhanced Transformer with Rotary Position Embedding (https://arxiv.org/abs/2104.09864)
-pub fn rope(
-    pos: usize,
-    query_head_size: usize,
-    queries_buffer: []f32,
-    keys_buffer: []f32,
-) void {
+pub fn rope(position: usize, head_size: usize, query_data: []f32, key_data: []f32) void {
     @setFloatMode(.Optimized);
 
-    std.debug.assert(keys_buffer.len <= queries_buffer.len);
+    std.debug.assert(key_data.len <= query_data.len);
 
     var index: usize = 0;
 
-    while (index < queries_buffer.len) : (index += 2) {
-        const query_head: f32 = @floatFromInt(index % query_head_size);
-
-        const frequency: f32 =
-            1 / std.math.pow(f32, 10000, query_head / @as(f32, @floatFromInt(query_head_size)));
-
-        const rotation_scaling_factor: f32 = @as(f32, @floatFromInt(pos)) * frequency;
+    while (index < query_data.len) : (index += 2) {
+        const head: f32 = @floatFromInt(index % head_size);
+        const frequency = 1 / std.math.pow(f32, 10000, head / @as(f32, @floatFromInt(head_size)));
+        const rotation_scaling_factor: f32 = @as(f32, @floatFromInt(position)) * frequency;
         const real_rotation_value: f32 = std.math.cos(rotation_scaling_factor);
         const imag_rotation_value: f32 = std.math.sin(rotation_scaling_factor);
 
-        const query_0 = queries_buffer[index];
-        const query_1 = queries_buffer[index + 1];
+        const q_0 = query_data[index];
+        const q_1 = query_data[index + 1];
 
-        queries_buffer[index] = query_0 * real_rotation_value - query_1 * imag_rotation_value;
-        queries_buffer[index + 1] = query_0 * imag_rotation_value + query_1 * real_rotation_value;
+        query_data[index] = q_0 * real_rotation_value - q_1 * imag_rotation_value;
+        query_data[index + 1] = q_0 * imag_rotation_value + q_1 * real_rotation_value;
 
-        if (index < keys_buffer.len) {
-            const key_0 = keys_buffer[index];
-            const key_1 = keys_buffer[index + 1];
+        if (index < key_data.len) {
+            const k_0 = key_data[index];
+            const k_1 = key_data[index + 1];
 
-            keys_buffer[index] = key_0 * real_rotation_value - key_1 * imag_rotation_value;
-            keys_buffer[index + 1] = key_0 * imag_rotation_value + key_1 * real_rotation_value;
+            key_data[index] = k_0 * real_rotation_value - k_1 * imag_rotation_value;
+            key_data[index + 1] = k_0 * imag_rotation_value + k_1 * real_rotation_value;
         }
     }
 }

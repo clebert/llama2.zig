@@ -58,13 +58,13 @@ pub fn generate(self: *Self, writer: anytype) !void {
     var start_time: i64 = 0;
     var total_time: i64 = 0;
 
-    for (0..self.transformer.sequence_length) |pos| {
-        if (pos > 0) {
+    for (0..self.transformer.sequence_length) |position| {
+        if (position > 0) {
             n_timed_steps += 1;
             start_time = std.time.milliTimestamp();
         }
 
-        try self.transformer.forward(token, pos);
+        try self.transformer.forward(token, position);
 
         if (start_time > 0) {
             total_time += std.time.milliTimestamp() - start_time;

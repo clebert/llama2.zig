@@ -1,16 +1,20 @@
-const Self = @This();
-
 const std = @import("std");
 
-size: usize,
-data: []const f32,
+pub fn VectorArray(comptime T: type) type {
+    return struct {
+        const Self = @This();
 
-pub fn init(size: usize, data: []const f32) Self {
-    std.debug.assert(data.len % size == 0);
+        vector_size: usize,
+        data: T,
 
-    return Self{ .size = size, .data = data };
-}
+        pub fn init(vector_size: usize, data: T) Self {
+            std.debug.assert(data.len % vector_size == 0);
 
-pub fn at(self: *const Self, index: usize) []const f32 {
-    return self.data[(index * self.size)..][0..self.size];
+            return Self{ .vector_size = vector_size, .data = data };
+        }
+
+        pub fn at(self: *const Self, vector_index: usize) T {
+            return self.data[(vector_index * self.vector_size)..][0..self.vector_size];
+        }
+    };
 }

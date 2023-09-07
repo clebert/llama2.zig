@@ -54,7 +54,7 @@ pub fn deinit(self: *const Self) void {
     self.allocator.free(self.logits);
 }
 
-pub fn forward(self: *const Self, token: usize, pos: usize) !void {
+pub fn forward(self: *const Self, token: usize, position: usize) !void {
     const checkpoint = self.checkpoint;
     const weights = checkpoint.weights;
 
@@ -64,12 +64,12 @@ pub fn forward(self: *const Self, token: usize, pos: usize) !void {
         lib.rmsnorm(
             self.hidden_state,
             weights.attention_norm_vectors.at(layer),
-            self.attention.input_buffer,
+            self.attention.input_vector,
         );
 
-        try self.attention.forward(pos, layer);
+        try self.attention.forward(position, layer);
 
-        lib.add(self.hidden_state, self.attention.output_buffer);
+        lib.add(self.hidden_state, self.attention.output_vector);
 
         lib.rmsnorm(
             self.hidden_state,

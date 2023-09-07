@@ -67,8 +67,8 @@ pub fn start(self: *Self, allocator: std.mem.Allocator) !void {
         allocator.free(prompt_tokens);
     };
 
-    for (0..self.transformer.sequence_length) |pos| {
-        try self.transformer.forward(token, pos);
+    for (0..self.transformer.sequence_length) |position| {
+        try self.transformer.forward(token, position);
 
         if (token == bos_token and user_turn) {
             var user_prompt = std.ArrayList(u8).init(allocator);
@@ -77,7 +77,7 @@ pub fn start(self: *Self, allocator: std.mem.Allocator) !void {
 
             try user_prompt.appendSlice(user_prompt_template_start);
 
-            if (pos == 0) {
+            if (position == 0) {
                 if (self.system_prompt.len == 0) {
                     var system_prompt = std.ArrayList(u8).init(allocator);
 
@@ -98,7 +98,7 @@ pub fn start(self: *Self, allocator: std.mem.Allocator) !void {
                 }
             }
 
-            if (pos == 0 and self.user_prompt.len > 0) {
+            if (position == 0 and self.user_prompt.len > 0) {
                 try user_prompt.appendSlice(self.user_prompt);
             } else {
                 try stdout.print("User: ", .{});

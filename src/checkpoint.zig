@@ -3,7 +3,7 @@ const Self = @This();
 const std = @import("std");
 const Cli = @import("./cli.zig");
 const MatrixArray = @import("./matrix_array.zig");
-const VectorArray = @import("./vector_array.zig");
+const VectorArray = @import("./vector_array.zig").VectorArray([]const f32);
 
 allocator: std.mem.Allocator,
 mmap: bool,
@@ -11,13 +11,10 @@ mmap: bool,
 embedding_size: usize,
 intermediate_size: usize,
 n_layers: usize,
-n_query_heads: usize,
-n_query_head_groups: usize,
+n_heads: usize,
+n_groups: usize,
 vocab_size: usize,
 max_sequence_length: usize,
-
-query_head_size: usize,
-query_head_size_sqrt: f32,
 
 weights: struct {
     embedding_vectors: VectorArray,
@@ -53,14 +50,11 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
     const embedding_size: usize = @intCast(config_data[0]);
     const intermediate_size: usize = @intCast(config_data[1]);
     const n_layers: usize = @intCast(config_data[2]);
-    const n_query_heads: usize = @intCast(config_data[3]);
-    const n_query_head_groups: usize = @intCast(config_data[4]);
+    const n_heads: usize = @intCast(config_data[3]);
+    const n_groups: usize = @intCast(config_data[4]);
     const signed_vocab_size: i32 = config_data[5];
     const vocab_size: usize = std.math.absCast(signed_vocab_size);
     const max_sequence_length: usize = @intCast(config_data[6]);
-
-    const query_head_size: usize = embedding_size / n_query_heads;
-    const query_head_size_sqrt: f32 = std.math.sqrt(@as(f32, @floatFromInt(query_head_size)));
 
     var weights_data: [*]const f32 = @alignCast(@ptrCast(data[28..]));
 
@@ -84,13 +78,14 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
 
     errdefer attention_query_matrices.deinit();
 
-    const key_value_size: usize = query_head_size * n_query_head_groups;
+    const head_size: usize = embedding_size / n_heads;
+    const keys_values_size: usize = head_size * n_groups;
 
     const attention_key_matrices = try MatrixArray.init(
         allocator,
-        key_value_size,
+        keys_values_size,
         embedding_size,
-        readFloatSlice(&weights_data, n_layers * (key_value_size * embedding_size)),
+        readFloatSlice(&weights_data, n_layers * (keys_values_size * embedding_size)),
         cli.multithreading,
     );
 
@@ -98,9 +93,9 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
 
     const attention_value_matrices = try MatrixArray.init(
         allocator,
-        key_value_size,
+        keys_values_size,
         embedding_size,
-        readFloatSlice(&weights_data, n_layers * (key_value_size * embedding_size)),
+        readFloatSlice(&weights_data, n_layers * (keys_values_size * embedding_size)),
         cli.multithreading,
     );
 
@@ -153,8 +148,8 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
 
     const final_norm_vector = readFloatSlice(&weights_data, embedding_size);
 
-    _ = readFloatSlice(&weights_data, max_sequence_length * query_head_size / 2);
-    _ = readFloatSlice(&weights_data, max_sequence_length * query_head_size / 2);
+    _ = readFloatSlice(&weights_data, max_sequence_length * head_size / 2);
+    _ = readFloatSlice(&weights_data, max_sequence_length * head_size / 2);
 
     // https://github.com/karpathy/llama2.c/commit/c3e0d73bd294e1f5e4d17425fac09aaec536400d
     const classifier_matrices = try MatrixArray.init(
@@ -175,13 +170,10 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
         .embedding_size = embedding_size,
         .intermediate_size = intermediate_size,
         .n_layers = n_layers,
-        .n_query_heads = n_query_heads,
-        .n_query_head_groups = n_query_head_groups,
+        .n_heads = n_heads,
+        .n_groups = n_groups,
         .vocab_size = vocab_size,
         .max_sequence_length = max_sequence_length,
-
-        .query_head_size = query_head_size,
-        .query_head_size_sqrt = query_head_size_sqrt,
 
         .weights = .{
             .embedding_vectors = embedding_vectors,
