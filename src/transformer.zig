@@ -21,7 +21,7 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
     errdefer checkpoint.deinit();
 
     const sequence_length = if (cli.n_steps == 0) checkpoint.max_sequence_length else cli.n_steps;
-    const attention = try Attention.init(allocator, checkpoint, sequence_length);
+    const attention = try Attention.init(allocator, &checkpoint, sequence_length);
 
     errdefer attention.deinit();
 
@@ -67,7 +67,7 @@ pub fn forward(self: *const Self, token: usize, position: usize) !void {
             self.attention.input_vector,
         );
 
-        try self.attention.forward(position, layer);
+        try self.attention.forward(layer, position);
 
         lib.add(self.hidden_state, self.attention.output_vector);
 
