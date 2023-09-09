@@ -1,40 +1,29 @@
 const std = @import("std");
 
-const max_vector_len: comptime_int = 16;
-const min_vector_len: comptime_int = 4;
-
 pub fn dot(a: []const f32, b: []const f32) f32 {
     @setFloatMode(.Optimized);
 
+    const native_vector_size: usize = comptime @max(std.simd.suggestVectorSize(f32) orelse 4, 4);
+
     std.debug.assert(a.len == b.len);
+    std.debug.assert(a.len % native_vector_size == 0);
 
-    const rest_len = a.len % max_vector_len;
+    var result: f32 = 0;
+    var offset: usize = 0;
 
-    std.debug.assert(rest_len % min_vector_len == 0);
+    comptime var vector_size = native_vector_size * native_vector_size;
 
-    var max_len_accu: @Vector(max_vector_len, f32) = @splat(0.0);
-    var index: usize = 0;
+    inline while (vector_size >= native_vector_size) : (vector_size /= native_vector_size) {
+        var vector: @Vector(vector_size, f32) = @splat(0.0);
+        var rest = (a.len - offset) % vector_size;
 
-    while (index < a.len - rest_len) : (index += max_vector_len) {
-        max_len_accu +=
-            @as(@Vector(max_vector_len, f32), a[index..][0..max_vector_len].*) *
-            @as(@Vector(max_vector_len, f32), b[index..][0..max_vector_len].*);
-    }
-
-    var result = @reduce(.Add, max_len_accu);
-
-    if (rest_len > 0) {
-        var min_len_accu: @Vector(min_vector_len, f32) = @splat(0.0);
-
-        index = a.len - rest_len;
-
-        while (index < a.len) : (index += min_vector_len) {
-            min_len_accu +=
-                @as(@Vector(min_vector_len, f32), a[index..][0..min_vector_len].*) *
-                @as(@Vector(min_vector_len, f32), b[index..][0..min_vector_len].*);
+        while (offset < a.len - rest) : (offset += vector_size) {
+            vector +=
+                @as(@Vector(vector_size, f32), a[offset..][0..vector_size].*) *
+                @as(@Vector(vector_size, f32), b[offset..][0..vector_size].*);
         }
 
-        result += @reduce(.Add, min_len_accu);
+        result += @reduce(.Add, vector);
     }
 
     return result;
