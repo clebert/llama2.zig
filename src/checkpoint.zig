@@ -33,8 +33,6 @@ weights: struct {
 
 data: []const u8,
 
-// TODO: switch to file format v2
-// TODO: write converter
 pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
     const data = try readFile(allocator, cli.checkpoint_path);
 
@@ -47,7 +45,10 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
     const n_layers: usize = @intCast(config_data[2]);
     const n_heads: usize = @intCast(config_data[3]);
     const n_query_groups: usize = @intCast(config_data[4]);
+
+    // https://github.com/karpathy/llama2.c/blob/35deb5e0fa55f0a257040bcf1624ed8386e63dc7/run.c#L153
     const signed_vocab_size: i32 = config_data[5];
+
     const vocab_size: usize = std.math.absCast(signed_vocab_size);
     const max_sequence_length: usize = @intCast(config_data[6]);
 
@@ -132,7 +133,6 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
     _ = readFloatSlice(&weights_data, max_sequence_length * head_size / 2);
     _ = readFloatSlice(&weights_data, max_sequence_length * head_size / 2);
 
-    // https://github.com/karpathy/llama2.c/commit/c3e0d73bd294e1f5e4d17425fac09aaec536400d
     const final_classifier_projection_matrix = Matrix.init(
         vocab_size,
         embedding_size,
