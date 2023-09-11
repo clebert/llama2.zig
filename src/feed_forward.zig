@@ -50,13 +50,13 @@ pub fn forward(self: *const Self, layer: usize) !void {
     const checkpoint = self.checkpoint;
     const weights = checkpoint.weights;
 
-    try weights.feed_forward_hidden_matrices.multiplyVector(
+    try weights.ffn_hidden_projection_matrices.multiplyVector(
         layer,
         self.input_buffer,
         self.hidden_buffer,
     );
 
-    try weights.feed_forward_scaling_matrices.multiplyVector(
+    try weights.ffn_scaling_projection_matrices.multiplyVector(
         layer,
         self.input_buffer,
         self.scaling_buffer,
@@ -66,7 +66,7 @@ pub fn forward(self: *const Self, layer: usize) !void {
         self.hidden_buffer[index] = silu(self.hidden_buffer[index]) * self.scaling_buffer[index];
     }
 
-    try weights.feed_forward_output_matrices.multiplyVector(
+    try weights.ffn_output_projection_matrices.multiplyVector(
         layer,
         self.hidden_buffer,
         self.output_buffer,

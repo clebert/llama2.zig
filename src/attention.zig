@@ -77,10 +77,10 @@ pub fn init(
         .head_size_sqrt = std.math.sqrt(@as(f32, @floatFromInt(head_size))),
         .sequence_length = sequence_length,
 
-        .query_projection_matrices = weights.attention_query_matrices,
-        .key_projection_matrices = weights.attention_key_matrices,
-        .value_projection_matrices = weights.attention_value_matrices,
-        .output_projection_matrices = weights.attention_output_matrices,
+        .query_projection_matrices = weights.attention_query_projection_matrices,
+        .key_projection_matrices = weights.attention_key_projection_matrices,
+        .value_projection_matrices = weights.attention_value_projection_matrices,
+        .output_projection_matrices = weights.attention_output_projection_matrices,
 
         .input_vector = input_vector,
         .output_vector = output_vector,
@@ -113,7 +113,7 @@ pub fn forward(self: *const Self, layer: usize, position: usize) !void {
     self.applyRotaryPositionEmbedding(position, multi_head_key);
 
     for (0..self.n_heads) |head| {
-        self.computeGroupedQueryAttention(position, layer, head);
+        self.computeGroupedQueryAttention(layer, position, head);
     }
 
     try self.output_projection_matrices.multiplyVector(
@@ -166,8 +166,8 @@ fn applyRotaryPositionEmbedding(
 // https://arxiv.org/abs/1706.03762
 fn computeGroupedQueryAttention(
     self: *const Self,
-    current_position: usize,
     layer: usize,
+    current_position: usize,
     head: usize,
 ) void {
     @setFloatMode(.Optimized);

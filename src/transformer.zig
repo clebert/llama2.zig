@@ -58,7 +58,7 @@ pub fn forward(self: *const Self, token: usize, position: usize) !void {
     const checkpoint = self.checkpoint;
     const weights = checkpoint.weights;
 
-    @memcpy(self.hidden_state, weights.embedding_vectors.at(token));
+    @memcpy(self.hidden_state, weights.token_embedding_vectors.at(token));
 
     for (0..checkpoint.n_layers) |layer| {
         lib.rmsnorm(
@@ -73,7 +73,7 @@ pub fn forward(self: *const Self, token: usize, position: usize) !void {
 
         lib.rmsnorm(
             self.hidden_state,
-            weights.feed_forward_norm_vectors.at(layer),
+            weights.ffn_norm_vectors.at(layer),
             self.feed_forward.input_buffer,
         );
 
@@ -88,5 +88,9 @@ pub fn forward(self: *const Self, token: usize, position: usize) !void {
         self.hidden_state,
     );
 
-    try weights.classifier_matrices.multiplyVector(0, self.hidden_state, self.logits);
+    try weights.final_classifier_projection_matrices.multiplyVector(
+        0,
+        self.hidden_state,
+        self.logits,
+    );
 }

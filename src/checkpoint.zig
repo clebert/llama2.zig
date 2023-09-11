@@ -17,22 +17,24 @@ vocab_size: usize,
 max_sequence_length: usize,
 
 weights: struct {
-    embedding_vectors: VectorArray,
+    token_embedding_vectors: VectorArray,
     attention_norm_vectors: VectorArray,
-    attention_query_matrices: MatrixArray,
-    attention_key_matrices: MatrixArray,
-    attention_value_matrices: MatrixArray,
-    attention_output_matrices: MatrixArray,
-    feed_forward_norm_vectors: VectorArray,
-    feed_forward_hidden_matrices: MatrixArray,
-    feed_forward_output_matrices: MatrixArray,
-    feed_forward_scaling_matrices: MatrixArray,
+    attention_query_projection_matrices: MatrixArray,
+    attention_key_projection_matrices: MatrixArray,
+    attention_value_projection_matrices: MatrixArray,
+    attention_output_projection_matrices: MatrixArray,
+    ffn_norm_vectors: VectorArray,
+    ffn_hidden_projection_matrices: MatrixArray, // TODO: []Matrix
+    ffn_output_projection_matrices: MatrixArray,
+    ffn_scaling_projection_matrices: MatrixArray,
     final_norm_vector: []const f32,
-    classifier_matrices: MatrixArray,
+    final_classifier_projection_matrices: MatrixArray, // TODO: only singular form is needed
 },
 
 data: []align(std.mem.page_size) const u8,
 
+// TODO: switch to file format v2
+// TODO: write converter
 pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
     const data = try if (cli.mmap)
         mmapFile(cli.checkpoint_path)
@@ -58,7 +60,7 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
 
     var weights_data: [*]const f32 = @alignCast(@ptrCast(data[28..]));
 
-    const embedding_vectors = VectorArray.init(
+    const token_embedding_vectors = VectorArray.init(
         embedding_size,
         readFloatSlice(&weights_data, vocab_size * embedding_size),
     );
@@ -68,7 +70,7 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
         readFloatSlice(&weights_data, n_layers * embedding_size),
     );
 
-    const attention_query_matrices = try MatrixArray.init(
+    const attention_query_projection_matrices = try MatrixArray.init(
         allocator,
         embedding_size,
         embedding_size,
@@ -76,12 +78,12 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
         cli.multithreading,
     );
 
-    errdefer attention_query_matrices.deinit();
+    errdefer attention_query_projection_matrices.deinit();
 
     const head_size: usize = embedding_size / n_heads;
     const multi_head_key_value_size: usize = head_size * n_query_groups;
 
-    const attention_key_matrices = try MatrixArray.init(
+    const attention_key_projection_matrices = try MatrixArray.init(
         allocator,
         multi_head_key_value_size,
         embedding_size,
@@ -89,9 +91,9 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
         cli.multithreading,
     );
 
-    errdefer attention_key_matrices.deinit();
+    errdefer attention_key_projection_matrices.deinit();
 
-    const attention_value_matrices = try MatrixArray.init(
+    const attention_value_projection_matrices = try MatrixArray.init(
         allocator,
         multi_head_key_value_size,
         embedding_size,
@@ -99,9 +101,9 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
         cli.multithreading,
     );
 
-    errdefer attention_value_matrices.deinit();
+    errdefer attention_value_projection_matrices.deinit();
 
-    const attention_output_matrices = try MatrixArray.init(
+    const attention_output_projection_matrices = try MatrixArray.init(
         allocator,
         embedding_size,
         embedding_size,
@@ -109,14 +111,14 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
         cli.multithreading,
     );
 
-    errdefer attention_output_matrices.deinit();
+    errdefer attention_output_projection_matrices.deinit();
 
-    const feed_forward_norm_vectors = VectorArray.init(
+    const ffn_norm_vectors = VectorArray.init(
         embedding_size,
         readFloatSlice(&weights_data, n_layers * embedding_size),
     );
 
-    const feed_forward_hidden_matrices = try MatrixArray.init(
+    const ffn_hidden_projection_matrices = try MatrixArray.init(
         allocator,
         intermediate_size,
         embedding_size,
@@ -124,9 +126,9 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
         cli.multithreading,
     );
 
-    errdefer feed_forward_hidden_matrices.deinit();
+    errdefer ffn_hidden_projection_matrices.deinit();
 
-    const feed_forward_output_matrices = try MatrixArray.init(
+    const ffn_output_projection_matrices = try MatrixArray.init(
         allocator,
         embedding_size,
         intermediate_size,
@@ -134,9 +136,9 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
         cli.multithreading,
     );
 
-    errdefer feed_forward_output_matrices.deinit();
+    errdefer ffn_output_projection_matrices.deinit();
 
-    const feed_forward_scaling_matrices = try MatrixArray.init(
+    const ffn_scaling_projection_matrices = try MatrixArray.init(
         allocator,
         intermediate_size,
         embedding_size,
@@ -144,7 +146,7 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
         cli.multithreading,
     );
 
-    errdefer feed_forward_scaling_matrices.deinit();
+    errdefer ffn_scaling_projection_matrices.deinit();
 
     const final_norm_vector = readFloatSlice(&weights_data, embedding_size);
 
@@ -152,12 +154,12 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
     _ = readFloatSlice(&weights_data, max_sequence_length * head_size / 2);
 
     // https://github.com/karpathy/llama2.c/commit/c3e0d73bd294e1f5e4d17425fac09aaec536400d
-    const classifier_matrices = try MatrixArray.init(
+    const final_classifier_projection_matrices = try MatrixArray.init(
         allocator,
         vocab_size,
         embedding_size,
         if (signed_vocab_size > 0)
-            embedding_vectors.data
+            token_embedding_vectors.data
         else
             readFloatSlice(&weights_data, vocab_size * embedding_size),
         cli.multithreading,
@@ -176,18 +178,18 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
         .max_sequence_length = max_sequence_length,
 
         .weights = .{
-            .embedding_vectors = embedding_vectors,
+            .token_embedding_vectors = token_embedding_vectors,
             .attention_norm_vectors = attention_norm_vectors,
-            .attention_query_matrices = attention_query_matrices,
-            .attention_key_matrices = attention_key_matrices,
-            .attention_value_matrices = attention_value_matrices,
-            .attention_output_matrices = attention_output_matrices,
-            .feed_forward_norm_vectors = feed_forward_norm_vectors,
-            .feed_forward_hidden_matrices = feed_forward_hidden_matrices,
-            .feed_forward_output_matrices = feed_forward_output_matrices,
-            .feed_forward_scaling_matrices = feed_forward_scaling_matrices,
+            .attention_query_projection_matrices = attention_query_projection_matrices,
+            .attention_key_projection_matrices = attention_key_projection_matrices,
+            .attention_value_projection_matrices = attention_value_projection_matrices,
+            .attention_output_projection_matrices = attention_output_projection_matrices,
+            .ffn_norm_vectors = ffn_norm_vectors,
+            .ffn_hidden_projection_matrices = ffn_hidden_projection_matrices,
+            .ffn_output_projection_matrices = ffn_output_projection_matrices,
+            .ffn_scaling_projection_matrices = ffn_scaling_projection_matrices,
             .final_norm_vector = final_norm_vector,
-            .classifier_matrices = classifier_matrices,
+            .final_classifier_projection_matrices = final_classifier_projection_matrices,
         },
 
         .data = data,
@@ -195,14 +197,14 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
 }
 
 pub fn deinit(self: *const Self) void {
-    self.weights.attention_query_matrices.deinit();
-    self.weights.attention_key_matrices.deinit();
-    self.weights.attention_value_matrices.deinit();
-    self.weights.attention_output_matrices.deinit();
-    self.weights.feed_forward_hidden_matrices.deinit();
-    self.weights.feed_forward_output_matrices.deinit();
-    self.weights.feed_forward_scaling_matrices.deinit();
-    self.weights.classifier_matrices.deinit();
+    self.weights.attention_query_projection_matrices.deinit();
+    self.weights.attention_key_projection_matrices.deinit();
+    self.weights.attention_value_projection_matrices.deinit();
+    self.weights.attention_output_projection_matrices.deinit();
+    self.weights.ffn_hidden_projection_matrices.deinit();
+    self.weights.ffn_output_projection_matrices.deinit();
+    self.weights.ffn_scaling_projection_matrices.deinit();
+    self.weights.final_classifier_projection_matrices.deinit();
 
     if (self.mmap) {
         std.os.munmap(self.data);
