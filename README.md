@@ -15,7 +15,7 @@ through the following linked [tests](./test.sh).
 ## Usage
 
 ```sh
-zig build -Doptimize=ReleaseFast run -- stories260K.bin -z tok512.bin -i "Once upon a time"
+zig build -Doptimize=ReleaseFast run -- stories260K.bin -z tok512.bin -i "Once upon a time" --verbose
 ```
 
 ## Papers

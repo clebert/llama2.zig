@@ -12,7 +12,7 @@ transformer: Transformer,
 tokenizer: Tokenizer,
 sampler: Sampler,
 prompt_tokens: []usize,
-timer: bool,
+verbose: bool,
 
 pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
     const transformer = try Transformer.init(allocator, cli);
@@ -36,7 +36,7 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
         .tokenizer = tokenizer,
         .sampler = sampler,
         .prompt_tokens = prompt_tokens,
-        .timer = cli.timer,
+        .verbose = cli.verbose,
     };
 }
 
@@ -88,7 +88,7 @@ pub fn generate(self: *Self, writer: anytype) !void {
         token = next_token;
     }
 
-    if (n_timed_steps > 0 and self.timer) {
+    if (n_timed_steps > 0 and self.verbose) {
         const average_time =
             @as(f32, @floatFromInt(total_time)) / @as(f32, @floatFromInt(n_timed_steps));
 
@@ -117,7 +117,7 @@ test "generate tiny story" {
         .tokenizer_path = "tok512.bin",
         .chat = false,
         .system_prompt = "",
-        .timer = false,
+        .verbose = false,
         .arg_iterator = arg_iterator,
     };
 

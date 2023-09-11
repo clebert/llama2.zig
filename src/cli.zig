@@ -11,7 +11,7 @@ prompt: []const u8,
 tokenizer_path: []const u8,
 chat: bool,
 system_prompt: []const u8,
-timer: bool,
+verbose: bool,
 arg_iterator: std.process.ArgIterator,
 
 const Option = enum {
@@ -35,7 +35,7 @@ pub fn init(allocator: std.mem.Allocator) !Self {
     var tokenizer_path: ?[]const u8 = null;
     var mode: ?[]const u8 = null;
     var system_prompt: ?[]const u8 = null;
-    var timer: bool = true;
+    var verbose: bool = false;
 
     var arg_iterator = try std.process.argsWithAllocator(allocator);
 
@@ -88,8 +88,8 @@ pub fn init(allocator: std.mem.Allocator) !Self {
             current_option = .mode;
         } else if (std.mem.eql(u8, arg, "-y")) {
             current_option = .system_prompt;
-        } else if (std.mem.eql(u8, arg, "--no-timer") and timer) {
-            timer = false;
+        } else if (std.mem.eql(u8, arg, "--verbose") and !verbose) {
+            verbose = true;
         } else {
             try exit();
         }
@@ -109,7 +109,7 @@ pub fn init(allocator: std.mem.Allocator) !Self {
         .tokenizer_path = tokenizer_path orelse "tokenizer.bin",
         .chat = if (mode) |arg| std.mem.eql(u8, arg, "chat") else false,
         .system_prompt = system_prompt orelse "",
-        .timer = timer,
+        .verbose = verbose,
         .arg_iterator = arg_iterator,
     };
 }
@@ -132,7 +132,7 @@ fn exit() !noreturn {
     try stderr.print("  -z <string> tokenizer_path = \"tokenizer.bin\"\n", .{});
     try stderr.print("  -m <string> mode           = \"generate\"; (alt. \"chat\")\n", .{});
     try stderr.print("  -y <string> system_prompt  = \"\"\n", .{});
-    try stderr.print("  --no-timer\n\n", .{});
+    try stderr.print("  --verbose\n\n", .{});
 
     try stderr.print("Example: llama2 model.bin -i \"Once upon a time\"\n", .{});
 
