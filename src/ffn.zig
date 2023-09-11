@@ -16,12 +16,12 @@ pub fn init(allocator: std.mem.Allocator, checkpoint: Checkpoint) !Self {
 
     errdefer allocator.free(input_buffer);
 
-    const intermediate_size = checkpoint.intermediate_size;
-    const hidden_buffer = try allocator.alloc(f32, intermediate_size);
+    const hidden_size = checkpoint.hidden_size;
+    const hidden_buffer = try allocator.alloc(f32, hidden_size);
 
     errdefer allocator.free(hidden_buffer);
 
-    const scaling_buffer = try allocator.alloc(f32, intermediate_size);
+    const scaling_buffer = try allocator.alloc(f32, hidden_size);
 
     errdefer allocator.free(scaling_buffer);
 
@@ -57,7 +57,7 @@ pub fn forward(self: *const Self, layer: usize) !void {
     hidden_projection_matrix.multiplyVector(self.input_buffer, self.hidden_buffer);
     scaling_projection_matrix.multiplyVector(self.input_buffer, self.scaling_buffer);
 
-    for (0..checkpoint.intermediate_size) |index| {
+    for (0..checkpoint.hidden_size) |index| {
         self.hidden_buffer[index] = silu(self.hidden_buffer[index]) * self.scaling_buffer[index];
     }
 

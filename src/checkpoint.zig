@@ -9,7 +9,7 @@ const VectorArray = @import("./vector_array.zig").VectorArray([]const f32);
 allocator: std.mem.Allocator,
 
 embedding_size: usize,
-intermediate_size: usize,
+hidden_size: usize,
 n_layers: usize,
 n_heads: usize,
 n_query_groups: usize,
@@ -43,7 +43,7 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
     const config_data: [*]const i32 = @alignCast(@ptrCast(data[0..28]));
 
     const embedding_size: usize = @intCast(config_data[0]);
-    const intermediate_size: usize = @intCast(config_data[1]);
+    const hidden_size: usize = @intCast(config_data[1]);
     const n_layers: usize = @intCast(config_data[2]);
     const n_heads: usize = @intCast(config_data[3]);
     const n_query_groups: usize = @intCast(config_data[4]);
@@ -104,25 +104,25 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
     );
 
     const ffn_hidden_projection_matrices = MatrixArray.init(
-        intermediate_size,
+        hidden_size,
         embedding_size,
-        readFloatSlice(&weights_data, n_layers * (intermediate_size * embedding_size)),
+        readFloatSlice(&weights_data, n_layers * (hidden_size * embedding_size)),
     );
 
     errdefer ffn_hidden_projection_matrices.deinit();
 
     const ffn_output_projection_matrices = MatrixArray.init(
         embedding_size,
-        intermediate_size,
-        readFloatSlice(&weights_data, n_layers * (embedding_size * intermediate_size)),
+        hidden_size,
+        readFloatSlice(&weights_data, n_layers * (embedding_size * hidden_size)),
     );
 
     errdefer ffn_output_projection_matrices.deinit();
 
     const ffn_scaling_projection_matrices = MatrixArray.init(
-        intermediate_size,
+        hidden_size,
         embedding_size,
-        readFloatSlice(&weights_data, n_layers * (intermediate_size * embedding_size)),
+        readFloatSlice(&weights_data, n_layers * (hidden_size * embedding_size)),
     );
 
     errdefer ffn_scaling_projection_matrices.deinit();
@@ -146,7 +146,7 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
         .allocator = allocator,
 
         .embedding_size = embedding_size,
-        .intermediate_size = intermediate_size,
+        .hidden_size = hidden_size,
         .n_layers = n_layers,
         .n_heads = n_heads,
         .n_query_groups = n_query_groups,
