@@ -49,24 +49,6 @@ pub fn build(b: *std.Build) void {
         });
     }
 
-    const accelerate = b.option(bool, "accelerate", "Use the Accelerate framework") orelse false;
-
-    build_options.addOption(bool, "accelerate", accelerate);
-
-    if (accelerate) {
-        exe.linkLibC();
-        exe.linkLibCpp();
-
-        exe.linkFramework("Accelerate");
-
-        exe.addIncludePath(.{ .path = "src/lib-c" });
-
-        exe.addCSourceFile(.{
-            .file = .{ .path = "src/lib-c/matvecmul_accelerate.c" },
-            .flags = &.{},
-        });
-    }
-
     // This declares intent for the executable to be installed into the
     // standard location when the user invokes the "install" step (the default
     // step when running `zig build`).

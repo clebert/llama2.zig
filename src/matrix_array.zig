@@ -4,14 +4,6 @@ const build_options = @import("build_options");
 const std = @import("std");
 const lib = @import("lib.zig");
 
-extern fn matvecmulAccelerate(
-    row_major_matrix: [*c]const f32,
-    input_vector: [*c]const f32,
-    output_vector: [*c]f32,
-    m_rows: i64,
-    n_cols: i64,
-) void;
-
 extern fn matvecmulMetal(
     row_major_matrix: [*c]const f32,
     input_vector: [*c]const f32,
@@ -47,7 +39,7 @@ pub fn init(
 
     std.debug.assert(row_major_data.len % matrix_size == 0);
 
-    const n_worker_threads = if (!multithreading or build_options.accelerate or build_options.metal)
+    const n_worker_threads = if (!multithreading or build_options.metal)
         0
     else
         std.Thread.getCpuCount() catch 1;
@@ -85,15 +77,7 @@ pub fn multiplyVector(
     const matrix_size = m_rows * n_cols;
     const row_major_data = self.row_major_data[(matrix_index * matrix_size)..][0..matrix_size];
 
-    if (build_options.accelerate) {
-        matvecmulAccelerate(
-            row_major_data.ptr,
-            input_vector.ptr,
-            output_vector.ptr,
-            @intCast(m_rows),
-            @intCast(n_cols),
-        );
-    } else if (build_options.metal) {
+    if (build_options.metal) {
         matvecmulMetal(row_major_data.ptr, input_vector.ptr, output_vector.ptr, m_rows, n_cols);
     } else {
         const m_rows_worker_thread = self.m_rows_worker_thread;
