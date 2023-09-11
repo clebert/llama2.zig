@@ -5,13 +5,13 @@ const lib = @import("lib.zig");
 const Attention = @import("attention.zig");
 const Checkpoint = @import("checkpoint.zig");
 const Cli = @import("cli.zig");
-const FeedForward = @import("feed_forward.zig");
+const Ffn = @import("ffn.zig");
 
 allocator: std.mem.Allocator,
 checkpoint: Checkpoint,
 sequence_length: usize,
 attention: Attention,
-feed_forward: FeedForward,
+ffn: Ffn,
 hidden_state: []f32,
 logits: []f32,
 
@@ -25,9 +25,9 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
 
     errdefer attention.deinit();
 
-    const feed_forward = try FeedForward.init(allocator, checkpoint);
+    const ffn = try Ffn.init(allocator, checkpoint);
 
-    errdefer feed_forward.deinit();
+    errdefer ffn.deinit();
 
     const hidden_state = try allocator.alloc(f32, checkpoint.embedding_size);
 
@@ -40,7 +40,7 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
         .checkpoint = checkpoint,
         .sequence_length = sequence_length,
         .attention = attention,
-        .feed_forward = feed_forward,
+        .ffn = ffn,
         .hidden_state = hidden_state,
         .logits = logits,
     };
@@ -49,7 +49,7 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
 pub fn deinit(self: *const Self) void {
     self.checkpoint.deinit();
     self.attention.deinit();
-    self.feed_forward.deinit();
+    self.ffn.deinit();
     self.allocator.free(self.hidden_state);
     self.allocator.free(self.logits);
 }
@@ -71,15 +71,11 @@ pub fn forward(self: *const Self, token: usize, position: usize) !void {
 
         lib.add(self.hidden_state, self.attention.output_vector);
 
-        lib.rmsnorm(
-            self.hidden_state,
-            weights.ffn_norm_vectors.at(layer),
-            self.feed_forward.input_buffer,
-        );
+        lib.rmsnorm(self.hidden_state, weights.ffn_norm_vectors.at(layer), self.ffn.input_buffer);
 
-        try self.feed_forward.forward(layer);
+        try self.ffn.forward(layer);
 
-        lib.add(self.hidden_state, self.feed_forward.output_buffer);
+        lib.add(self.hidden_state, self.ffn.output_buffer);
     }
 
     lib.rmsnorm(
