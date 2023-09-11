@@ -2,7 +2,6 @@ const Self = @This();
 
 const std = @import("std");
 const lib = @import("lib.zig");
-const Matrix = @import("./matrix.zig");
 
 m_rows: usize,
 n_cols: usize,
@@ -18,19 +17,18 @@ row_major_data: []const f32,
 pub fn init(m_rows: usize, n_cols: usize, row_major_data: []const f32) Self {
     const matrix_size = m_rows * n_cols;
 
-    std.debug.assert(row_major_data.len % matrix_size == 0);
+    std.debug.assert(row_major_data.len == matrix_size);
 
     return Self{ .m_rows = m_rows, .n_cols = n_cols, .row_major_data = row_major_data };
 }
 
-pub fn at(self: *const Self, matrix_index: usize) Matrix {
-    const m_rows = self.m_rows;
+pub fn multiplyVector(self: *const Self, input_vector: []const f32, output_vector: []f32) void {
     const n_cols = self.n_cols;
-    const matrix_size = m_rows * n_cols;
 
-    return Matrix.init(
-        m_rows,
-        n_cols,
-        self.row_major_data[(matrix_index * matrix_size)..][0..matrix_size],
-    );
+    std.debug.assert(input_vector.len == n_cols);
+    std.debug.assert(output_vector.len == self.m_rows);
+
+    for (output_vector, 0..) |*element, row| {
+        element.* = lib.dot(self.row_major_data[(row * n_cols)..][0..n_cols], input_vector);
+    }
 }

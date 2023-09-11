@@ -50,27 +50,18 @@ pub fn forward(self: *const Self, layer: usize) !void {
     const checkpoint = self.checkpoint;
     const weights = checkpoint.weights;
 
-    try weights.ffn_hidden_projection_matrices.multiplyVector(
-        layer,
-        self.input_buffer,
-        self.hidden_buffer,
-    );
+    const hidden_projection_matrix = weights.ffn_hidden_projection_matrices.at(layer);
+    const scaling_projection_matrix = weights.ffn_scaling_projection_matrices.at(layer);
+    const output_projection_matrix = weights.ffn_output_projection_matrices.at(layer);
 
-    try weights.ffn_scaling_projection_matrices.multiplyVector(
-        layer,
-        self.input_buffer,
-        self.scaling_buffer,
-    );
+    hidden_projection_matrix.multiplyVector(self.input_buffer, self.hidden_buffer);
+    scaling_projection_matrix.multiplyVector(self.input_buffer, self.scaling_buffer);
 
     for (0..checkpoint.intermediate_size) |index| {
         self.hidden_buffer[index] = silu(self.hidden_buffer[index]) * self.scaling_buffer[index];
     }
 
-    try weights.ffn_output_projection_matrices.multiplyVector(
-        layer,
-        self.hidden_buffer,
-        self.output_buffer,
-    );
+    output_projection_matrix.multiplyVector(self.hidden_buffer, self.output_buffer);
 }
 
 // GLU Variants Improve Transformer (https://arxiv.org/abs/2002.05202)

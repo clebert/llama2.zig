@@ -88,9 +88,5 @@ pub fn forward(self: *const Self, token: usize, position: usize) !void {
         self.hidden_state,
     );
 
-    try weights.final_classifier_projection_matrices.multiplyVector(
-        0,
-        self.hidden_state,
-        self.logits,
-    );
+    weights.final_classifier_projection_matrix.multiplyVector(self.hidden_state, self.logits);
 }

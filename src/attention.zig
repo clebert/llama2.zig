@@ -102,13 +102,18 @@ pub fn deinit(self: *const Self) void {
 }
 
 pub fn forward(self: *const Self, layer: usize, position: usize) !void {
+    const query_projection_matrix = self.query_projection_matrices.at(layer);
+    const key_projection_matrix = self.key_projection_matrices.at(layer);
+    const value_projection_matrix = self.value_projection_matrices.at(layer);
+    const output_projection_matrix = self.output_projection_matrices.at(layer);
+
     const multi_head_query = self.query_vectors.data;
     const multi_head_key = self.getCacheSlice(.key, layer, position, null);
     const multi_head_value = self.getCacheSlice(.value, layer, position, null);
 
-    try self.query_projection_matrices.multiplyVector(layer, self.input_vector, multi_head_query);
-    try self.key_projection_matrices.multiplyVector(layer, self.input_vector, multi_head_key);
-    try self.value_projection_matrices.multiplyVector(layer, self.input_vector, multi_head_value);
+    query_projection_matrix.multiplyVector(self.input_vector, multi_head_query);
+    key_projection_matrix.multiplyVector(self.input_vector, multi_head_key);
+    value_projection_matrix.multiplyVector(self.input_vector, multi_head_value);
 
     self.applyRotaryPositionEmbedding(position, multi_head_key);
 
@@ -116,11 +121,7 @@ pub fn forward(self: *const Self, layer: usize, position: usize) !void {
         self.computeGroupedQueryAttention(layer, position, head);
     }
 
-    try self.output_projection_matrices.multiplyVector(
-        layer,
-        self.input_vector,
-        self.output_vector,
-    );
+    output_projection_matrix.multiplyVector(self.input_vector, self.output_vector);
 }
 
 // https://arxiv.org/abs/2104.09864

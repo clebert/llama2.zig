@@ -2,6 +2,7 @@ const Self = @This();
 
 const std = @import("std");
 const Cli = @import("./cli.zig");
+const Matrix = @import("./matrix.zig");
 const MatrixArray = @import("./matrix_array.zig");
 const VectorArray = @import("./vector_array.zig").VectorArray([]const f32);
 
@@ -23,11 +24,11 @@ weights: struct {
     attention_value_projection_matrices: MatrixArray,
     attention_output_projection_matrices: MatrixArray,
     ffn_norm_vectors: VectorArray,
-    ffn_hidden_projection_matrices: MatrixArray, // TODO: []Matrix
+    ffn_hidden_projection_matrices: MatrixArray,
     ffn_output_projection_matrices: MatrixArray,
     ffn_scaling_projection_matrices: MatrixArray,
     final_norm_vector: []const f32,
-    final_classifier_projection_matrices: MatrixArray, // TODO: only singular form is needed
+    final_classifier_projection_matrix: Matrix,
 },
 
 data: []const u8,
@@ -132,7 +133,7 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
     _ = readFloatSlice(&weights_data, max_sequence_length * head_size / 2);
 
     // https://github.com/karpathy/llama2.c/commit/c3e0d73bd294e1f5e4d17425fac09aaec536400d
-    const final_classifier_projection_matrices = MatrixArray.init(
+    const final_classifier_projection_matrix = Matrix.init(
         vocab_size,
         embedding_size,
         if (signed_vocab_size > 0)
@@ -164,7 +165,7 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
             .ffn_output_projection_matrices = ffn_output_projection_matrices,
             .ffn_scaling_projection_matrices = ffn_scaling_projection_matrices,
             .final_norm_vector = final_norm_vector,
-            .final_classifier_projection_matrices = final_classifier_projection_matrices,
+            .final_classifier_projection_matrix = final_classifier_projection_matrix,
         },
 
         .data = data,
