@@ -18,15 +18,6 @@ through the following linked [tests](./test.sh).
 zig build -Doptimize=ReleaseFast run -- stories260K.bin -z tok512.bin -i "Once upon a time" --no-multithreading
 ```
 
-## Experimental Metal Framework Support
-
-```sh
-./download-metal-cpp.sh
-zig build -Dmetal=true run -- stories260K.bin -z tok512.bin -i "Once upon a time"
-```
-
-- TODO: Investigate the usage of the [MPSMatrixVectorMultiplication](https://developer.apple.com/documentation/metalperformanceshaders/mpsmatrixvectormultiplication) kernel.
-
 ## Papers
 
 - Standard transformer architecture: [Attention Is All You Need](https://arxiv.org/abs/1706.03762)
