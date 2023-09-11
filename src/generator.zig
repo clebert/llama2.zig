@@ -117,7 +117,6 @@ test "generate tiny story" {
         .tokenizer_path = "tok512.bin",
         .chat = false,
         .system_prompt = "",
-        .multithreading = false,
         .mmap = false,
         .timer = false,
         .arg_iterator = arg_iterator,
