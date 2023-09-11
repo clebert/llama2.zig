@@ -2,21 +2,30 @@ const Self = @This();
 
 const std = @import("std");
 const Checkpoint = @import("checkpoint.zig");
+const MatrixArray = @import("./matrix_array.zig");
 
 allocator: std.mem.Allocator,
-checkpoint: Checkpoint,
+
+hidden_size: usize,
+
+hidden_projection_matrices: MatrixArray,
+scaling_projection_matrices: MatrixArray,
+output_projection_matrices: MatrixArray,
+
 input_buffer: []f32,
 hidden_buffer: []f32,
 scaling_buffer: []f32,
 output_buffer: []f32,
 
-pub fn init(allocator: std.mem.Allocator, checkpoint: Checkpoint) !Self {
+pub fn init(allocator: std.mem.Allocator, checkpoint: *const Checkpoint) !Self {
     const embedding_size = checkpoint.embedding_size;
+    const hidden_size = checkpoint.hidden_size;
+    const weights = checkpoint.weights;
+
     const input_buffer = try allocator.alloc(f32, embedding_size);
 
     errdefer allocator.free(input_buffer);
 
-    const hidden_size = checkpoint.hidden_size;
     const hidden_buffer = try allocator.alloc(f32, hidden_size);
 
     errdefer allocator.free(hidden_buffer);
@@ -29,7 +38,13 @@ pub fn init(allocator: std.mem.Allocator, checkpoint: Checkpoint) !Self {
 
     return Self{
         .allocator = allocator,
-        .checkpoint = checkpoint,
+
+        .hidden_size = hidden_size,
+
+        .hidden_projection_matrices = weights.ffn_hidden_projection_matrices,
+        .scaling_projection_matrices = weights.ffn_scaling_projection_matrices,
+        .output_projection_matrices = weights.ffn_output_projection_matrices,
+
         .input_buffer = input_buffer,
         .hidden_buffer = hidden_buffer,
         .scaling_buffer = scaling_buffer,
@@ -47,17 +62,14 @@ pub fn deinit(self: *const Self) void {
 pub fn forward(self: *const Self, layer: usize) !void {
     @setFloatMode(.Optimized);
 
-    const checkpoint = self.checkpoint;
-    const weights = checkpoint.weights;
-
-    const hidden_projection_matrix = weights.ffn_hidden_projection_matrices.at(layer);
-    const scaling_projection_matrix = weights.ffn_scaling_projection_matrices.at(layer);
-    const output_projection_matrix = weights.ffn_output_projection_matrices.at(layer);
+    const hidden_projection_matrix = self.hidden_projection_matrices.at(layer);
+    const scaling_projection_matrix = self.scaling_projection_matrices.at(layer);
+    const output_projection_matrix = self.output_projection_matrices.at(layer);
 
     hidden_projection_matrix.multiplyVector(self.input_buffer, self.hidden_buffer);
     scaling_projection_matrix.multiplyVector(self.input_buffer, self.scaling_buffer);
 
-    for (0..checkpoint.hidden_size) |index| {
+    for (0..self.hidden_size) |index| {
         self.hidden_buffer[index] = silu(self.hidden_buffer[index]) * self.scaling_buffer[index];
     }
 

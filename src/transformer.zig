@@ -25,7 +25,7 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
 
     errdefer attention.deinit();
 
-    const ffn = try Ffn.init(allocator, checkpoint);
+    const ffn = try Ffn.init(allocator, &checkpoint);
 
     errdefer ffn.deinit();
 
@@ -55,34 +55,29 @@ pub fn deinit(self: *const Self) void {
 }
 
 pub fn forward(self: *const Self, token: usize, position: usize) !void {
-    const checkpoint = self.checkpoint;
-    const weights = checkpoint.weights;
+    const n_layers = self.checkpoint.n_layers;
+    const weights = self.checkpoint.weights;
 
     @memcpy(self.hidden_state, weights.token_embedding_vectors.at(token));
 
-    for (0..checkpoint.n_layers) |layer| {
-        lib.rmsnorm(
-            self.hidden_state,
-            weights.attention_norm_vectors.at(layer),
-            self.attention.input_vector,
-        );
+    for (0..n_layers) |layer| {
+        const attention_norm_vector = weights.attention_norm_vectors.at(layer);
+        const ffn_norm_vector = weights.ffn_norm_vectors.at(layer);
+
+        lib.rmsnorm(self.hidden_state, attention_norm_vector, self.attention.input_vector);
 
         try self.attention.forward(layer, position);
 
         lib.add(self.hidden_state, self.attention.output_vector);
 
-        lib.rmsnorm(self.hidden_state, weights.ffn_norm_vectors.at(layer), self.ffn.input_buffer);
+        lib.rmsnorm(self.hidden_state, ffn_norm_vector, self.ffn.input_buffer);
 
         try self.ffn.forward(layer);
 
         lib.add(self.hidden_state, self.ffn.output_buffer);
     }
 
-    lib.rmsnorm(
-        self.hidden_state,
-        weights.final_norm_vector,
-        self.hidden_state,
-    );
+    lib.rmsnorm(self.hidden_state, weights.final_norm_vector, self.hidden_state);
 
     weights.final_classifier_projection_matrix.multiplyVector(self.hidden_state, self.logits);
 }
