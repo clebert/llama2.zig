@@ -11,7 +11,6 @@ prompt: []const u8,
 tokenizer_path: []const u8,
 chat: bool,
 system_prompt: []const u8,
-mmap: bool,
 timer: bool,
 arg_iterator: std.process.ArgIterator,
 
@@ -36,7 +35,6 @@ pub fn init(allocator: std.mem.Allocator) !Self {
     var tokenizer_path: ?[]const u8 = null;
     var mode: ?[]const u8 = null;
     var system_prompt: ?[]const u8 = null;
-    var mmap: bool = true;
     var timer: bool = true;
 
     var arg_iterator = try std.process.argsWithAllocator(allocator);
@@ -90,8 +88,6 @@ pub fn init(allocator: std.mem.Allocator) !Self {
             current_option = .mode;
         } else if (std.mem.eql(u8, arg, "-y")) {
             current_option = .system_prompt;
-        } else if (std.mem.eql(u8, arg, "--no-mmap") and mmap) {
-            mmap = false;
         } else if (std.mem.eql(u8, arg, "--no-timer") and timer) {
             timer = false;
         } else {
@@ -113,7 +109,6 @@ pub fn init(allocator: std.mem.Allocator) !Self {
         .tokenizer_path = tokenizer_path orelse "tokenizer.bin",
         .chat = if (mode) |arg| std.mem.eql(u8, arg, "chat") else false,
         .system_prompt = system_prompt orelse "",
-        .mmap = mmap,
         .timer = timer,
         .arg_iterator = arg_iterator,
     };
@@ -137,7 +132,6 @@ fn exit() !noreturn {
     try stderr.print("  -z <string> tokenizer_path = \"tokenizer.bin\"\n", .{});
     try stderr.print("  -m <string> mode           = \"generate\"; (alt. \"chat\")\n", .{});
     try stderr.print("  -y <string> system_prompt  = \"\"\n", .{});
-    try stderr.print("  --no-mmap\n", .{});
     try stderr.print("  --no-timer\n\n", .{});
 
     try stderr.print("Example: llama2 model.bin -i \"Once upon a time\"\n", .{});

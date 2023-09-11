@@ -6,7 +6,6 @@ const MatrixArray = @import("./matrix_array.zig");
 const VectorArray = @import("./vector_array.zig").VectorArray([]const f32);
 
 allocator: std.mem.Allocator,
-mmap: bool,
 
 embedding_size: usize,
 intermediate_size: usize,
@@ -31,21 +30,14 @@ weights: struct {
     final_classifier_projection_matrices: MatrixArray, // TODO: only singular form is needed
 },
 
-data: []align(std.mem.page_size) const u8,
+data: []const u8,
 
 // TODO: switch to file format v2
 // TODO: write converter
 pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
-    const data = try if (cli.mmap)
-        mmapFile(cli.checkpoint_path)
-    else
-        readFile(allocator, cli.checkpoint_path);
+    const data = try readFile(allocator, cli.checkpoint_path);
 
-    errdefer if (cli.mmap) {
-        std.os.munmap(data);
-    } else {
-        allocator.free(data);
-    };
+    errdefer allocator.free(data);
 
     const config_data: [*]const i32 = @alignCast(@ptrCast(data[0..28]));
 
@@ -151,7 +143,6 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
 
     return Self{
         .allocator = allocator,
-        .mmap = cli.mmap,
 
         .embedding_size = embedding_size,
         .intermediate_size = intermediate_size,
@@ -181,21 +172,17 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
 }
 
 pub fn deinit(self: *const Self) void {
-    if (self.mmap) {
-        std.os.munmap(self.data);
-    } else {
-        self.allocator.free(self.data);
-    }
+    self.allocator.free(self.data);
 }
 
-fn readFile(allocator: std.mem.Allocator, path: []const u8) ![]align(std.mem.page_size) const u8 {
+fn readFile(allocator: std.mem.Allocator, path: []const u8) ![]const u8 {
     const file = try std.fs.cwd().openFile(path, .{});
 
     defer file.close();
 
     const stat = try file.stat();
 
-    var data = try allocator.alignedAlloc(u8, std.mem.page_size, stat.size);
+    var data = try allocator.alloc(u8, stat.size);
 
     errdefer allocator.free(data);
 
@@ -206,23 +193,6 @@ fn readFile(allocator: std.mem.Allocator, path: []const u8) ![]align(std.mem.pag
     }
 
     return data;
-}
-
-fn mmapFile(path: []const u8) ![]align(std.mem.page_size) const u8 {
-    const file = try std.fs.cwd().openFile(path, .{});
-
-    defer file.close();
-
-    const stat = try file.stat();
-
-    return std.os.mmap(
-        null,
-        stat.size,
-        std.os.PROT.READ,
-        std.os.MAP.PRIVATE,
-        file.handle,
-        0,
-    );
 }
 
 fn readFloatSlice(data: *[*]const f32, len: usize) []const f32 {
