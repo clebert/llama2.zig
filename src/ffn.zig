@@ -2,15 +2,15 @@ const Self = @This();
 
 const std = @import("std");
 const Checkpoint = @import("checkpoint.zig");
-const MatrixArray = @import("./matrix_array.zig");
+const Matrix = @import("./matrix.zig");
 
 allocator: std.mem.Allocator,
 
 hidden_size: usize,
 
-hidden_projection_matrices: MatrixArray,
-scaling_projection_matrices: MatrixArray,
-output_projection_matrices: MatrixArray,
+hidden_projection_matrices: []const Matrix,
+scaling_projection_matrices: []const Matrix,
+output_projection_matrices: []const Matrix,
 
 input_buffer: []f32,
 hidden_buffer: []f32,
@@ -62,9 +62,9 @@ pub fn deinit(self: *const Self) void {
 pub fn forward(self: *const Self, layer: usize) !void {
     @setFloatMode(.Optimized);
 
-    const hidden_projection_matrix = self.hidden_projection_matrices.at(layer);
-    const scaling_projection_matrix = self.scaling_projection_matrices.at(layer);
-    const output_projection_matrix = self.output_projection_matrices.at(layer);
+    const hidden_projection_matrix = self.hidden_projection_matrices[layer];
+    const scaling_projection_matrix = self.scaling_projection_matrices[layer];
+    const output_projection_matrix = self.output_projection_matrices[layer];
 
     hidden_projection_matrix.multiplyVector(self.input_buffer, self.hidden_buffer);
     scaling_projection_matrix.multiplyVector(self.input_buffer, self.scaling_buffer);

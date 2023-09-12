@@ -3,7 +3,6 @@ const Self = @This();
 const std = @import("std");
 const Cli = @import("./cli.zig");
 const Matrix = @import("./matrix.zig");
-const MatrixArray = @import("./matrix_array.zig");
 const VectorArray = @import("./vector_array.zig").VectorArray([]const f32);
 
 allocator: std.mem.Allocator,
@@ -19,14 +18,14 @@ max_sequence_length: usize,
 weights: struct {
     token_embedding_vectors: VectorArray,
     attention_norm_vectors: VectorArray,
-    attention_query_projection_matrices: MatrixArray,
-    attention_key_projection_matrices: MatrixArray,
-    attention_value_projection_matrices: MatrixArray,
-    attention_output_projection_matrices: MatrixArray,
+    attention_query_projection_matrices: []const Matrix,
+    attention_key_projection_matrices: []const Matrix,
+    attention_value_projection_matrices: []const Matrix,
+    attention_output_projection_matrices: []const Matrix,
     ffn_norm_vectors: VectorArray,
-    ffn_hidden_projection_matrices: MatrixArray,
-    ffn_output_projection_matrices: MatrixArray,
-    ffn_scaling_projection_matrices: MatrixArray,
+    ffn_hidden_projection_matrices: []const Matrix,
+    ffn_output_projection_matrices: []const Matrix,
+    ffn_scaling_projection_matrices: []const Matrix,
     final_norm_vector: []const f32,
     final_classifier_projection_matrix: Matrix,
 },
@@ -64,69 +63,76 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
         readFloatSlice(&weights_data, n_layers * embedding_size),
     );
 
-    const attention_query_projection_matrices = MatrixArray.init(
+    const attention_query_projection_matrices = try Matrix.slice(
+        allocator,
         embedding_size,
         embedding_size,
         readFloatSlice(&weights_data, n_layers * (embedding_size * embedding_size)),
     );
 
-    errdefer attention_query_projection_matrices.deinit();
+    errdefer allocator.free(attention_query_projection_matrices);
 
     const head_size: usize = embedding_size / n_heads;
     const multi_head_key_value_size: usize = head_size * n_query_groups;
 
-    const attention_key_projection_matrices = MatrixArray.init(
+    const attention_key_projection_matrices = try Matrix.slice(
+        allocator,
         multi_head_key_value_size,
         embedding_size,
         readFloatSlice(&weights_data, n_layers * (multi_head_key_value_size * embedding_size)),
     );
 
-    errdefer attention_key_projection_matrices.deinit();
+    errdefer allocator.free(attention_key_projection_matrices);
 
-    const attention_value_projection_matrices = MatrixArray.init(
+    const attention_value_projection_matrices = try Matrix.slice(
+        allocator,
         multi_head_key_value_size,
         embedding_size,
         readFloatSlice(&weights_data, n_layers * (multi_head_key_value_size * embedding_size)),
     );
 
-    errdefer attention_value_projection_matrices.deinit();
+    errdefer allocator.free(attention_value_projection_matrices);
 
-    const attention_output_projection_matrices = MatrixArray.init(
+    const attention_output_projection_matrices = try Matrix.slice(
+        allocator,
         embedding_size,
         embedding_size,
         readFloatSlice(&weights_data, n_layers * (embedding_size * embedding_size)),
     );
 
-    errdefer attention_output_projection_matrices.deinit();
+    errdefer allocator.free(attention_output_projection_matrices);
 
     const ffn_norm_vectors = VectorArray.init(
         embedding_size,
         readFloatSlice(&weights_data, n_layers * embedding_size),
     );
 
-    const ffn_hidden_projection_matrices = MatrixArray.init(
+    const ffn_hidden_projection_matrices = try Matrix.slice(
+        allocator,
         hidden_size,
         embedding_size,
         readFloatSlice(&weights_data, n_layers * (hidden_size * embedding_size)),
     );
 
-    errdefer ffn_hidden_projection_matrices.deinit();
+    errdefer allocator.free(ffn_hidden_projection_matrices);
 
-    const ffn_output_projection_matrices = MatrixArray.init(
+    const ffn_output_projection_matrices = try Matrix.slice(
+        allocator,
         embedding_size,
         hidden_size,
         readFloatSlice(&weights_data, n_layers * (embedding_size * hidden_size)),
     );
 
-    errdefer ffn_output_projection_matrices.deinit();
+    errdefer allocator.free(ffn_output_projection_matrices);
 
-    const ffn_scaling_projection_matrices = MatrixArray.init(
+    const ffn_scaling_projection_matrices = try Matrix.slice(
+        allocator,
         hidden_size,
         embedding_size,
         readFloatSlice(&weights_data, n_layers * (hidden_size * embedding_size)),
     );
 
-    errdefer ffn_scaling_projection_matrices.deinit();
+    errdefer allocator.free(ffn_scaling_projection_matrices);
 
     const final_norm_vector = readFloatSlice(&weights_data, embedding_size);
 
@@ -173,6 +179,13 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
 }
 
 pub fn deinit(self: *const Self) void {
+    self.allocator.free(self.weights.attention_query_projection_matrices);
+    self.allocator.free(self.weights.attention_key_projection_matrices);
+    self.allocator.free(self.weights.attention_value_projection_matrices);
+    self.allocator.free(self.weights.attention_output_projection_matrices);
+    self.allocator.free(self.weights.ffn_hidden_projection_matrices);
+    self.allocator.free(self.weights.ffn_output_projection_matrices);
+    self.allocator.free(self.weights.ffn_scaling_projection_matrices);
     self.allocator.free(self.data);
 }
 

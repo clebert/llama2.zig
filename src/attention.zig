@@ -3,7 +3,7 @@ const Self = @This();
 const std = @import("std");
 const lib = @import("lib.zig");
 const Checkpoint = @import("checkpoint.zig");
-const MatrixArray = @import("./matrix_array.zig");
+const Matrix = @import("./matrix.zig");
 const VectorArray = @import("./vector_array.zig").VectorArray([]f32);
 
 allocator: std.mem.Allocator,
@@ -14,10 +14,10 @@ head_size: usize,
 head_size_sqrt: f32,
 sequence_length: usize,
 
-query_projection_matrices: MatrixArray,
-key_projection_matrices: MatrixArray,
-value_projection_matrices: MatrixArray,
-output_projection_matrices: MatrixArray,
+query_projection_matrices: []const Matrix,
+key_projection_matrices: []const Matrix,
+value_projection_matrices: []const Matrix,
+output_projection_matrices: []const Matrix,
 
 input_vector: []f32,
 output_vector: []f32,
@@ -102,10 +102,10 @@ pub fn deinit(self: *const Self) void {
 }
 
 pub fn forward(self: *const Self, layer: usize, position: usize) !void {
-    const query_projection_matrix = self.query_projection_matrices.at(layer);
-    const key_projection_matrix = self.key_projection_matrices.at(layer);
-    const value_projection_matrix = self.value_projection_matrices.at(layer);
-    const output_projection_matrix = self.output_projection_matrices.at(layer);
+    const query_projection_matrix = self.query_projection_matrices[layer];
+    const key_projection_matrix = self.key_projection_matrices[layer];
+    const value_projection_matrix = self.value_projection_matrices[layer];
+    const output_projection_matrix = self.output_projection_matrices[layer];
 
     const multi_head_query = self.query_vectors.data;
     const multi_head_key = self.getCacheSlice(.key, layer, position, null);
