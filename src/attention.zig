@@ -110,8 +110,8 @@ pub fn forward(self: *const Self, layer: usize, position: usize) !void {
     const output_projection_matrix = self.output_projection_matrices[layer];
 
     const multi_head_query = self.multi_head_query;
-    const multi_head_key = self.getCacheSlice(.key, layer, position, null);
-    const multi_head_value = self.getCacheSlice(.value, layer, position, null);
+    const multi_head_key = self.sliceCache(.key, layer, position, null);
+    const multi_head_value = self.sliceCache(.value, layer, position, null);
 
     query_projection_matrix.multiplyVector(self.input_vector, multi_head_query);
     key_projection_matrix.multiplyVector(self.input_vector, multi_head_key);
@@ -180,7 +180,7 @@ fn computeGroupedQueryAttention(
     const next_position = current_position + 1;
 
     for (0..next_position) |position| {
-        const key_vector = self.getCacheSlice(.key, layer, position, query_group);
+        const key_vector = self.sliceCache(.key, layer, position, query_group);
 
         self.scores[position] = vector.dot(query_vector, key_vector) / self.head_size_sqrt;
     }
@@ -192,7 +192,7 @@ fn computeGroupedQueryAttention(
     @memset(attention_values, 0);
 
     for (0..next_position) |position| {
-        const value_vector = self.getCacheSlice(.value, layer, position, query_group);
+        const value_vector = self.sliceCache(.value, layer, position, query_group);
 
         const weight = self.scores[position];
 
@@ -204,7 +204,7 @@ fn computeGroupedQueryAttention(
 
 const CacheType = enum { key, value };
 
-fn getCacheSlice(
+fn sliceCache(
     self: *const Self,
     cache_type: CacheType,
     layer: usize,

@@ -46,12 +46,14 @@ pub fn slice(
 }
 
 pub fn multiplyVector(self: *const Self, input_vector: []const f32, output_vector: []f32) void {
+    const m_rows = self.m_rows;
     const n_cols = self.n_cols;
+    const row_major_data = self.row_major_data;
 
     std.debug.assert(input_vector.len == n_cols);
-    std.debug.assert(output_vector.len == self.m_rows);
+    std.debug.assert(output_vector.len == m_rows);
 
     for (output_vector, 0..) |*element, row| {
-        element.* = vector.dot(self.row_major_data[(row * n_cols)..][0..n_cols], input_vector);
+        element.* = vector.dot(row_major_data[(row * n_cols)..][0..n_cols], input_vector);
     }
 }
