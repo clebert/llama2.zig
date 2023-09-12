@@ -1,8 +1,8 @@
 const Self = @This();
 
 const std = @import("std");
-const lib = @import("lib.zig");
 const Cli = @import("cli.zig");
+const print = @import("print.zig").print;
 const Sampler = @import("sampler.zig");
 const Tokenizer = @import("tokenizer.zig");
 const Transformer = @import("transformer.zig");
@@ -83,7 +83,7 @@ pub fn generate(self: *Self, writer: anytype) !void {
 
         const word = self.tokenizer.decode(next_token, token == bos_token);
 
-        try lib.print(word, writer);
+        try print(word, writer);
 
         token = next_token;
     }

@@ -1,11 +1,11 @@
 const Self = @This();
 
 const std = @import("std");
-const lib = @import("lib.zig");
 const Attention = @import("attention.zig");
 const Checkpoint = @import("checkpoint.zig");
 const Cli = @import("cli.zig");
 const Ffn = @import("ffn.zig");
+const vector = @import("vector.zig");
 
 allocator: std.mem.Allocator,
 checkpoint: Checkpoint,
@@ -58,26 +58,26 @@ pub fn forward(self: *const Self, token: usize, position: usize) !void {
     const n_layers = self.checkpoint.n_layers;
     const weights = self.checkpoint.weights;
 
-    @memcpy(self.hidden_state, weights.token_embedding_vectors.at(token));
+    @memcpy(self.hidden_state, weights.token_embedding_vectors[token]);
 
     for (0..n_layers) |layer| {
-        const attention_norm_vector = weights.attention_norm_vectors.at(layer);
-        const ffn_norm_vector = weights.ffn_norm_vectors.at(layer);
+        const attention_norm_vector = weights.attention_norm_vectors[layer];
+        const ffn_norm_vector = weights.ffn_norm_vectors[layer];
 
-        lib.rmsnorm(self.hidden_state, attention_norm_vector, self.attention.input_vector);
+        vector.rmsnorm(self.hidden_state, attention_norm_vector, self.attention.input_vector);
 
         try self.attention.forward(layer, position);
 
-        lib.add(self.hidden_state, self.attention.output_vector);
+        vector.add(self.hidden_state, self.attention.output_vector);
 
-        lib.rmsnorm(self.hidden_state, ffn_norm_vector, self.ffn.input_buffer);
+        vector.rmsnorm(self.hidden_state, ffn_norm_vector, self.ffn.input_buffer);
 
         try self.ffn.forward(layer);
 
-        lib.add(self.hidden_state, self.ffn.output_buffer);
+        vector.add(self.hidden_state, self.ffn.output_buffer);
     }
 
-    lib.rmsnorm(self.hidden_state, weights.final_norm_vector, self.hidden_state);
+    vector.rmsnorm(self.hidden_state, weights.final_norm_vector, self.hidden_state);
 
     weights.final_classifier_projection_matrix.multiplyVector(self.hidden_state, self.logits);
 }

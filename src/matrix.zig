@@ -1,7 +1,7 @@
 const Self = @This();
 
 const std = @import("std");
-const lib = @import("lib.zig");
+const vector = @import("vector.zig");
 
 m_rows: usize,
 n_cols: usize,
@@ -32,9 +32,9 @@ pub fn slice(
 
     std.debug.assert(row_major_data.len % matrix_size == 0);
 
-    var array = try allocator.alloc(Self, row_major_data.len / matrix_size);
+    var matrices = try allocator.alloc(Self, row_major_data.len / matrix_size);
 
-    for (array, 0..) |*matrix, matrix_index| {
+    for (matrices, 0..) |*matrix, matrix_index| {
         matrix.* = Self.init(
             m_rows,
             n_cols,
@@ -42,7 +42,7 @@ pub fn slice(
         );
     }
 
-    return array;
+    return matrices;
 }
 
 pub fn multiplyVector(self: *const Self, input_vector: []const f32, output_vector: []f32) void {
@@ -52,6 +52,6 @@ pub fn multiplyVector(self: *const Self, input_vector: []const f32, output_vecto
     std.debug.assert(output_vector.len == self.m_rows);
 
     for (output_vector, 0..) |*element, row| {
-        element.* = lib.dot(self.row_major_data[(row * n_cols)..][0..n_cols], input_vector);
+        element.* = vector.dot(self.row_major_data[(row * n_cols)..][0..n_cols], input_vector);
     }
 }

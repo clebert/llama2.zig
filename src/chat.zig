@@ -1,8 +1,8 @@
 const Self = @This();
 
 const std = @import("std");
-const lib = @import("lib.zig");
 const Cli = @import("cli.zig");
+const print = @import("print.zig").print;
 const Sampler = @import("sampler.zig");
 const Tokenizer = @import("tokenizer.zig");
 const Transformer = @import("transformer.zig");
@@ -143,7 +143,7 @@ pub fn start(self: *Self, allocator: std.mem.Allocator) !void {
                     user_prompt_tokens_index == prompt_tokens.len + 1,
                 );
 
-                try lib.print(word, stdout);
+                try print(word, stdout);
             }
         }
 

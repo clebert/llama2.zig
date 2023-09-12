@@ -1,10 +1,9 @@
 const Self = @This();
 
 const std = @import("std");
-const lib = @import("lib.zig");
 const Checkpoint = @import("checkpoint.zig");
 const Matrix = @import("./matrix.zig");
-const VectorArray = @import("./vector_array.zig").VectorArray([]f32);
+const vector = @import("./vector.zig");
 
 allocator: std.mem.Allocator,
 
@@ -22,7 +21,8 @@ output_projection_matrices: []const Matrix,
 input_vector: []f32,
 output_vector: []f32,
 
-query_vectors: VectorArray,
+multi_head_query: []f32,
+query_vectors: []const []f32,
 key_cache: []f32,
 value_cache: []f32,
 scores: []f32,
@@ -47,13 +47,13 @@ pub fn init(
     errdefer allocator.free(output_vector);
 
     const head_size: usize = embedding_size / n_heads;
+    const multi_head_query = try allocator.alloc(f32, n_heads * head_size);
 
-    const query_vectors = VectorArray.init(
-        head_size,
-        try allocator.alloc(f32, n_heads * head_size),
-    );
+    errdefer allocator.free(multi_head_query);
 
-    errdefer allocator.free(query_vectors.data);
+    const query_vectors = try vector.slice([]f32, allocator, head_size, multi_head_query);
+
+    errdefer allocator.free(query_vectors);
 
     const key_value_cache_size = n_layers * sequence_length * n_query_groups * head_size;
     const key_cache = try allocator.alloc(f32, key_value_cache_size);
@@ -85,6 +85,7 @@ pub fn init(
         .input_vector = input_vector,
         .output_vector = output_vector,
 
+        .multi_head_query = multi_head_query,
         .query_vectors = query_vectors,
         .key_cache = key_cache,
         .value_cache = value_cache,
@@ -95,7 +96,8 @@ pub fn init(
 pub fn deinit(self: *const Self) void {
     self.allocator.free(self.input_vector);
     self.allocator.free(self.output_vector);
-    self.allocator.free(self.query_vectors.data);
+    self.allocator.free(self.multi_head_query);
+    self.allocator.free(self.query_vectors);
     self.allocator.free(self.key_cache);
     self.allocator.free(self.value_cache);
     self.allocator.free(self.scores);
@@ -107,7 +109,7 @@ pub fn forward(self: *const Self, layer: usize, position: usize) !void {
     const value_projection_matrix = self.value_projection_matrices[layer];
     const output_projection_matrix = self.output_projection_matrices[layer];
 
-    const multi_head_query = self.query_vectors.data;
+    const multi_head_query = self.multi_head_query;
     const multi_head_key = self.getCacheSlice(.key, layer, position, null);
     const multi_head_value = self.getCacheSlice(.value, layer, position, null);
 
@@ -132,7 +134,7 @@ fn applyRotaryPositionEmbedding(
 ) void {
     @setFloatMode(.Optimized);
 
-    const multi_head_query = self.query_vectors.data;
+    const multi_head_query = self.multi_head_query;
 
     std.debug.assert(multi_head_query.len % multi_head_key.len == 0);
 
@@ -173,19 +175,19 @@ fn computeGroupedQueryAttention(
 ) void {
     @setFloatMode(.Optimized);
 
+    const query_vector = self.query_vectors[head];
     const query_group = head / (self.n_heads / self.n_query_groups);
-    const query_vector = self.query_vectors.at(head);
     const next_position = current_position + 1;
 
     for (0..next_position) |position| {
         const key_vector = self.getCacheSlice(.key, layer, position, query_group);
 
-        self.scores[position] = lib.dot(query_vector, key_vector) / self.head_size_sqrt;
+        self.scores[position] = vector.dot(query_vector, key_vector) / self.head_size_sqrt;
     }
 
-    lib.softmax(self.scores[0..next_position]);
+    vector.softmax(self.scores[0..next_position]);
 
-    const attention_values = VectorArray.init(self.head_size, self.input_vector).at(head);
+    const attention_values = self.input_vector[(head * self.head_size)..][0..self.head_size];
 
     @memset(attention_values, 0);
 
