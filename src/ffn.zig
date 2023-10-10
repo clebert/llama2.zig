@@ -1,83 +1,73 @@
+// SwiGLU activation function: https://arxiv.org/abs/2002.05202
+
 const Self = @This();
 
 const std = @import("std");
 const Checkpoint = @import("checkpoint.zig");
-const Matrix = @import("./matrix.zig");
+const Tensor = @import("./tensor.zig").Tensor;
 
 allocator: std.mem.Allocator,
+checkpoint: Checkpoint,
+input_buffer: Tensor(1),
+hidden_buffer: Tensor(1),
+gate_buffer: Tensor(1),
+output_buffer: Tensor(1),
 
-hidden_size: usize,
+pub fn init(allocator: std.mem.Allocator, checkpoint: Checkpoint) !Self {
+    const input_buffer = try Tensor(1).init(allocator, [_]usize{checkpoint.embedding_size});
 
-hidden_projection_matrices: []const Matrix,
-scaling_projection_matrices: []const Matrix,
-output_projection_matrices: []const Matrix,
+    errdefer input_buffer.deinit();
 
-input_buffer: []f32,
-hidden_buffer: []f32,
-scaling_buffer: []f32,
-output_buffer: []f32,
+    const hidden_buffer = try Tensor(1).init(allocator, [_]usize{checkpoint.hidden_size});
 
-pub fn init(allocator: std.mem.Allocator, checkpoint: *const Checkpoint) !Self {
-    const embedding_size = checkpoint.embedding_size;
-    const hidden_size = checkpoint.hidden_size;
-    const weights = checkpoint.weights;
+    errdefer hidden_buffer.deinit();
 
-    const input_buffer = try allocator.alloc(f32, embedding_size);
+    const gate_buffer = try Tensor(1).init(allocator, [_]usize{checkpoint.hidden_size});
 
-    errdefer allocator.free(input_buffer);
+    errdefer gate_buffer.deinit();
 
-    const hidden_buffer = try allocator.alloc(f32, hidden_size);
+    const output_buffer = try Tensor(1).init(allocator, [_]usize{checkpoint.embedding_size});
 
-    errdefer allocator.free(hidden_buffer);
-
-    const scaling_buffer = try allocator.alloc(f32, hidden_size);
-
-    errdefer allocator.free(scaling_buffer);
-
-    const output_buffer = try allocator.alloc(f32, embedding_size);
+    errdefer output_buffer.deinit();
 
     return Self{
         .allocator = allocator,
-
-        .hidden_size = hidden_size,
-
-        .hidden_projection_matrices = weights.ffn_hidden_projection_matrices,
-        .scaling_projection_matrices = weights.ffn_scaling_projection_matrices,
-        .output_projection_matrices = weights.ffn_output_projection_matrices,
-
+        .checkpoint = checkpoint,
         .input_buffer = input_buffer,
         .hidden_buffer = hidden_buffer,
-        .scaling_buffer = scaling_buffer,
+        .gate_buffer = gate_buffer,
         .output_buffer = output_buffer,
     };
 }
 
 pub fn deinit(self: *const Self) void {
-    self.allocator.free(self.input_buffer);
-    self.allocator.free(self.hidden_buffer);
-    self.allocator.free(self.scaling_buffer);
-    self.allocator.free(self.output_buffer);
+    self.input_buffer.deinit();
+    self.hidden_buffer.deinit();
+    self.gate_buffer.deinit();
+    self.output_buffer.deinit();
 }
 
 pub fn forward(self: *const Self, layer: usize) !void {
     @setFloatMode(.Optimized);
 
-    const hidden_projection_matrix = self.hidden_projection_matrices[layer];
-    const scaling_projection_matrix = self.scaling_projection_matrices[layer];
-    const output_projection_matrix = self.output_projection_matrices[layer];
+    const weights = self.checkpoint.weights;
+    const pre_activation_matrix = weights.ffn_pre_activation_matrices.slice(layer);
+    const gate_matrix = weights.ffn_gate_matrices.slice(layer);
+    const output_matrix = weights.ffn_output_matrices.slice(layer);
 
-    hidden_projection_matrix.multiplyVector(self.input_buffer, self.hidden_buffer);
-    scaling_projection_matrix.multiplyVector(self.input_buffer, self.scaling_buffer);
+    pre_activation_matrix.multiplyVector(self.input_buffer.data, self.hidden_buffer.data);
+    gate_matrix.multiplyVector(self.input_buffer.data, self.gate_buffer.data);
 
-    for (0..self.hidden_size) |index| {
-        self.hidden_buffer[index] = silu(self.hidden_buffer[index]) * self.scaling_buffer[index];
+    for (0..self.checkpoint.hidden_size) |index| {
+        self.hidden_buffer.data[index] =
+            swish(self.hidden_buffer.data[index]) * self.gate_buffer.data[index];
     }
 
-    output_projection_matrix.multiplyVector(self.hidden_buffer, self.output_buffer);
+    output_matrix.multiplyVector(self.hidden_buffer.data, self.output_buffer.data);
 }
 
-// GLU Variants Improve Transformer (https://arxiv.org/abs/2002.05202)
-inline fn silu(x: f32) f32 {
+// Swish activation function: https://arxiv.org/abs/1710.05941
+inline fn swish(x: f32) f32 {
     return x * sigmoid(x);
 }
 

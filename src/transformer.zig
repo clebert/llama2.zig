@@ -5,6 +5,7 @@ const Attention = @import("attention.zig");
 const Checkpoint = @import("checkpoint.zig");
 const Cli = @import("cli.zig");
 const Ffn = @import("ffn.zig");
+const Tensor = @import("./tensor.zig").Tensor;
 const vector = @import("vector.zig");
 
 allocator: std.mem.Allocator,
@@ -12,8 +13,8 @@ checkpoint: Checkpoint,
 sequence_length: usize,
 attention: Attention,
 ffn: Ffn,
-hidden_state: []f32,
-logits: []f32,
+hidden_buffer: Tensor(1),
+logits_buffer: Tensor(1),
 
 pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
     const checkpoint = try Checkpoint.init(allocator, cli);
@@ -21,19 +22,21 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
     errdefer checkpoint.deinit();
 
     const sequence_length = if (cli.n_steps == 0) checkpoint.max_sequence_length else cli.n_steps;
-    const attention = try Attention.init(allocator, &checkpoint, sequence_length);
+    const attention = try Attention.init(allocator, checkpoint, sequence_length);
 
     errdefer attention.deinit();
 
-    const ffn = try Ffn.init(allocator, &checkpoint);
+    const ffn = try Ffn.init(allocator, checkpoint);
 
     errdefer ffn.deinit();
 
-    const hidden_state = try allocator.alloc(f32, checkpoint.embedding_size);
+    const hidden_buffer = try Tensor(1).init(allocator, [_]usize{checkpoint.embedding_size});
 
-    errdefer allocator.free(hidden_state);
+    errdefer hidden_buffer.deinit();
 
-    const logits = try allocator.alloc(f32, checkpoint.vocab_size);
+    const logits_buffer = try Tensor(1).init(allocator, [_]usize{checkpoint.vocab_size});
+
+    errdefer logits_buffer.deinit();
 
     return Self{
         .allocator = allocator,
@@ -41,8 +44,8 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
         .sequence_length = sequence_length,
         .attention = attention,
         .ffn = ffn,
-        .hidden_state = hidden_state,
-        .logits = logits,
+        .hidden_buffer = hidden_buffer,
+        .logits_buffer = logits_buffer,
     };
 }
 
@@ -50,34 +53,45 @@ pub fn deinit(self: *const Self) void {
     self.checkpoint.deinit();
     self.attention.deinit();
     self.ffn.deinit();
-    self.allocator.free(self.hidden_state);
-    self.allocator.free(self.logits);
+    self.hidden_buffer.deinit();
+    self.logits_buffer.deinit();
 }
 
 pub fn forward(self: *const Self, token: usize, position: usize) !void {
     const n_layers = self.checkpoint.n_layers;
     const weights = self.checkpoint.weights;
 
-    @memcpy(self.hidden_state, weights.token_embedding_vectors[token]);
+    @memcpy(self.hidden_buffer.data, weights.token_embedding_vectors.slice(token).data);
 
     for (0..n_layers) |layer| {
-        const attention_norm_vector = weights.attention_norm_vectors[layer];
-        const ffn_norm_vector = weights.ffn_norm_vectors[layer];
+        const attention_pre_norm_vector = weights.attention_pre_norm_vectors.slice(layer);
+        const ffn_pre_norm_vector = weights.ffn_pre_norm_vectors.slice(layer);
 
-        vector.rmsnorm(self.hidden_state, attention_norm_vector, self.attention.input_vector);
+        vector.rmsnorm(
+            self.hidden_buffer.data,
+            attention_pre_norm_vector.data,
+            self.attention.input_buffer.data,
+        );
 
         try self.attention.forward(layer, position);
 
-        vector.add(self.hidden_state, self.attention.output_vector);
+        vector.add(self.hidden_buffer.data, self.attention.output_buffer.data);
 
-        vector.rmsnorm(self.hidden_state, ffn_norm_vector, self.ffn.input_buffer);
+        vector.rmsnorm(self.hidden_buffer.data, ffn_pre_norm_vector.data, self.ffn.input_buffer.data);
 
         try self.ffn.forward(layer);
 
-        vector.add(self.hidden_state, self.ffn.output_buffer);
+        vector.add(self.hidden_buffer.data, self.ffn.output_buffer.data);
     }
 
-    vector.rmsnorm(self.hidden_state, weights.final_norm_vector, self.hidden_state);
+    vector.rmsnorm(
+        self.hidden_buffer.data,
+        weights.final_norm_vector.data,
+        self.hidden_buffer.data,
+    );
 
-    weights.final_classifier_projection_matrix.multiplyVector(self.hidden_state, self.logits);
+    weights.final_classifier_matrix.multiplyVector(
+        self.hidden_buffer.data,
+        self.logits_buffer.data,
+    );
 }

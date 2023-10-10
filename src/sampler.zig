@@ -82,7 +82,7 @@ fn sampleMultinomial(self: *Self, probability_distribution: []const f32) usize {
 
 const ProbabilityIndexPair = struct { probability: f32, index: usize };
 
-// The Curious Case of Neural Text Degeneration (https://arxiv.org/abs/1904.09751)
+// Nucleus sampling: https://arxiv.org/abs/1904.09751
 fn sampleNucleus(
     self: *Self,
     probability_distribution: []const f32,

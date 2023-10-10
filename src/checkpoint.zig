@@ -2,7 +2,7 @@ const Self = @This();
 
 const std = @import("std");
 const Cli = @import("./cli.zig");
-const Matrix = @import("./matrix.zig");
+const Tensor = @import("./tensor.zig").Tensor;
 const vector = @import("./vector.zig");
 
 allocator: std.mem.Allocator,
@@ -14,20 +14,24 @@ n_heads: usize,
 n_query_groups: usize,
 vocab_size: usize,
 max_sequence_length: usize,
+shared_final_classifier_matrix: bool,
 
 weights: struct {
-    token_embedding_vectors: []const []const f32,
-    attention_norm_vectors: []const []const f32,
-    attention_query_projection_matrices: []const Matrix,
-    attention_key_projection_matrices: []const Matrix,
-    attention_value_projection_matrices: []const Matrix,
-    attention_output_projection_matrices: []const Matrix,
-    ffn_norm_vectors: []const []const f32,
-    ffn_hidden_projection_matrices: []const Matrix,
-    ffn_output_projection_matrices: []const Matrix,
-    ffn_scaling_projection_matrices: []const Matrix,
-    final_norm_vector: []const f32,
-    final_classifier_projection_matrix: Matrix,
+    token_embedding_vectors: Tensor(2),
+
+    attention_pre_norm_vectors: Tensor(2),
+    attention_query_matrices: Tensor(3),
+    attention_key_matrices: Tensor(3),
+    attention_value_matrices: Tensor(3),
+    attention_output_matrices: Tensor(3),
+
+    ffn_pre_norm_vectors: Tensor(2),
+    ffn_pre_activation_matrices: Tensor(3),
+    ffn_output_matrices: Tensor(3),
+    ffn_gate_matrices: Tensor(3),
+
+    final_norm_vector: Tensor(1),
+    final_classifier_matrix: Tensor(2),
 },
 
 data: []const u8,
@@ -37,7 +41,7 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
 
     errdefer allocator.free(data);
 
-    const config_data: [*]const i32 = @alignCast(@ptrCast(data[0..28]));
+    const config_data: [*]i32 = @alignCast(@ptrCast(data[0..28]));
 
     const embedding_size: usize = @intCast(config_data[0]);
     const hidden_size: usize = @intCast(config_data[1]);
@@ -51,116 +55,115 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
     const vocab_size: usize = std.math.absCast(signed_vocab_size);
     const max_sequence_length: usize = @intCast(config_data[6]);
 
-    var weights_data: [*]const f32 = @alignCast(@ptrCast(data[28..]));
+    var weights_data: [*]f32 = @alignCast(@ptrCast(data[28..]));
 
-    const token_embedding_data = readFloatSlice(&weights_data, vocab_size * embedding_size);
-
-    const token_embedding_vectors = try vector.slice(
-        []const f32,
+    const token_embedding_vectors = try Tensor(2).initView(
         allocator,
-        embedding_size,
-        token_embedding_data,
+        readFloatSlice(&weights_data, vocab_size * embedding_size),
+        [_]usize{ vocab_size, embedding_size },
     );
 
-    errdefer allocator.free(token_embedding_vectors);
+    errdefer token_embedding_vectors.deinit();
 
-    const attention_norm_vectors = try vector.slice(
-        []const f32,
+    const attention_pre_norm_vectors = try Tensor(2).initView(
         allocator,
-        embedding_size,
         readFloatSlice(&weights_data, n_layers * embedding_size),
+        [_]usize{ n_layers, embedding_size },
     );
 
-    errdefer allocator.free(attention_norm_vectors);
+    errdefer attention_pre_norm_vectors.deinit();
 
-    const attention_query_projection_matrices = try Matrix.slice(
+    const attention_query_matrices = try Tensor(3).initView(
         allocator,
-        embedding_size,
-        embedding_size,
-        readFloatSlice(&weights_data, n_layers * (embedding_size * embedding_size)),
+        readFloatSlice(&weights_data, n_layers * embedding_size * embedding_size),
+        [_]usize{ n_layers, embedding_size, embedding_size },
     );
 
-    errdefer allocator.free(attention_query_projection_matrices);
+    errdefer attention_query_matrices.deinit();
 
     const head_size: usize = embedding_size / n_heads;
-    const multi_head_key_value_size: usize = head_size * n_query_groups;
 
-    const attention_key_projection_matrices = try Matrix.slice(
+    const attention_key_matrices = try Tensor(3).initView(
         allocator,
-        multi_head_key_value_size,
-        embedding_size,
-        readFloatSlice(&weights_data, n_layers * (multi_head_key_value_size * embedding_size)),
+        readFloatSlice(&weights_data, n_layers * (n_query_groups * head_size) * embedding_size),
+        [_]usize{ n_layers, n_query_groups * head_size, embedding_size },
     );
 
-    errdefer allocator.free(attention_key_projection_matrices);
+    errdefer attention_key_matrices.deinit();
 
-    const attention_value_projection_matrices = try Matrix.slice(
+    const attention_value_matrices = try Tensor(3).initView(
         allocator,
-        multi_head_key_value_size,
-        embedding_size,
-        readFloatSlice(&weights_data, n_layers * (multi_head_key_value_size * embedding_size)),
+        readFloatSlice(&weights_data, n_layers * (n_query_groups * head_size) * embedding_size),
+        [_]usize{ n_layers, n_query_groups * head_size, embedding_size },
     );
 
-    errdefer allocator.free(attention_value_projection_matrices);
+    errdefer attention_value_matrices.deinit();
 
-    const attention_output_projection_matrices = try Matrix.slice(
+    const attention_output_matrices = try Tensor(3).initView(
         allocator,
-        embedding_size,
-        embedding_size,
-        readFloatSlice(&weights_data, n_layers * (embedding_size * embedding_size)),
+        readFloatSlice(&weights_data, n_layers * embedding_size * embedding_size),
+        [_]usize{ n_layers, embedding_size, embedding_size },
     );
 
-    errdefer allocator.free(attention_output_projection_matrices);
+    errdefer attention_output_matrices.deinit();
 
-    const ffn_norm_vectors = try vector.slice(
-        []const f32,
+    const ffn_pre_norm_vectors = try Tensor(2).initView(
         allocator,
-        embedding_size,
         readFloatSlice(&weights_data, n_layers * embedding_size),
+        [_]usize{ n_layers, embedding_size },
     );
 
-    errdefer allocator.free(ffn_norm_vectors);
+    errdefer ffn_pre_norm_vectors.deinit();
 
-    const ffn_hidden_projection_matrices = try Matrix.slice(
+    const ffn_pre_activation_matrices = try Tensor(3).initView(
         allocator,
-        hidden_size,
-        embedding_size,
-        readFloatSlice(&weights_data, n_layers * (hidden_size * embedding_size)),
+        readFloatSlice(&weights_data, n_layers * hidden_size * embedding_size),
+        [_]usize{ n_layers, hidden_size, embedding_size },
     );
 
-    errdefer allocator.free(ffn_hidden_projection_matrices);
+    errdefer ffn_pre_activation_matrices.deinit();
 
-    const ffn_output_projection_matrices = try Matrix.slice(
+    const ffn_output_matrices = try Tensor(3).initView(
         allocator,
-        embedding_size,
-        hidden_size,
-        readFloatSlice(&weights_data, n_layers * (embedding_size * hidden_size)),
+        readFloatSlice(&weights_data, n_layers * embedding_size * hidden_size),
+        [_]usize{ n_layers, embedding_size, hidden_size },
     );
 
-    errdefer allocator.free(ffn_output_projection_matrices);
+    errdefer ffn_output_matrices.deinit();
 
-    const ffn_scaling_projection_matrices = try Matrix.slice(
+    const ffn_gate_matrices = try Tensor(3).initView(
         allocator,
-        hidden_size,
-        embedding_size,
-        readFloatSlice(&weights_data, n_layers * (hidden_size * embedding_size)),
+        readFloatSlice(&weights_data, n_layers * hidden_size * embedding_size),
+        [_]usize{ n_layers, hidden_size, embedding_size },
     );
 
-    errdefer allocator.free(ffn_scaling_projection_matrices);
+    errdefer ffn_gate_matrices.deinit();
 
-    const final_norm_vector = readFloatSlice(&weights_data, embedding_size);
+    const final_norm_vector = try Tensor(1).initView(
+        allocator,
+        readFloatSlice(&weights_data, embedding_size),
+        [_]usize{embedding_size},
+    );
+
+    errdefer final_norm_vector.deinit();
 
     _ = readFloatSlice(&weights_data, max_sequence_length * head_size / 2);
     _ = readFloatSlice(&weights_data, max_sequence_length * head_size / 2);
 
-    const final_classifier_projection_matrix = Matrix.init(
-        vocab_size,
-        embedding_size,
-        if (signed_vocab_size > 0)
-            token_embedding_data
-        else
+    const shared_final_classifier_matrix = signed_vocab_size > 0;
+
+    const final_classifier_matrix = if (shared_final_classifier_matrix)
+        token_embedding_vectors
+    else
+        try Tensor(2).initView(
+            allocator,
             readFloatSlice(&weights_data, vocab_size * embedding_size),
-    );
+            [_]usize{ vocab_size, embedding_size },
+        );
+
+    errdefer if (!shared_final_classifier_matrix) {
+        final_classifier_matrix.deinit();
+    };
 
     return Self{
         .allocator = allocator,
@@ -172,20 +175,21 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
         .n_query_groups = n_query_groups,
         .vocab_size = vocab_size,
         .max_sequence_length = max_sequence_length,
+        .shared_final_classifier_matrix = shared_final_classifier_matrix,
 
         .weights = .{
             .token_embedding_vectors = token_embedding_vectors,
-            .attention_norm_vectors = attention_norm_vectors,
-            .attention_query_projection_matrices = attention_query_projection_matrices,
-            .attention_key_projection_matrices = attention_key_projection_matrices,
-            .attention_value_projection_matrices = attention_value_projection_matrices,
-            .attention_output_projection_matrices = attention_output_projection_matrices,
-            .ffn_norm_vectors = ffn_norm_vectors,
-            .ffn_hidden_projection_matrices = ffn_hidden_projection_matrices,
-            .ffn_output_projection_matrices = ffn_output_projection_matrices,
-            .ffn_scaling_projection_matrices = ffn_scaling_projection_matrices,
+            .attention_pre_norm_vectors = attention_pre_norm_vectors,
+            .attention_query_matrices = attention_query_matrices,
+            .attention_key_matrices = attention_key_matrices,
+            .attention_value_matrices = attention_value_matrices,
+            .attention_output_matrices = attention_output_matrices,
+            .ffn_pre_norm_vectors = ffn_pre_norm_vectors,
+            .ffn_pre_activation_matrices = ffn_pre_activation_matrices,
+            .ffn_output_matrices = ffn_output_matrices,
+            .ffn_gate_matrices = ffn_gate_matrices,
             .final_norm_vector = final_norm_vector,
-            .final_classifier_projection_matrix = final_classifier_projection_matrix,
+            .final_classifier_matrix = final_classifier_matrix,
         },
 
         .data = data,
@@ -193,20 +197,26 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
 }
 
 pub fn deinit(self: *const Self) void {
-    self.allocator.free(self.weights.token_embedding_vectors);
-    self.allocator.free(self.weights.attention_norm_vectors);
-    self.allocator.free(self.weights.attention_query_projection_matrices);
-    self.allocator.free(self.weights.attention_key_projection_matrices);
-    self.allocator.free(self.weights.attention_value_projection_matrices);
-    self.allocator.free(self.weights.attention_output_projection_matrices);
-    self.allocator.free(self.weights.ffn_norm_vectors);
-    self.allocator.free(self.weights.ffn_hidden_projection_matrices);
-    self.allocator.free(self.weights.ffn_output_projection_matrices);
-    self.allocator.free(self.weights.ffn_scaling_projection_matrices);
+    self.weights.token_embedding_vectors.deinit();
+    self.weights.attention_pre_norm_vectors.deinit();
+    self.weights.attention_query_matrices.deinit();
+    self.weights.attention_key_matrices.deinit();
+    self.weights.attention_value_matrices.deinit();
+    self.weights.attention_output_matrices.deinit();
+    self.weights.ffn_pre_norm_vectors.deinit();
+    self.weights.ffn_pre_activation_matrices.deinit();
+    self.weights.ffn_output_matrices.deinit();
+    self.weights.ffn_gate_matrices.deinit();
+    self.weights.final_norm_vector.deinit();
+
+    if (!self.shared_final_classifier_matrix) {
+        self.weights.final_classifier_matrix.deinit();
+    }
+
     self.allocator.free(self.data);
 }
 
-fn readFile(allocator: std.mem.Allocator, path: []const u8) ![]const u8 {
+fn readFile(allocator: std.mem.Allocator, path: []const u8) ![]u8 {
     const file = try std.fs.cwd().openFile(path, .{});
 
     defer file.close();
@@ -226,7 +236,7 @@ fn readFile(allocator: std.mem.Allocator, path: []const u8) ![]const u8 {
     return data;
 }
 
-fn readFloatSlice(data: *[*]const f32, len: usize) []const f32 {
+fn readFloatSlice(data: *[*]f32, len: usize) []f32 {
     const slice = data.*[0..len];
 
     data.* += len;

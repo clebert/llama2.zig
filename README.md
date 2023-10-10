@@ -25,6 +25,7 @@ zig build -Doptimize=ReleaseFast run -- stories260K.bin -z tok512.bin -i "Once u
 - Llama 2: [Llama 2: Open Foundation and Fine-Tuned Chat Models](https://arxiv.org/abs/2307.09288)
 - Pre-normalization using RMSNorm: [Root Mean Square Layer Normalization](https://arxiv.org/abs/1910.07467)
 - SwiGLU activation function: [GLU Variants Improve Transformer](https://arxiv.org/abs/2002.05202)
+- Swish activation function: [Searching for Activation Functions](https://arxiv.org/abs/1710.05941)
 - Rotary positional embeddings: [RoFormer: Enhanced Transformer with Rotary Position Embedding](https://arxiv.org/abs/2104.09864)
 - Grouped-query attention: [GQA: Training Generalized Multi-Query Transformer Models from Multi-Head Checkpoints](https://arxiv.org/abs/2305.13245v1)
 - Nucleus sampling: [The Curious Case of Neural Text Degeneration](https://arxiv.org/abs/1904.09751)

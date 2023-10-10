@@ -73,7 +73,7 @@ pub fn dot(vector_a: []const f32, vector_b: []const f32) f32 {
     return result;
 }
 
-// Root Mean Square Layer Normalization (https://arxiv.org/abs/1910.07467)
+// Pre-normalization using RMSNorm: https://arxiv.org/abs/1910.07467
 pub fn rmsnorm(input: []const f32, weight: []const f32, output: []f32) void {
     @setFloatMode(.Optimized);
 
