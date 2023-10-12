@@ -8,16 +8,16 @@ pub fn Tensor(comptime n_dims: comptime_int) type {
         const Self = @This();
 
         allocator: ?std.mem.Allocator,
-        data: []f32,
         sub_dims: [n_dims - 1]usize,
+        data: []f32,
 
         pub fn init(allocator: std.mem.Allocator, dims: [n_dims]usize) !Self {
             const data_size = @reduce(.Mul, @as(@Vector(n_dims, usize), dims));
 
             return .{
                 .allocator = allocator,
-                .data = try allocator.alloc(f32, data_size),
                 .sub_dims = dims[1..].*,
+                .data = try allocator.alloc(f32, data_size),
             };
         }
 
@@ -42,10 +42,10 @@ pub fn Tensor(comptime n_dims: comptime_int) type {
 
             const sub_data_size = @reduce(.Mul, @as(@Vector(n_dims - 1, usize), self.sub_dims));
 
-            return Tensor(n_dims - 1){
+            return .{
                 .allocator = null,
-                .data = self.data[index * sub_data_size ..][0..sub_data_size],
                 .sub_dims = self.sub_dims[1..].*,
+                .data = self.data[index * sub_data_size ..][0..sub_data_size],
             };
         }
 
