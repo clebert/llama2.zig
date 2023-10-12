@@ -1,5 +1,3 @@
-// SwiGLU activation function: https://arxiv.org/abs/2002.05202
-
 const Self = @This();
 
 const std = @import("std");
@@ -47,6 +45,7 @@ pub fn deinit(self: *const Self) void {
     self.output_buffer.deinit();
 }
 
+// SwiGLU activation function: https://arxiv.org/abs/2002.05202
 pub fn forward(self: *const Self, layer: usize) !void {
     @setFloatMode(.Optimized);
 

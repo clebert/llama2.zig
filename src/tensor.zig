@@ -60,20 +60,17 @@ pub fn Tensor(comptime n_dims: comptime_int) type {
             };
         }
 
-        pub fn multiplyVector(self: *const Self, input_data: []const f32, output_data: []f32) void {
+        pub fn multiplyVector(self: *const Self, input: []const f32, output: []f32) void {
             comptime if (n_dims < 2) @compileError("n_dims < 2");
 
             const data = self.data;
             const sub_tensor_size = self.sub_tensor_sizes[0];
 
-            std.debug.assert(input_data.len == sub_tensor_size);
-            std.debug.assert(output_data.len == data.len / sub_tensor_size);
+            std.debug.assert(input.len == sub_tensor_size);
+            std.debug.assert(output.len == data.len / sub_tensor_size);
 
-            for (output_data, 0..) |*value, index| {
-                value.* = vector.dot(
-                    data[(index * sub_tensor_size)..][0..sub_tensor_size],
-                    input_data,
-                );
+            for (output, 0..) |*value, index| {
+                value.* = vector.dot(data[(index * sub_tensor_size)..][0..sub_tensor_size], input);
             }
         }
     };
