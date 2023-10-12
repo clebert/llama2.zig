@@ -9,32 +9,21 @@ pub fn Tensor(comptime n_dims: comptime_int) type {
 
         allocator: ?std.mem.Allocator,
         data: []f32,
-        sub_tensor_sizes: []const usize,
+        sub_dims: [n_dims - 1]usize,
 
         pub fn init(allocator: std.mem.Allocator, dims: [n_dims]usize) !Self {
-            var tensor_size: usize = 1;
-
-            for (dims) |dim| tensor_size *= dim;
-
-            const sub_tensor_sizes = try allocator.alloc(usize, n_dims - 1);
-
-            for (sub_tensor_sizes, 1..) |*sub_tensor_size, dims_offset| {
-                sub_tensor_size.* = 1;
-
-                for (dims[dims_offset..]) |dim| sub_tensor_size.* *= dim;
-            }
+            const data_size = @reduce(.Mul, @as(@Vector(n_dims, usize), dims));
 
             return .{
                 .allocator = allocator,
-                .data = try allocator.alloc(f32, tensor_size),
-                .sub_tensor_sizes = sub_tensor_sizes,
+                .data = try allocator.alloc(f32, data_size),
+                .sub_dims = dims[1..].*,
             };
         }
 
         pub fn deinit(self: *const Self) void {
             if (self.allocator) |allocator| {
                 allocator.free(self.data);
-                allocator.free(self.sub_tensor_sizes);
             }
         }
 
@@ -51,26 +40,25 @@ pub fn Tensor(comptime n_dims: comptime_int) type {
         pub fn slice(self: *const Self, index: usize) Tensor(n_dims - 1) {
             comptime if (n_dims < 2) @compileError("n_dims < 2");
 
-            const sub_tensor_size = self.sub_tensor_sizes[0];
+            const sub_data_size = @reduce(.Mul, @as(@Vector(n_dims - 1, usize), self.sub_dims));
 
             return Tensor(n_dims - 1){
                 .allocator = null,
-                .data = self.data[(index * sub_tensor_size)..][0..sub_tensor_size],
-                .sub_tensor_sizes = self.sub_tensor_sizes[1..],
+                .data = self.data[index * sub_data_size ..][0..sub_data_size],
+                .sub_dims = self.sub_dims[1..].*,
             };
         }
 
         pub fn multiplyVector(self: *const Self, input: []const f32, output: []f32) void {
             comptime if (n_dims < 2) @compileError("n_dims < 2");
 
-            const data = self.data;
-            const sub_tensor_size = self.sub_tensor_sizes[0];
+            const sub_data_size = @reduce(.Mul, @as(@Vector(n_dims - 1, usize), self.sub_dims));
 
-            std.debug.assert(input.len == sub_tensor_size);
-            std.debug.assert(output.len == data.len / sub_tensor_size);
+            std.debug.assert(input.len == sub_data_size);
+            std.debug.assert(output.len == self.data.len / sub_data_size);
 
             for (output, 0..) |*value, index| {
-                value.* = vector.dot(data[(index * sub_tensor_size)..][0..sub_tensor_size], input);
+                value.* = vector.dot(self.data[index * sub_data_size ..][0..sub_data_size], input);
             }
         }
     };
