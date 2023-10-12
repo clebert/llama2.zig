@@ -49,16 +49,19 @@ pub fn Tensor(comptime n_dims: comptime_int) type {
             };
         }
 
-        pub fn multiplyVector(self: *const Self, input: []const f32, output: []f32) void {
+        pub fn multiplyVector(self: *const Self, input: anytype, output: anytype) void {
             comptime if (n_dims < 2) @compileError("n_dims < 2");
 
             const sub_data_size = @reduce(.Mul, @as(@Vector(n_dims - 1, usize), self.sub_dims));
 
-            std.debug.assert(input.len == sub_data_size);
-            std.debug.assert(output.len == self.data.len / sub_data_size);
+            std.debug.assert(input.data.len == sub_data_size);
+            std.debug.assert(output.data.len == self.data.len / sub_data_size);
 
-            for (output, 0..) |*value, index| {
-                value.* = vector.dot(self.data[index * sub_data_size ..][0..sub_data_size], input);
+            for (output.data, 0..) |*value, index| {
+                value.* = vector.dot(
+                    self.data[index * sub_data_size ..][0..sub_data_size],
+                    input.data,
+                );
             }
         }
     };

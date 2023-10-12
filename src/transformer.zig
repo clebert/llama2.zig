@@ -89,8 +89,5 @@ pub fn forward(self: *const Self, token: usize, position: usize) !void {
         self.hidden_buffer.data,
     );
 
-    weights.final_classifier_matrix.multiplyVector(
-        self.hidden_buffer.data,
-        self.logits_buffer.data,
-    );
+    weights.final_classifier_matrix.multiplyVector(self.hidden_buffer, self.logits_buffer);
 }

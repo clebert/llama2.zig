@@ -77,27 +77,27 @@ pub fn forward(self: *const Self, layer: usize, position: usize) !void {
     const key_matrix = weights.attention_key_matrices.slice(layer);
     const value_matrix = weights.attention_value_matrices.slice(layer);
     const output_matrix = weights.attention_output_matrices.slice(layer);
-    const key_vectors = self.key_cache.slice(layer).slice(position);
-    const value_vectors = self.value_cache.slice(layer).slice(position);
+    const key_buffer = self.key_cache.slice(layer).slice(position);
+    const value_buffer = self.value_cache.slice(layer).slice(position);
 
-    query_matrix.multiplyVector(self.input_buffer.data, self.query_buffer.data);
-    key_matrix.multiplyVector(self.input_buffer.data, key_vectors.data);
-    value_matrix.multiplyVector(self.input_buffer.data, value_vectors.data);
+    query_matrix.multiplyVector(self.input_buffer, self.query_buffer);
+    key_matrix.multiplyVector(self.input_buffer, key_buffer);
+    value_matrix.multiplyVector(self.input_buffer, value_buffer);
 
-    self.rope(position, key_vectors);
+    self.rope(position, key_buffer);
 
     for (0..self.checkpoint.n_heads) |head| {
         self.gqa(layer, position, head);
     }
 
-    output_matrix.multiplyVector(self.input_buffer.data, self.output_buffer.data);
+    output_matrix.multiplyVector(self.input_buffer, self.output_buffer);
 }
 
 // Rotary positional embeddings: https://arxiv.org/abs/2104.09864
-fn rope(self: *const Self, position: usize, key_vectors: Tensor(2)) void {
+fn rope(self: *const Self, position: usize, key_buffer: Tensor(2)) void {
     @setFloatMode(.Optimized);
 
-    std.debug.assert(self.query_buffer.data.len % key_vectors.data.len == 0);
+    std.debug.assert(self.query_buffer.data.len % key_buffer.data.len == 0);
 
     var index: usize = 0;
 
@@ -117,12 +117,12 @@ fn rope(self: *const Self, position: usize, key_vectors: Tensor(2)) void {
         self.query_buffer.data[index] = q_0 * real_rotation_value - q_1 * imag_rotation_value;
         self.query_buffer.data[index + 1] = q_0 * imag_rotation_value + q_1 * real_rotation_value;
 
-        if (index < key_vectors.data.len) {
-            const k_0 = key_vectors.data[index];
-            const k_1 = key_vectors.data[index + 1];
+        if (index < key_buffer.data.len) {
+            const k_0 = key_buffer.data[index];
+            const k_1 = key_buffer.data[index + 1];
 
-            key_vectors.data[index] = k_0 * real_rotation_value - k_1 * imag_rotation_value;
-            key_vectors.data[index + 1] = k_0 * imag_rotation_value + k_1 * real_rotation_value;
+            key_buffer.data[index] = k_0 * real_rotation_value - k_1 * imag_rotation_value;
+            key_buffer.data[index + 1] = k_0 * imag_rotation_value + k_1 * real_rotation_value;
         }
     }
 }

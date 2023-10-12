@@ -54,15 +54,15 @@ pub fn forward(self: *const Self, layer: usize) !void {
     const gate_matrix = weights.ffn_gate_matrices.slice(layer);
     const output_matrix = weights.ffn_output_matrices.slice(layer);
 
-    pre_activation_matrix.multiplyVector(self.input_buffer.data, self.hidden_buffer.data);
-    gate_matrix.multiplyVector(self.input_buffer.data, self.gate_buffer.data);
+    pre_activation_matrix.multiplyVector(self.input_buffer, self.hidden_buffer);
+    gate_matrix.multiplyVector(self.input_buffer, self.gate_buffer);
 
     for (0..self.checkpoint.hidden_size) |index| {
         self.hidden_buffer.data[index] =
             swish(self.hidden_buffer.data[index]) * self.gate_buffer.data[index];
     }
 
-    output_matrix.multiplyVector(self.hidden_buffer.data, self.output_buffer.data);
+    output_matrix.multiplyVector(self.hidden_buffer, self.output_buffer);
 }
 
 // Swish activation function: https://arxiv.org/abs/1710.05941
