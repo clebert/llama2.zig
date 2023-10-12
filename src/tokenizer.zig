@@ -135,10 +135,10 @@ fn mergeBestWordPair(self: *const Self, tokens: []usize, double_word_buffer: []u
         const word2 = self.vocab[tokens[token_index + 1]];
 
         @memcpy(double_word_buffer[0..word1.len], word1);
-        @memcpy(double_word_buffer[word1.len..(word1.len + word2.len)], word2);
+        @memcpy(double_word_buffer[word1.len .. word1.len + word2.len], word2);
 
         const token =
-            self.lookupToken(double_word_buffer[0..(word1.len + word2.len)]) orelse continue;
+            self.lookupToken(double_word_buffer[0 .. word1.len + word2.len]) orelse continue;
 
         const word_score = self.word_scores[token];
 

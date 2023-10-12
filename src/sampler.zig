@@ -117,7 +117,7 @@ fn sampleNucleus(
         cumulative_probability += probability_index_pair.probability;
 
         if (cumulative_probability > top_p) {
-            probability_index_pairs = probability_index_pairs[0..(index + 1)];
+            probability_index_pairs = probability_index_pairs[0 .. index + 1];
 
             break;
         }
