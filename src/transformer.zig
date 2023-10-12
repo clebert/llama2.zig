@@ -58,12 +58,11 @@ pub fn deinit(self: *const Self) void {
 }
 
 pub fn forward(self: *const Self, token: usize, position: usize) !void {
-    const n_layers = self.checkpoint.n_layers;
     const weights = self.checkpoint.weights;
 
     @memcpy(self.hidden_buffer.data, weights.token_embedding_vectors.slice(token).data);
 
-    for (0..n_layers) |layer| {
+    for (0..self.checkpoint.n_layers) |layer| {
         const attention_pre_norm_vector = weights.attention_pre_norm_vectors.slice(layer);
         const ffn_pre_norm_vector = weights.ffn_pre_norm_vectors.slice(layer);
 
