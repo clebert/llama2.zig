@@ -50,9 +50,9 @@ pub fn forward(self: *const Self, layer: usize) !void {
     @setFloatMode(.Optimized);
 
     const weights = self.checkpoint.weights;
-    const pre_activation_matrix = weights.ffn_pre_activation_matrices.slice(layer);
-    const gate_matrix = weights.ffn_gate_matrices.slice(layer);
-    const output_matrix = weights.ffn_output_matrices.slice(layer);
+    const pre_activation_matrix = weights.feed_forward_pre_activation_matrices.slice(layer);
+    const gate_matrix = weights.feed_forward_gate_matrices.slice(layer);
+    const output_matrix = weights.feed_forward_output_matrices.slice(layer);
 
     pre_activation_matrix.multiplyVector(self.input_buffer, self.hidden_buffer);
     gate_matrix.multiplyVector(self.input_buffer, self.gate_buffer);

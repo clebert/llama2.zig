@@ -4,7 +4,7 @@ const std = @import("std");
 const Attention = @import("attention.zig");
 const Checkpoint = @import("checkpoint.zig");
 const Cli = @import("cli.zig");
-const Ffn = @import("ffn.zig");
+const FeedForward = @import("feed_forward.zig");
 const Tensor = @import("./tensor.zig").Tensor;
 const vector = @import("vector.zig");
 
@@ -12,7 +12,7 @@ allocator: std.mem.Allocator,
 checkpoint: Checkpoint,
 sequence_length: usize,
 attention: Attention,
-ffn: Ffn,
+feed_forward: FeedForward,
 hidden_buffer: Tensor(1),
 logits_buffer: Tensor(1),
 
@@ -26,9 +26,9 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
 
     errdefer attention.deinit();
 
-    const ffn = try Ffn.init(allocator, checkpoint);
+    const feed_forward = try FeedForward.init(allocator, checkpoint);
 
-    errdefer ffn.deinit();
+    errdefer feed_forward.deinit();
 
     const hidden_buffer = try Tensor(1).init(allocator, [_]usize{checkpoint.embedding_size});
 
@@ -43,7 +43,7 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
         .checkpoint = checkpoint,
         .sequence_length = sequence_length,
         .attention = attention,
-        .ffn = ffn,
+        .feed_forward = feed_forward,
         .hidden_buffer = hidden_buffer,
         .logits_buffer = logits_buffer,
     };
@@ -52,7 +52,7 @@ pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
 pub fn deinit(self: *const Self) void {
     self.checkpoint.deinit();
     self.attention.deinit();
-    self.ffn.deinit();
+    self.feed_forward.deinit();
     self.hidden_buffer.deinit();
     self.logits_buffer.deinit();
 }
@@ -64,7 +64,7 @@ pub fn forward(self: *const Self, token: usize, position: usize) !void {
 
     for (0..self.checkpoint.n_layers) |layer| {
         const attention_pre_norm_vector = weights.attention_pre_norm_vectors.slice(layer);
-        const ffn_pre_norm_vector = weights.ffn_pre_norm_vectors.slice(layer);
+        const feed_forward_pre_norm_vector = weights.feed_forward_pre_norm_vectors.slice(layer);
 
         vector.rmsnorm(
             self.hidden_buffer.data,
@@ -76,18 +76,22 @@ pub fn forward(self: *const Self, token: usize, position: usize) !void {
 
         vector.add(self.hidden_buffer.data, self.attention.output_buffer.data);
 
-        vector.rmsnorm(self.hidden_buffer.data, ffn_pre_norm_vector.data, self.ffn.input_buffer.data);
+        vector.rmsnorm(
+            self.hidden_buffer.data,
+            feed_forward_pre_norm_vector.data,
+            self.feed_forward.input_buffer.data,
+        );
 
-        try self.ffn.forward(layer);
+        try self.feed_forward.forward(layer);
 
-        vector.add(self.hidden_buffer.data, self.ffn.output_buffer.data);
+        vector.add(self.hidden_buffer.data, self.feed_forward.output_buffer.data);
     }
 
     vector.rmsnorm(
         self.hidden_buffer.data,
-        weights.final_norm_vector.data,
+        weights.classifier_pre_norm_vector.data,
         self.hidden_buffer.data,
     );
 
-    weights.final_classifier_matrix.multiplyVector(self.hidden_buffer, self.logits_buffer);
+    weights.classifier_matrix.multiplyVector(self.hidden_buffer, self.logits_buffer);
 }
