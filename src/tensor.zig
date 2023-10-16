@@ -29,12 +29,8 @@ pub fn Tensor(comptime n_dims: comptime_int) type {
 
         pub fn read(self: *const Self, file: std.fs.File) !void {
             const buffer: [*]u8 = @ptrCast(self.data);
-            const n_bytes = self.data.len * @sizeOf(f32);
-            const n_bytes_read = try file.reader().readAll(buffer[0..n_bytes]);
 
-            if (n_bytes_read != n_bytes) {
-                return error.UnexpectedEndOfFile;
-            }
+            try file.reader().readNoEof(buffer[0 .. self.data.len * @sizeOf(f32)]);
         }
 
         pub fn slice(self: *const Self, index: usize) Tensor(n_dims - 1) {
