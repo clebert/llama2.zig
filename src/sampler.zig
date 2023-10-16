@@ -2,7 +2,7 @@ const Self = @This();
 
 const builtin = @import("builtin");
 const std = @import("std");
-const Cli = @import("cli.zig");
+const CLI = @import("cli.zig");
 const vector = @import("vector.zig");
 
 allocator: std.mem.Allocator,
@@ -11,7 +11,7 @@ temperature: f32,
 top_p: f32,
 rng_state: u64,
 
-pub fn init(allocator: std.mem.Allocator, cli: *const Cli, vocab_size: usize) !Self {
+pub fn init(allocator: std.mem.Allocator, cli: *const CLI, vocab_size: usize) !Self {
     const probability_index_pairs_buffer =
         try allocator.alloc(ProbabilityIndexPair, vocab_size);
 

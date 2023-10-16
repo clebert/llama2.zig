@@ -7,8 +7,8 @@ const Tensor = @import("./tensor.zig").Tensor;
 allocator: std.mem.Allocator,
 checkpoint: Checkpoint,
 input_buffer: Tensor(1),
-hidden_buffer: Tensor(1),
 gate_buffer: Tensor(1),
+hidden_buffer: Tensor(1),
 output_buffer: Tensor(1),
 
 pub fn init(allocator: std.mem.Allocator, checkpoint: Checkpoint) !Self {
@@ -16,13 +16,13 @@ pub fn init(allocator: std.mem.Allocator, checkpoint: Checkpoint) !Self {
 
     errdefer input_buffer.deinit();
 
-    const hidden_buffer = try Tensor(1).init(allocator, [_]usize{checkpoint.hidden_size});
-
-    errdefer hidden_buffer.deinit();
-
-    const gate_buffer = try Tensor(1).init(allocator, [_]usize{checkpoint.hidden_size});
+    const gate_buffer = try Tensor(1).init(allocator, [_]usize{checkpoint.ffn_hidden_size});
 
     errdefer gate_buffer.deinit();
+
+    const hidden_buffer = try Tensor(1).init(allocator, [_]usize{checkpoint.ffn_hidden_size});
+
+    errdefer hidden_buffer.deinit();
 
     const output_buffer = try Tensor(1).init(allocator, [_]usize{checkpoint.embedding_size});
 
@@ -32,16 +32,16 @@ pub fn init(allocator: std.mem.Allocator, checkpoint: Checkpoint) !Self {
         .allocator = allocator,
         .checkpoint = checkpoint,
         .input_buffer = input_buffer,
-        .hidden_buffer = hidden_buffer,
         .gate_buffer = gate_buffer,
+        .hidden_buffer = hidden_buffer,
         .output_buffer = output_buffer,
     };
 }
 
 pub fn deinit(self: *const Self) void {
     self.input_buffer.deinit();
-    self.hidden_buffer.deinit();
     self.gate_buffer.deinit();
+    self.hidden_buffer.deinit();
     self.output_buffer.deinit();
 }
 
@@ -50,19 +50,18 @@ pub fn forward(self: *const Self, layer: usize) !void {
     @setFloatMode(.Optimized);
 
     const weights = self.checkpoint.weights;
-    const pre_activation_matrix = weights.feed_forward_pre_activation_matrices.slice(layer);
-    const gate_matrix = weights.feed_forward_gate_matrices.slice(layer);
-    const output_matrix = weights.feed_forward_output_matrices.slice(layer);
+    const gate_matrix = weights.ffn_gate_matrices.slice(layer);
+    const up_matrix = weights.ffn_up_matrices.slice(layer);
+    const down_matrix = weights.ffn_down_matrices.slice(layer);
 
-    pre_activation_matrix.multiplyVector(self.input_buffer, self.hidden_buffer);
     gate_matrix.multiplyVector(self.input_buffer, self.gate_buffer);
+    up_matrix.multiplyVector(self.input_buffer, self.hidden_buffer);
 
-    for (0..self.checkpoint.hidden_size) |index| {
-        self.hidden_buffer.data[index] =
-            swish(self.hidden_buffer.data[index]) * self.gate_buffer.data[index];
+    for (0..self.checkpoint.ffn_hidden_size) |index| {
+        self.hidden_buffer.data[index] *= swish(self.gate_buffer.data[index]);
     }
 
-    output_matrix.multiplyVector(self.hidden_buffer, self.output_buffer);
+    down_matrix.multiplyVector(self.hidden_buffer, self.output_buffer);
 }
 
 // Swish activation function: https://arxiv.org/abs/1710.05941

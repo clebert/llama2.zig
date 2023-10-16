@@ -17,29 +17,34 @@ value_cache: Tensor(4),
 scores: []f32,
 
 pub fn init(allocator: std.mem.Allocator, checkpoint: Checkpoint, sequence_length: usize) !Self {
-    const head_size: usize = checkpoint.embedding_size / checkpoint.n_heads;
-    const input_buffer = try Tensor(2).init(allocator, [_]usize{ checkpoint.n_heads, head_size });
+    const embedding_size = checkpoint.embedding_size;
+    const n_attention_heads = checkpoint.n_attention_heads;
+    const head_size: usize = embedding_size / n_attention_heads;
+    const input_buffer = try Tensor(2).init(allocator, [_]usize{ n_attention_heads, head_size });
 
     errdefer input_buffer.deinit();
 
-    const output_buffer = try Tensor(1).init(allocator, [_]usize{checkpoint.embedding_size});
+    const output_buffer = try Tensor(1).init(allocator, [_]usize{embedding_size});
 
     errdefer output_buffer.deinit();
 
-    const query_buffer = try Tensor(2).init(allocator, [_]usize{ checkpoint.n_heads, head_size });
+    const query_buffer = try Tensor(2).init(allocator, [_]usize{ n_attention_heads, head_size });
 
     errdefer query_buffer.deinit();
 
+    const n_layers = checkpoint.n_layers;
+    const n_attention_query_groups = checkpoint.n_attention_query_groups;
+
     const key_cache = try Tensor(4).init(
         allocator,
-        [_]usize{ checkpoint.n_layers, sequence_length, checkpoint.n_query_groups, head_size },
+        [_]usize{ n_layers, sequence_length, n_attention_query_groups, head_size },
     );
 
     errdefer key_cache.deinit();
 
     const value_cache = try Tensor(4).init(
         allocator,
-        [_]usize{ checkpoint.n_layers, sequence_length, checkpoint.n_query_groups, head_size },
+        [_]usize{ n_layers, sequence_length, n_attention_query_groups, head_size },
     );
 
     errdefer value_cache.deinit();
@@ -86,7 +91,7 @@ pub fn forward(self: *const Self, layer: usize, position: usize) !void {
 
     self.rope(position, key_buffer);
 
-    for (0..self.checkpoint.n_heads) |head| {
+    for (0..self.checkpoint.n_attention_heads) |head| {
         self.gqa(layer, position, head);
     }
 
@@ -132,7 +137,10 @@ fn gqa(self: *const Self, layer: usize, current_position: usize, head: usize) vo
     @setFloatMode(.Optimized);
 
     const query_vector = self.query_buffer.slice(head);
-    const query_group = head / (self.checkpoint.n_heads / self.checkpoint.n_query_groups);
+
+    const query_group =
+        head / (self.checkpoint.n_attention_heads / self.checkpoint.n_attention_query_groups);
+
     const next_position = current_position + 1;
 
     for (0..next_position) |position| {

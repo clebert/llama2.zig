@@ -1,7 +1,7 @@
 const Self = @This();
 
 const std = @import("std");
-const Cli = @import("cli.zig");
+const CLI = @import("cli.zig");
 const print = @import("print.zig").print;
 const Sampler = @import("sampler.zig");
 const Tokenizer = @import("tokenizer.zig");
@@ -14,7 +14,7 @@ sampler: Sampler,
 user_prompt: []const u8,
 system_prompt: []const u8,
 
-pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
+pub fn init(allocator: std.mem.Allocator, cli: *const CLI) !Self {
     const transformer = try Transformer.init(allocator, cli);
 
     errdefer transformer.deinit();
@@ -129,7 +129,7 @@ pub fn start(self: *Self, allocator: std.mem.Allocator) !void {
         user_prompt_tokens_index += 1;
 
         if (next_token == 0) {
-            next_token = self.sampler.sample(self.transformer.logits_buffer.data);
+            next_token = self.sampler.sample(self.transformer.output_buffer.data);
         }
 
         if (next_token == eos_token) {

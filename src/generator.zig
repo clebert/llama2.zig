@@ -1,7 +1,7 @@
 const Self = @This();
 
 const std = @import("std");
-const Cli = @import("cli.zig");
+const CLI = @import("cli.zig");
 const print = @import("print.zig").print;
 const Sampler = @import("sampler.zig");
 const Tokenizer = @import("tokenizer.zig");
@@ -14,7 +14,7 @@ sampler: Sampler,
 prompt_tokens: []usize,
 verbose: bool,
 
-pub fn init(allocator: std.mem.Allocator, cli: *const Cli) !Self {
+pub fn init(allocator: std.mem.Allocator, cli: *const CLI) !Self {
     const transformer = try Transformer.init(allocator, cli);
 
     errdefer transformer.deinit();
@@ -74,7 +74,7 @@ pub fn generate(self: *Self, writer: anytype) !void {
             next_token = self.prompt_tokens[prompt_tokens_index];
             prompt_tokens_index += 1;
         } else {
-            next_token = self.sampler.sample(self.transformer.logits_buffer.data);
+            next_token = self.sampler.sample(self.transformer.output_buffer.data);
         }
 
         if (next_token == bos_token or next_token == eos_token) {
@@ -107,7 +107,7 @@ test "generate tiny story" {
 
     defer arg_iterator.deinit();
 
-    const cli = Cli{
+    const cli = CLI{
         .checkpoint_path = "stories260K.bin",
         .temperature = 1,
         .top_p = 0.9,

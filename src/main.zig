@@ -1,10 +1,10 @@
 const std = @import("std");
 const Chat = @import("chat.zig");
-const Cli = @import("cli.zig");
+const CLI = @import("cli.zig");
 const Generator = @import("generator.zig");
 
 pub fn main() !void {
-    var cli = try Cli.init(std.heap.page_allocator);
+    var cli = try CLI.init(std.heap.page_allocator);
 
     defer cli.deinit();
 
