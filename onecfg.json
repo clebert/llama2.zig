@@ -32,7 +32,13 @@
     ],
     ".gitignore": [
       {
-        "value": ["/models/llama2_*", "/zig-cache", "/zig-out"]
+        "value": [
+          "/models/*",
+          "!/models/tinystories_15m",
+          "!/models/tinystories_260k",
+          "/zig-cache",
+          "/zig-out"
+        ]
       }
     ],
     ".prettierignore": [

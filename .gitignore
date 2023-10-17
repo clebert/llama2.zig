@@ -1,3 +1,5 @@
-/models/llama2_*
+/models/*
+!/models/tinystories_15m
+!/models/tinystories_260k
 /zig-cache
 /zig-out
