@@ -1,7 +1,6 @@
 const Self = @This();
 
 const std = @import("std");
-const CLI = @import("./cli.zig");
 const Tensor = @import("./tensor.zig").Tensor;
 const vector = @import("./vector.zig");
 
@@ -30,8 +29,15 @@ weights: struct {
     output_matrix: Tensor(2),
 },
 
-pub fn init(allocator: std.mem.Allocator, cli: *const CLI) !Self {
-    const file = try std.fs.cwd().openFile(cli.checkpoint_path, .{});
+pub fn init(allocator: std.mem.Allocator, model_path: []const u8) !Self {
+    const path = try std.fs.path.join(
+        allocator,
+        &[_][]const u8{ model_path, "checkpoint_legacy.bin" },
+    );
+
+    defer allocator.free(path);
+
+    const file = try std.fs.cwd().openFile(path, .{});
 
     defer file.close();
 

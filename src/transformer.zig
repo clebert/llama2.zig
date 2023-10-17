@@ -3,7 +3,6 @@ const Self = @This();
 const std = @import("std");
 const Attention = @import("attention.zig");
 const Checkpoint = @import("checkpoint.zig");
-const CLI = @import("cli.zig");
 const FFN = @import("ffn.zig");
 const Tensor = @import("./tensor.zig").Tensor;
 const vector = @import("vector.zig");
@@ -16,12 +15,12 @@ ffn: FFN,
 hidden_buffer: Tensor(1),
 output_buffer: Tensor(1),
 
-pub fn init(allocator: std.mem.Allocator, cli: *const CLI) !Self {
-    const checkpoint = try Checkpoint.init(allocator, cli);
+pub fn init(allocator: std.mem.Allocator, model_path: []const u8, n_steps: usize) !Self {
+    const checkpoint = try Checkpoint.init(allocator, model_path);
 
     errdefer checkpoint.deinit();
 
-    const sequence_length = if (cli.n_steps == 0) checkpoint.max_sequence_length else cli.n_steps;
+    const sequence_length = if (n_steps == 0) checkpoint.max_sequence_length else n_steps;
     const attention = try Attention.init(allocator, checkpoint, sequence_length);
 
     errdefer attention.deinit();

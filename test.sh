@@ -7,10 +7,9 @@ set -o noclobber # Prevents from overwriting existing files
 
 zig build
 
-checkpoint_path="models/tinystories_260k/tinystories_260k_legacy.bin"
-tokenizer_path="models/tinystories_260k/tokenizer.bin"
+model_path="models/tinystories_260k"
 
-actual_output=$(./zig-out/bin/llama2 $checkpoint_path -z $tokenizer_path -t 0 -n 200)
+actual_output=$(./zig-out/bin/llama2 $model_path -t 0 -n 200)
 
 # Generated with llama2.c (https://github.com/karpathy/llama2.c/tree/7ac65cb2c2b169050747be92011b7bebdd1b4544)
 expected_output="Once upon a time, there was a little girl named Lily. She loved to play outside in the park. One day, she saw a big, red ball. She wanted to play with it, but it was too high.
@@ -23,7 +22,7 @@ if [ "$actual_output" != "$expected_output" ]; then
     exit 1
 fi
 
-actual_output=$(./zig-out/bin/llama2 $checkpoint_path -z $tokenizer_path -t 1 -p 1 -s 42 -n 200)
+actual_output=$(./zig-out/bin/llama2 $model_path -t 1 -p 1 -s 42 -n 200)
 
 # Generated with llama2.c (https://github.com/karpathy/llama2.c/tree/7ac65cb2c2b169050747be92011b7bebdd1b4544)
 expected_output="Once upon a time, there was a big roof. The fox was ready to look for people inside. He saw a big rock near a big tree. The roof was very small and fun! He ate the roof too. He got a shiny stool, so he sicked the roof with his friend, the girl named Mia.
@@ -36,7 +35,7 @@ if [ "$actual_output" != "$expected_output" ]; then
     exit 1
 fi
 
-actual_output=$(./zig-out/bin/llama2 $checkpoint_path -z $tokenizer_path -t 1 -p 0.95 -s 42 -n 200)
+actual_output=$(./zig-out/bin/llama2 $model_path -t 1 -p 0.95 -s 42 -n 200)
 
 # Generated with llama2.c (https://github.com/karpathy/llama2.c/tree/7ac65cb2c2b169050747be92011b7bebdd1b4544)
 expected_output="Once upon a time, there was a little boy named Timmy. Timmy loved going to the park with his mom. One day, Lily went outside to play outside in her pocket. He was scared and didn't know where to buy some colorful animals.
@@ -47,7 +46,7 @@ if [ "$actual_output" != "$expected_output" ]; then
     exit 1
 fi
 
-actual_output=$(./zig-out/bin/llama2 $checkpoint_path -z $tokenizer_path -t 1 -p 0.95 -s 42 -n 200 -i "There was a big")
+actual_output=$(./zig-out/bin/llama2 $model_path -t 1 -p 0.95 -s 42 -n 200 -i "There was a big")
 
 # Generated with llama2.c (https://github.com/karpathy/llama2.c/tree/7ac65cb2c2b169050747be92011b7bebdd1b4544)
 expected_output="There was a big pretty grass. It was a long elephant. The cars wanted to tell him that as they spin before the amazing doll, just like it she was always okay.

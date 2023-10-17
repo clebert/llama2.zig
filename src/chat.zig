@@ -15,12 +15,12 @@ user_prompt: []const u8,
 system_prompt: []const u8,
 
 pub fn init(allocator: std.mem.Allocator, cli: *const CLI) !Self {
-    const transformer = try Transformer.init(allocator, cli);
+    const transformer = try Transformer.init(allocator, cli.model_path, cli.n_steps);
 
     errdefer transformer.deinit();
 
     const vocab_size = transformer.checkpoint.vocab_size;
-    const tokenizer = try Tokenizer.init(allocator, cli.tokenizer_path, vocab_size);
+    const tokenizer = try Tokenizer.init(allocator, cli.model_path, vocab_size);
 
     errdefer tokenizer.deinit();
 

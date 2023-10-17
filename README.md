@@ -20,6 +20,12 @@ git lfs install
 git clone git@github.com:clebert/llama2.zig.git
 ```
 
+## Usage
+
+```sh
+zig build -Doptimize=ReleaseFast run -- models/tinystories_15m -t 0 --verbose
+```
+
 ## Papers
 
 - Standard transformer architecture: [Attention Is All You Need](https://arxiv.org/abs/1706.03762)

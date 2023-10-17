@@ -15,12 +15,12 @@ prompt_tokens: []usize,
 verbose: bool,
 
 pub fn init(allocator: std.mem.Allocator, cli: *const CLI) !Self {
-    const transformer = try Transformer.init(allocator, cli);
+    const transformer = try Transformer.init(allocator, cli.model_path, cli.n_steps);
 
     errdefer transformer.deinit();
 
     const vocab_size = transformer.checkpoint.vocab_size;
-    const tokenizer = try Tokenizer.init(allocator, cli.tokenizer_path, vocab_size);
+    const tokenizer = try Tokenizer.init(allocator, cli.model_path, vocab_size);
 
     errdefer tokenizer.deinit();
 
@@ -108,13 +108,12 @@ test "generate tiny story" {
     defer arg_iterator.deinit();
 
     const cli = CLI{
-        .checkpoint_path = "models/tinystories_260k/tinystories_260k_legacy.bin",
+        .model_path = "models/tinystories_260k",
         .temperature = 1,
         .top_p = 0.9,
         .random_seed = 42,
         .n_steps = 10,
         .prompt = "There was",
-        .tokenizer_path = "models/tinystories_260k/tokenizer.bin",
         .chat = false,
         .system_prompt = "",
         .verbose = false,

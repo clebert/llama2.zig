@@ -2,13 +2,12 @@ const Self = @This();
 
 const std = @import("std");
 
-checkpoint_path: []const u8,
+model_path: []const u8,
 temperature: f32,
 top_p: f32,
 random_seed: u64,
 n_steps: usize,
 prompt: []const u8,
-tokenizer_path: []const u8,
 chat: bool,
 system_prompt: []const u8,
 verbose: bool,
@@ -32,7 +31,6 @@ pub fn init(allocator: std.mem.Allocator) !Self {
     var random_seed: ?u64 = null;
     var n_steps: ?usize = null;
     var prompt: ?[]const u8 = null;
-    var tokenizer_path: ?[]const u8 = null;
     var mode: ?[]const u8 = null;
     var system_prompt: ?[]const u8 = null;
     var verbose: bool = false;
@@ -43,7 +41,7 @@ pub fn init(allocator: std.mem.Allocator) !Self {
 
     _ = arg_iterator.next().?;
 
-    const checkpoint_path = arg_iterator.next() orelse try exit();
+    const model_path = arg_iterator.next() orelse try exit();
 
     while (arg_iterator.next()) |arg| {
         if (current_option) |option| {
@@ -57,8 +55,6 @@ pub fn init(allocator: std.mem.Allocator) !Self {
                 n_steps = try std.fmt.parseInt(usize, arg, 10);
             } else if (option == .prompt and prompt == null) {
                 prompt = arg;
-            } else if (option == .tokenizer_path and tokenizer_path == null) {
-                tokenizer_path = arg;
             } else if (option == .mode and mode == null) {
                 if (std.mem.eql(u8, arg, "generate") or std.mem.eql(u8, arg, "chat")) {
                     mode = arg;
@@ -100,13 +96,12 @@ pub fn init(allocator: std.mem.Allocator) !Self {
     }
 
     return Self{
-        .checkpoint_path = checkpoint_path,
+        .model_path = model_path,
         .temperature = @max(@min(temperature orelse 1, 1), 0),
         .top_p = @max(@min(top_p orelse 0.9, 1), 0),
         .random_seed = random_seed orelse @intCast(std.time.milliTimestamp()),
         .n_steps = n_steps orelse 0,
         .prompt = prompt orelse "",
-        .tokenizer_path = tokenizer_path orelse "tokenizer.bin",
         .chat = if (mode) |arg| std.mem.eql(u8, arg, "chat") else false,
         .system_prompt = system_prompt orelse "",
         .verbose = verbose,
@@ -121,20 +116,19 @@ pub fn deinit(self: *Self) void {
 fn exit() !noreturn {
     const stderr = std.io.getStdErr().writer();
 
-    try stderr.print("Usage: llama2 <checkpoint_path> [options]\n\n", .{});
+    try stderr.print("Usage: llama2 <model_path> [options]\n\n", .{});
 
     try stderr.print("Options:\n", .{});
     try stderr.print("  -t <float>  temperature    = 1\n", .{});
-    try stderr.print("  -p <float>  top_p          = 0.9; 1 == off\n", .{});
+    try stderr.print("  -p <float>  top_p          = 0.9\n", .{});
     try stderr.print("  -s <int>    random_seed    = milli_timestamp\n", .{});
     try stderr.print("  -n <int>    n_steps        = max_sequence_length\n", .{});
     try stderr.print("  -i <string> prompt         = \"\"\n", .{});
-    try stderr.print("  -z <string> tokenizer_path = \"tokenizer.bin\"\n", .{});
     try stderr.print("  -m <string> mode           = \"generate\"; (alt. \"chat\")\n", .{});
     try stderr.print("  -y <string> system_prompt  = \"\"\n", .{});
     try stderr.print("  --verbose\n\n", .{});
 
-    try stderr.print("Example: llama2 model.bin -i \"Once upon a time\"\n", .{});
+    try stderr.print("Example: llama2 models/tinystories_15m -i \"Once upon a time\"\n", .{});
 
     std.process.exit(1);
 }

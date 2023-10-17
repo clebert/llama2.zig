@@ -8,7 +8,7 @@ vocab: []const []const u8,
 word_scores: []const f32,
 sorted_vocab: []const VocabEntry,
 
-pub fn init(allocator: std.mem.Allocator, path: []const u8, vocab_size: usize) !Self {
+pub fn init(allocator: std.mem.Allocator, model_path: []const u8, vocab_size: usize) !Self {
     var vocab = try allocator.alloc([]u8, vocab_size);
 
     errdefer for (vocab) |word| {
@@ -20,6 +20,10 @@ pub fn init(allocator: std.mem.Allocator, path: []const u8, vocab_size: usize) !
     var word_scores = try allocator.alloc(f32, vocab_size);
 
     errdefer allocator.free(word_scores);
+
+    const path = try std.fs.path.join(allocator, &[_][]const u8{ model_path, "tokenizer.bin" });
+
+    defer allocator.free(path);
 
     const file = try std.fs.cwd().openFile(path, .{});
 
@@ -211,13 +215,13 @@ fn lessThan(context: void, lhs: VocabEntry, rhs: VocabEntry) bool {
     return std.mem.lessThan(u8, lhs.word, rhs.word);
 }
 
-const tokenizer_32k_path = "models/tinystories_15m/tokenizer.bin";
-const tokenizer_512_path = "models/tinystories_260k/tokenizer.bin";
+const tinystories_15m_path = "models/tinystories_15m/";
+const tinystories_260k_path = "models/tinystories_260k";
 
 // https://github.com/karpathy/llama2.c/pull/226
 // https://github.com/karpathy/llama2.c/pull/297
 test "encode utf-8" {
-    const tokenizer = try Self.init(std.testing.allocator, tokenizer_32k_path, 32000);
+    const tokenizer = try Self.init(std.testing.allocator, tinystories_15m_path, 32000);
 
     defer tokenizer.deinit();
 
@@ -230,7 +234,7 @@ test "encode utf-8" {
 }
 
 test "encode empty string" {
-    const tokenizer = try Self.init(std.testing.allocator, tokenizer_32k_path, 32000);
+    const tokenizer = try Self.init(std.testing.allocator, tinystories_15m_path, 32000);
 
     defer tokenizer.deinit();
 
@@ -243,7 +247,7 @@ test "encode empty string" {
 }
 
 test "encode unknown codepoint" {
-    const tokenizer = try Self.init(std.testing.allocator, tokenizer_32k_path, 32000);
+    const tokenizer = try Self.init(std.testing.allocator, tinystories_15m_path, 32000);
 
     defer tokenizer.deinit();
 
@@ -256,7 +260,7 @@ test "encode unknown codepoint" {
 }
 
 test "encode single chars" {
-    const tokenizer = try Self.init(std.testing.allocator, tokenizer_512_path, 512);
+    const tokenizer = try Self.init(std.testing.allocator, tinystories_260k_path, 512);
 
     defer tokenizer.deinit();
 
@@ -270,7 +274,7 @@ test "encode single chars" {
 
 // https://github.com/facebookresearch/llama/blob/ea9f33d6d3ea8ed7d560d270986407fd6c2e52b7/example_text_completion.py
 test "meta encoding example 1" {
-    const tokenizer = try Self.init(std.testing.allocator, tokenizer_32k_path, 32000);
+    const tokenizer = try Self.init(std.testing.allocator, tinystories_15m_path, 32000);
 
     defer tokenizer.deinit();
 
@@ -283,7 +287,7 @@ test "meta encoding example 1" {
 }
 
 test "meta encoding example 2" {
-    const tokenizer = try Self.init(std.testing.allocator, tokenizer_32k_path, 32000);
+    const tokenizer = try Self.init(std.testing.allocator, tinystories_15m_path, 32000);
 
     defer tokenizer.deinit();
 
@@ -300,7 +304,7 @@ test "meta encoding example 2" {
 }
 
 test "meta encoding example 3" {
-    const tokenizer = try Self.init(std.testing.allocator, tokenizer_32k_path, 32000);
+    const tokenizer = try Self.init(std.testing.allocator, tinystories_15m_path, 32000);
 
     defer tokenizer.deinit();
 
@@ -317,7 +321,7 @@ test "meta encoding example 3" {
 }
 
 test "meta encoding example 4" {
-    const tokenizer = try Self.init(std.testing.allocator, tokenizer_32k_path, 32000);
+    const tokenizer = try Self.init(std.testing.allocator, tinystories_15m_path, 32000);
 
     defer tokenizer.deinit();
 
