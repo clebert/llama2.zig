@@ -12,14 +12,6 @@ However, my goal is to continue porting the improvements and new features of And
 this codebase. At present, my Zig port produces the same output as the C version. I ensure this
 through the following linked [tests](./test.sh).
 
-## Installation
-
-```sh
-# Make sure you have git-lfs installed (https://git-lfs.com)
-git lfs install
-git clone git@github.com:clebert/llama2.zig.git
-```
-
 ## Usage
 
 ```sh
