@@ -1,7 +1,7 @@
 const Self = @This();
 
 const std = @import("std");
-const CLI = @import("cli.zig");
+const GeneratorArgs = @import("generator_args.zig");
 const print = @import("print.zig").print;
 const Sampler = @import("sampler.zig");
 const Tokenizer = @import("tokenizer.zig");
@@ -14,21 +14,21 @@ sampler: Sampler,
 prompt_tokens: []usize,
 verbose: bool,
 
-pub fn init(allocator: std.mem.Allocator, cli: *const CLI) !Self {
-    const transformer = try Transformer.init(allocator, cli.model_path, cli.n_steps);
+pub fn init(allocator: std.mem.Allocator, args: *const GeneratorArgs) !Self {
+    const transformer = try Transformer.init(allocator, args.model_path, args.n_steps);
 
     errdefer transformer.deinit();
 
     const vocab_size = transformer.checkpoint.vocab_size;
-    const tokenizer = try Tokenizer.init(allocator, cli.model_path, vocab_size);
+    const tokenizer = try Tokenizer.init(allocator, args.model_path, vocab_size);
 
     errdefer tokenizer.deinit();
 
-    const sampler = try Sampler.init(allocator, cli, vocab_size);
+    const sampler = try Sampler.init(allocator, args, vocab_size);
 
     errdefer sampler.deinit();
 
-    const prompt_tokens = try tokenizer.encode(allocator, cli.prompt);
+    const prompt_tokens = try tokenizer.encode(allocator, args.prompt);
 
     return Self{
         .allocator = allocator,
@@ -36,7 +36,7 @@ pub fn init(allocator: std.mem.Allocator, cli: *const CLI) !Self {
         .tokenizer = tokenizer,
         .sampler = sampler,
         .prompt_tokens = prompt_tokens,
-        .verbose = cli.verbose,
+        .verbose = args.verbose,
     };
 }
 
@@ -107,20 +107,18 @@ test "generate tiny story" {
 
     defer arg_iterator.deinit();
 
-    const cli = CLI{
+    const args = GeneratorArgs{
+        .arg_iterator = arg_iterator,
         .model_path = "models/tinystories_260k",
         .temperature = 1,
         .top_p = 0.9,
         .random_seed = 42,
         .n_steps = 10,
         .prompt = "There was",
-        .chat = false,
-        .system_prompt = "",
         .verbose = false,
-        .arg_iterator = arg_iterator,
     };
 
-    var generator = try Self.init(std.testing.allocator, &cli);
+    var generator = try Self.init(std.testing.allocator, &args);
 
     defer generator.deinit();
 

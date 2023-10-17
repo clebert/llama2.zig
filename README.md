@@ -15,7 +15,39 @@ through the following linked [tests](./test.sh).
 ## Usage
 
 ```sh
-zig build -Doptimize=ReleaseFast run -- models/tinystories_15m -t 0 --verbose
+zig build -Doptimize=ReleaseFast run-generator -- models/tinystories_15m --temperature 0 --verbose
+```
+
+## Help
+
+### llama2-generator
+
+```
+Usage: llama2-generator <model_path> [options]
+
+Options:
+  --temperature   <float>  = 1.0
+  --top_p         <float>  = 0.9
+  --random_seed   <int>    = <milli_timestamp>
+  --n_steps       <int>    = <max_sequence_length>
+  --prompt        <string> = ""
+  --verbose
+  --help
+```
+
+### llama2-chat
+
+```
+Usage: llama2-chat <model_path> [options]
+
+Options:
+  --temperature   <float>  = 1.0
+  --top_p         <float>  = 0.9
+  --random_seed   <int>    = <milli_timestamp>
+  --n_steps       <int>    = <max_sequence_length>
+  --prompt        <string> = ""
+  --system_prompt <string> = ""
+  --help
 ```
 
 ## Papers

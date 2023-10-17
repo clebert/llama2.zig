@@ -1,7 +1,7 @@
 const Self = @This();
 
 const std = @import("std");
-const CLI = @import("cli.zig");
+const ChatArgs = @import("chat_args.zig");
 const print = @import("print.zig").print;
 const Sampler = @import("sampler.zig");
 const Tokenizer = @import("tokenizer.zig");
@@ -14,17 +14,17 @@ sampler: Sampler,
 user_prompt: []const u8,
 system_prompt: []const u8,
 
-pub fn init(allocator: std.mem.Allocator, cli: *const CLI) !Self {
-    const transformer = try Transformer.init(allocator, cli.model_path, cli.n_steps);
+pub fn init(allocator: std.mem.Allocator, args: *const ChatArgs) !Self {
+    const transformer = try Transformer.init(allocator, args.model_path, args.n_steps);
 
     errdefer transformer.deinit();
 
     const vocab_size = transformer.checkpoint.vocab_size;
-    const tokenizer = try Tokenizer.init(allocator, cli.model_path, vocab_size);
+    const tokenizer = try Tokenizer.init(allocator, args.model_path, vocab_size);
 
     errdefer tokenizer.deinit();
 
-    const sampler = try Sampler.init(allocator, cli, vocab_size);
+    const sampler = try Sampler.init(allocator, args, vocab_size);
 
     errdefer sampler.deinit();
 
@@ -33,8 +33,8 @@ pub fn init(allocator: std.mem.Allocator, cli: *const CLI) !Self {
         .transformer = transformer,
         .tokenizer = tokenizer,
         .sampler = sampler,
-        .user_prompt = cli.prompt,
-        .system_prompt = cli.system_prompt,
+        .user_prompt = args.prompt,
+        .system_prompt = args.system_prompt,
     };
 }
 
