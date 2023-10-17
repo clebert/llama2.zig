@@ -30,6 +30,10 @@ weights: struct {
 },
 
 pub fn init(allocator: std.mem.Allocator, model_path: []const u8) !Self {
+    return try readLegacy(allocator, model_path);
+}
+
+pub fn readLegacy(allocator: std.mem.Allocator, model_path: []const u8) !Self {
     const path = try std.fs.path.join(
         allocator,
         &[_][]const u8{ model_path, "checkpoint_legacy.bin" },
@@ -41,10 +45,6 @@ pub fn init(allocator: std.mem.Allocator, model_path: []const u8) !Self {
 
     defer file.close();
 
-    return try readLegacy(allocator, file);
-}
-
-pub fn readLegacy(allocator: std.mem.Allocator, file: std.fs.File) !Self {
     const embedding_size: usize = @intCast(try file.reader().readIntLittle(i32));
     const ffn_hidden_size: usize = @intCast(try file.reader().readIntLittle(i32));
     const n_layers: usize = @intCast(try file.reader().readIntLittle(i32));
