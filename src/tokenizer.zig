@@ -211,10 +211,13 @@ fn lessThan(context: void, lhs: VocabEntry, rhs: VocabEntry) bool {
     return std.mem.lessThan(u8, lhs.word, rhs.word);
 }
 
+const tokenizer_32k_path = "models/tinystories_15m/tokenizer.bin";
+const tokenizer_512_path = "models/tinystories_260k/tokenizer.bin";
+
 // https://github.com/karpathy/llama2.c/pull/226
 // https://github.com/karpathy/llama2.c/pull/297
 test "encode utf-8" {
-    const tokenizer = try Self.init(std.testing.allocator, "tokenizer.bin", 32000);
+    const tokenizer = try Self.init(std.testing.allocator, tokenizer_32k_path, 32000);
 
     defer tokenizer.deinit();
 
@@ -227,7 +230,7 @@ test "encode utf-8" {
 }
 
 test "encode empty string" {
-    const tokenizer = try Self.init(std.testing.allocator, "tokenizer.bin", 32000);
+    const tokenizer = try Self.init(std.testing.allocator, tokenizer_32k_path, 32000);
 
     defer tokenizer.deinit();
 
@@ -240,7 +243,7 @@ test "encode empty string" {
 }
 
 test "encode unknown codepoint" {
-    const tokenizer = try Self.init(std.testing.allocator, "tokenizer.bin", 32000);
+    const tokenizer = try Self.init(std.testing.allocator, tokenizer_32k_path, 32000);
 
     defer tokenizer.deinit();
 
@@ -253,7 +256,7 @@ test "encode unknown codepoint" {
 }
 
 test "encode single chars" {
-    const tokenizer = try Self.init(std.testing.allocator, "tok512.bin", 512);
+    const tokenizer = try Self.init(std.testing.allocator, tokenizer_512_path, 512);
 
     defer tokenizer.deinit();
 
@@ -267,7 +270,7 @@ test "encode single chars" {
 
 // https://github.com/facebookresearch/llama/blob/ea9f33d6d3ea8ed7d560d270986407fd6c2e52b7/example_text_completion.py
 test "meta encoding example 1" {
-    const tokenizer = try Self.init(std.testing.allocator, "tokenizer.bin", 32000);
+    const tokenizer = try Self.init(std.testing.allocator, tokenizer_32k_path, 32000);
 
     defer tokenizer.deinit();
 
@@ -280,7 +283,7 @@ test "meta encoding example 1" {
 }
 
 test "meta encoding example 2" {
-    const tokenizer = try Self.init(std.testing.allocator, "tokenizer.bin", 32000);
+    const tokenizer = try Self.init(std.testing.allocator, tokenizer_32k_path, 32000);
 
     defer tokenizer.deinit();
 
@@ -297,7 +300,7 @@ test "meta encoding example 2" {
 }
 
 test "meta encoding example 3" {
-    const tokenizer = try Self.init(std.testing.allocator, "tokenizer.bin", 32000);
+    const tokenizer = try Self.init(std.testing.allocator, tokenizer_32k_path, 32000);
 
     defer tokenizer.deinit();
 
@@ -314,7 +317,7 @@ test "meta encoding example 3" {
 }
 
 test "meta encoding example 4" {
-    const tokenizer = try Self.init(std.testing.allocator, "tokenizer.bin", 32000);
+    const tokenizer = try Self.init(std.testing.allocator, tokenizer_32k_path, 32000);
 
     defer tokenizer.deinit();
 

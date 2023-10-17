@@ -35,6 +35,10 @@ pub fn init(allocator: std.mem.Allocator, cli: *const CLI) !Self {
 
     defer file.close();
 
+    return try readLegacy(allocator, file);
+}
+
+pub fn readLegacy(allocator: std.mem.Allocator, file: std.fs.File) !Self {
     const embedding_size: usize = @intCast(try file.reader().readIntLittle(i32));
     const ffn_hidden_size: usize = @intCast(try file.reader().readIntLittle(i32));
     const n_layers: usize = @intCast(try file.reader().readIntLittle(i32));

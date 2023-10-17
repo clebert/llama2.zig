@@ -108,13 +108,13 @@ test "generate tiny story" {
     defer arg_iterator.deinit();
 
     const cli = CLI{
-        .checkpoint_path = "stories260K.bin",
+        .checkpoint_path = "models/tinystories_260k/tinystories_260k_legacy.bin",
         .temperature = 1,
         .top_p = 0.9,
         .random_seed = 42,
         .n_steps = 10,
         .prompt = "There was",
-        .tokenizer_path = "tok512.bin",
+        .tokenizer_path = "models/tinystories_260k/tokenizer.bin",
         .chat = false,
         .system_prompt = "",
         .verbose = false,

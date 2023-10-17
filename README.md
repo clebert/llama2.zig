@@ -12,12 +12,6 @@ However, my goal is to continue porting the improvements and new features of And
 this codebase. At present, my Zig port produces the same output as the C version. I ensure this
 through the following linked [tests](./test.sh).
 
-## Usage
-
-```sh
-zig build -Doptimize=ReleaseFast run -- stories260K.bin -z tok512.bin -i "Once upon a time" --verbose
-```
-
 ## Papers
 
 - Standard transformer architecture: [Attention Is All You Need](https://arxiv.org/abs/1706.03762)
