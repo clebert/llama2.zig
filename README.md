@@ -1,4 +1,4 @@
-## llama2.zig
+# llama2.zig
 
 > Inference Llama 2 in pure Zig
 
