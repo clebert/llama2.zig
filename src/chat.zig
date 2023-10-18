@@ -14,7 +14,7 @@ sampler: Sampler,
 user_prompt: []const u8,
 system_prompt: []const u8,
 
-pub fn init(allocator: std.mem.Allocator, args: *const ChatArgs) !Self {
+pub fn init(allocator: std.mem.Allocator, args: ChatArgs) !Self {
     const transformer = try Transformer.init(allocator, args.model_path, args.n_steps);
 
     errdefer transformer.deinit();

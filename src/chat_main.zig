@@ -7,7 +7,7 @@ pub fn main() !void {
 
     defer args.deinit();
 
-    var chat = try Chat.init(std.heap.page_allocator, &args);
+    var chat = try Chat.init(std.heap.page_allocator, args);
 
     defer chat.deinit();
 

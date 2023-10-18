@@ -14,7 +14,7 @@ sampler: Sampler,
 prompt_tokens: []usize,
 verbose: bool,
 
-pub fn init(allocator: std.mem.Allocator, args: *const GeneratorArgs) !Self {
+pub fn init(allocator: std.mem.Allocator, args: GeneratorArgs) !Self {
     const transformer = try Transformer.init(allocator, args.model_path, args.n_steps);
 
     errdefer transformer.deinit();
@@ -118,7 +118,7 @@ test "generate tiny story" {
         .verbose = false,
     };
 
-    var generator = try Self.init(std.testing.allocator, &args);
+    var generator = try Self.init(std.testing.allocator, args);
 
     defer generator.deinit();
 

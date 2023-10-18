@@ -7,7 +7,7 @@ pub fn main() !void {
 
     defer args.deinit();
 
-    var generator = try Generator.init(std.heap.page_allocator, &args);
+    var generator = try Generator.init(std.heap.page_allocator, args);
 
     defer generator.deinit();
 
