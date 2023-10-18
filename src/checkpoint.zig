@@ -215,6 +215,7 @@ pub fn readV1(allocator: std.mem.Allocator, file: std.fs.File) !Self {
     };
 }
 
+// https://github.com/karpathy/llama2.c/blob/d9862069e7ef665fe6309e3c17398ded2f121bf5/export.py#L75
 pub fn readLegacy(allocator: std.mem.Allocator, file: std.fs.File) !Self {
     const embedding_size: usize = @intCast(try file.reader().readIntLittle(i32));
     const ffn_hidden_size: usize = @intCast(try file.reader().readIntLittle(i32));
