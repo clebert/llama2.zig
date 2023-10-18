@@ -60,7 +60,48 @@ pub fn init(allocator: std.mem.Allocator, model_path: []const u8) !Self {
 }
 
 // https://github.com/karpathy/llama2.c/blob/d9862069e7ef665fe6309e3c17398ded2f121bf5/export.py#L132
-pub fn readV1(allocator: std.mem.Allocator, file: std.fs.File) !Self {
+pub fn writeV1(self: *const Self, allocator: std.mem.Allocator, model_path: []const u8) !void {
+    const path = try std.fs.path.join(
+        allocator,
+        &[_][]const u8{ model_path, "checkpoint_v1.bin" },
+    );
+
+    defer allocator.free(path);
+
+    const file = try std.fs.cwd().createFile(path, .{ .truncate = true });
+
+    defer file.close();
+
+    try file.writer().writeAll("ak42");
+    try file.writer().writeIntLittle(i32, 1);
+    try file.writer().writeIntLittle(i32, @as(i32, @intCast(self.embedding_size)));
+    try file.writer().writeIntLittle(i32, @as(i32, @intCast(self.ffn_hidden_size)));
+    try file.writer().writeIntLittle(i32, @as(i32, @intCast(self.n_layers)));
+    try file.writer().writeIntLittle(i32, @as(i32, @intCast(self.n_attention_heads)));
+    try file.writer().writeIntLittle(i32, @as(i32, @intCast(self.n_attention_query_groups)));
+    try file.writer().writeIntLittle(i32, @as(i32, @intCast(self.vocab_size)));
+    try file.writer().writeIntLittle(i32, @as(i32, @intCast(self.max_sequence_length)));
+    try file.writer().writeIntLittle(u8, @as(u8, @intFromBool(self.shared_output_matrix)));
+    try file.writer().writeByteNTimes(0, 256 - try file.getPos());
+    try self.weights.attention_norm_vectors.write(file);
+    try self.weights.ffn_norm_vectors.write(file);
+    try self.weights.output_norm_vector.write(file);
+    try self.weights.token_embedding_vectors.write(file);
+    try self.weights.attention_query_matrices.write(file);
+    try self.weights.attention_key_matrices.write(file);
+    try self.weights.attention_value_matrices.write(file);
+    try self.weights.attention_output_matrices.write(file);
+    try self.weights.ffn_gate_matrices.write(file);
+    try self.weights.ffn_down_matrices.write(file);
+    try self.weights.ffn_up_matrices.write(file);
+
+    if (!self.shared_output_matrix) {
+        try self.weights.output_matrix.write(file);
+    }
+}
+
+// https://github.com/karpathy/llama2.c/blob/d9862069e7ef665fe6309e3c17398ded2f121bf5/export.py#L132
+fn readV1(allocator: std.mem.Allocator, file: std.fs.File) !Self {
     const magic: [*]const u8 = @ptrCast(&try file.reader().readIntLittle(u32));
 
     if (!std.mem.eql(u8, magic[0..4], "ak42")) {
@@ -216,7 +257,7 @@ pub fn readV1(allocator: std.mem.Allocator, file: std.fs.File) !Self {
 }
 
 // https://github.com/karpathy/llama2.c/blob/d9862069e7ef665fe6309e3c17398ded2f121bf5/export.py#L75
-pub fn readLegacy(allocator: std.mem.Allocator, file: std.fs.File) !Self {
+fn readLegacy(allocator: std.mem.Allocator, file: std.fs.File) !Self {
     const embedding_size: usize = @intCast(try file.reader().readIntLittle(i32));
     const ffn_hidden_size: usize = @intCast(try file.reader().readIntLittle(i32));
     const n_layers: usize = @intCast(try file.reader().readIntLittle(i32));

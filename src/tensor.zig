@@ -33,6 +33,12 @@ pub fn Tensor(comptime n_dims: comptime_int) type {
             try file.reader().readNoEof(buffer[0 .. self.data.len * @sizeOf(f32)]);
         }
 
+        pub fn write(self: *const Self, file: std.fs.File) !void {
+            const buffer: [*]u8 = @ptrCast(self.data);
+
+            try file.writer().writeAll(buffer[0 .. self.data.len * @sizeOf(f32)]);
+        }
+
         pub fn slice(self: *const Self, index: usize) Tensor(n_dims - 1) {
             comptime if (n_dims < 2) @compileError("n_dims < 2");
 
