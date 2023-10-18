@@ -48,13 +48,17 @@
     ],
     ".vscode/extensions.json": [
       {
-        "value": {"recommendations": ["ziglang.vscode-zig"]}
+        "value": {
+          "recommendations": ["ms-python.black-formatter", "ms-python.python", "ziglang.vscode-zig"]
+        }
       }
     ],
     ".vscode/settings.json": [
       {
         "value": {
           "files.exclude": {".github": true, ".github/workflows/ci.yml": true},
+          "[python]": {"editor.defaultFormatter": "ms-python.black-formatter"},
+          "python.formatting.provider": "none",
           "[zig]": {"editor.defaultFormatter": "ziglang.vscode-zig"},
           "zig.zls.enableInlayHints": false
         }

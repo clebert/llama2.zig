@@ -72,7 +72,7 @@ pub fn writeV1(self: *const Self, allocator: std.mem.Allocator, model_path: []co
 
     defer file.close();
 
-    try file.writer().writeAll("ak42");
+    try file.writer().writeIntLittle(u32, 0x616b3432);
     try file.writer().writeIntLittle(i32, 1);
     try file.writer().writeIntLittle(i32, @as(i32, @intCast(self.embedding_size)));
     try file.writer().writeIntLittle(i32, @as(i32, @intCast(self.ffn_hidden_size)));
@@ -102,9 +102,9 @@ pub fn writeV1(self: *const Self, allocator: std.mem.Allocator, model_path: []co
 
 // https://github.com/karpathy/llama2.c/blob/d9862069e7ef665fe6309e3c17398ded2f121bf5/export.py#L132
 fn readV1(allocator: std.mem.Allocator, file: std.fs.File) !Self {
-    const magic: [*]const u8 = @ptrCast(&try file.reader().readIntLittle(u32));
+    const magic = try file.reader().readIntLittle(u32);
 
-    if (!std.mem.eql(u8, magic[0..4], "ak42")) {
+    if (magic != 0x616b3432) {
         return error.InvalidMagic;
     }
 

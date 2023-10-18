@@ -18,6 +18,26 @@ through the following linked [tests](./test.sh).
 zig build -Doptimize=ReleaseFast run-generator -- models/tinystories_15m --temperature 0 --verbose
 ```
 
+## Run Llama 2 from Hugging Face
+
+```sh
+# Make sure you have git-lfs installed (https://git-lfs.com)
+git lfs install
+git clone https://huggingface.co/meta-llama/Llama-2-7b-hf
+```
+
+```sh
+pip3 install -r requirements.txt
+```
+
+```sh
+python3 convert_hf_model.py /path/to/Llama-2-7b-hf models/llama2_7b_hf
+```
+
+```sh
+zig build -Doptimize=ReleaseFast run-generator -- models/llama2_7b_hf --prompt "Once Upon a Time"
+```
+
 ## Help
 
 ### llama2-generator
