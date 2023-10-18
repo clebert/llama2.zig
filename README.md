@@ -2,15 +2,7 @@
 
 > Inference Llama 2 in pure Zig
 
-This is a Zig port of [llama2.c](https://github.com/karpathy/llama2.c).
-
-The current code is based on:
-https://github.com/karpathy/llama2.c/blob/7325bab657406c427e7c1ca6575bace9a5982744/run.c
-
-I have significantly diverged from the original in terms of architecture and implementation.
-However, my goal is to continue porting the improvements and new features of Andrej's C version into
-this codebase. At present, my Zig port produces the same output as the C version. I ensure this
-through the following linked [tests](./test.sh).
+This project started as a Zig port of [llama2.c](https://github.com/karpathy/llama2.c).
 
 ## Usage
 
@@ -81,7 +73,3 @@ Options:
 - Rotary positional embeddings: [RoFormer: Enhanced Transformer with Rotary Position Embedding](https://arxiv.org/abs/2104.09864)
 - Grouped-query attention: [GQA: Training Generalized Multi-Query Transformer Models from Multi-Head Checkpoints](https://arxiv.org/abs/2305.13245v1)
 - Nucleus sampling: [The Curious Case of Neural Text Degeneration](https://arxiv.org/abs/1904.09751)
-
-## Links
-
-- [Finding the top-p elements as used in Nucleus Sampling](https://blog.virtual-void.net/2023/08/29/calculating-top-p/)
