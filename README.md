@@ -2,6 +2,8 @@
 
 > Inference Llama 2 in pure Zig
 
+![Logo](logo.png)
+
 This project started as a Zig port of [llama2.c](https://github.com/karpathy/llama2.c).
 
 ## Usage
