@@ -54,13 +54,13 @@ pub fn generate(self: *Self, writer: anytype) !void {
     var token: usize = bos_token;
     var next_token: usize = 0;
     var prompt_tokens_index: usize = 0;
-    var n_timed_steps: usize = 0;
+    var n_timed_positions: usize = 0;
     var start_time: i64 = 0;
     var total_time: i64 = 0;
 
     for (0..self.transformer.sequence_length) |position| {
         if (position > 0) {
-            n_timed_steps += 1;
+            n_timed_positions += 1;
             start_time = std.time.milliTimestamp();
         }
 
@@ -88,9 +88,9 @@ pub fn generate(self: *Self, writer: anytype) !void {
         token = next_token;
     }
 
-    if (n_timed_steps > 0 and self.verbose) {
+    if (n_timed_positions > 0 and self.verbose) {
         const average_time =
-            @as(f32, @floatFromInt(total_time)) / @as(f32, @floatFromInt(n_timed_steps));
+            @as(f32, @floatFromInt(total_time)) / @as(f32, @floatFromInt(n_timed_positions));
 
         try writer.print("\n\nachieved: {d:.3} tok/s", .{@as(f32, 1000 / average_time)});
     }
