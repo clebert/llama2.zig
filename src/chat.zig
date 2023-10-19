@@ -15,7 +15,7 @@ system_prompt: []const u8,
 user_prompt: []const u8,
 
 pub fn init(allocator: std.mem.Allocator, args: ChatArgs) !Self {
-    const transformer = try Transformer.init(allocator, args.model_path, args.n_steps);
+    const transformer = try Transformer.init(allocator, args.model_path, args.sequence_length);
 
     errdefer transformer.deinit();
 

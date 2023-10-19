@@ -15,7 +15,7 @@ prompt_tokens: []usize,
 verbose: bool,
 
 pub fn init(allocator: std.mem.Allocator, args: GeneratorArgs) !Self {
-    const transformer = try Transformer.init(allocator, args.model_path, args.n_steps);
+    const transformer = try Transformer.init(allocator, args.model_path, args.sequence_length);
 
     errdefer transformer.deinit();
 
@@ -113,7 +113,7 @@ test "generate tiny story" {
         .temperature = 1,
         .top_p = 0.9,
         .random_seed = 42,
-        .n_steps = 10,
+        .sequence_length = 10,
         .prompt = "There was",
         .verbose = false,
     };

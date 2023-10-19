@@ -5,8 +5,6 @@ const std = @import("std");
 arg_iterator: std.process.ArgIterator,
 model_path: []const u8,
 
-const Option = enum { temperature, top_p, random_seed, n_steps, prompt };
-
 pub fn init(allocator: std.mem.Allocator) !Self {
     var arg_iterator = try std.process.argsWithAllocator(allocator);
 

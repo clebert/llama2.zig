@@ -14,12 +14,20 @@ ffn: FFN,
 hidden_buffer: Tensor(1),
 output_buffer: Tensor(1),
 
-pub fn init(allocator: std.mem.Allocator, model_path: []const u8, n_steps: usize) !Self {
+pub fn init(
+    allocator: std.mem.Allocator,
+    model_path: []const u8,
+    custom_sequence_length: usize,
+) !Self {
     const checkpoint = try Checkpoint.init(allocator, model_path);
 
     errdefer checkpoint.deinit();
 
-    const sequence_length = if (n_steps == 0) checkpoint.max_sequence_length else n_steps;
+    const sequence_length = if (custom_sequence_length == 0)
+        checkpoint.max_sequence_length
+    else
+        custom_sequence_length;
+
     const attention = try Attention.init(allocator, checkpoint, sequence_length);
 
     errdefer attention.deinit();

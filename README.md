@@ -38,11 +38,11 @@ zig build -Doptimize=ReleaseFast run-generator -- models/llama2_7b_hf --prompt "
 Usage: llama2-generator <model_path> [options]
 
 Options:
-  --temperature   <float>  = 1.0
-  --top_p         <float>  = 0.9
-  --random_seed   <int>    = <milli_timestamp>
-  --n_steps       <int>    = <max_sequence_length>
-  --prompt        <string> = ""
+  --temperature     <float>  = 1.0
+  --top_p           <float>  = 0.9
+  --random_seed     <int>    = <milli_timestamp>
+  --sequence_length <int>    = <max_sequence_length>
+  --prompt          <string> = ""
   --verbose
   --help
 ```
@@ -53,12 +53,12 @@ Options:
 Usage: llama2-chat <model_path> [options]
 
 Options:
-  --temperature   <float>  = 1.0
-  --top_p         <float>  = 0.9
-  --random_seed   <int>    = <milli_timestamp>
-  --n_steps       <int>    = <max_sequence_length>
-  --system_prompt <string> = ""
-  --user_prompt   <string> = ""
+  --temperature     <float>  = 1.0
+  --top_p           <float>  = 0.9
+  --random_seed     <int>    = <milli_timestamp>
+  --sequence_length <int>    = <max_sequence_length>
+  --system_prompt   <string> = ""
+  --user_prompt     <string> = ""
   --help
 ```
 
