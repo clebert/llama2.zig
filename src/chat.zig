@@ -28,7 +28,7 @@ pub fn init(allocator: std.mem.Allocator, args: ChatArgs) !Self {
 
     errdefer sampler.deinit();
 
-    return Self{
+    return .{
         .allocator = allocator,
         .transformer = transformer,
         .tokenizer = tokenizer,

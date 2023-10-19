@@ -18,7 +18,7 @@ pub fn init(allocator: std.mem.Allocator) !Self {
         try help(if (std.mem.eql(u8, arg, "--help")) 0 else 1);
     }
 
-    return Self{ .arg_iterator = arg_iterator, .model_path = model_path };
+    return .{ .arg_iterator = arg_iterator, .model_path = model_path };
 }
 
 pub fn deinit(self: *Self) void {

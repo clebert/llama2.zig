@@ -227,7 +227,7 @@ fn readV1(allocator: std.mem.Allocator, file: std.fs.File) !Self {
         try output_matrix.read(file);
     }
 
-    return Self{
+    return .{
         .allocator = allocator,
         .embedding_size = embedding_size,
         .ffn_hidden_size = ffn_hidden_size,
@@ -375,7 +375,7 @@ fn readLegacy(allocator: std.mem.Allocator, file: std.fs.File) !Self {
         try output_matrix.read(file);
     }
 
-    return Self{
+    return .{
         .allocator = allocator,
         .embedding_size = embedding_size,
         .ffn_hidden_size = ffn_hidden_size,

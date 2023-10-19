@@ -28,7 +28,7 @@ pub fn init(allocator: std.mem.Allocator, checkpoint: Checkpoint) !Self {
 
     errdefer output_buffer.deinit();
 
-    return Self{
+    return .{
         .allocator = allocator,
         .checkpoint = checkpoint,
         .input_buffer = input_buffer,

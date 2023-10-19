@@ -14,7 +14,7 @@ pub fn init(allocator: std.mem.Allocator, args: anytype, vocab_size: usize) !Sel
     const probability_index_pairs_buffer =
         try allocator.alloc(ProbabilityIndexPair, vocab_size);
 
-    return Self{
+    return .{
         .allocator = allocator,
         .probability_index_pairs_buffer = probability_index_pairs_buffer,
         .temperature = args.temperature,

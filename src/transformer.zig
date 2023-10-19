@@ -44,7 +44,7 @@ pub fn init(
 
     errdefer output_buffer.deinit();
 
-    return Self{
+    return .{
         .allocator = allocator,
         .checkpoint = checkpoint,
         .sequence_length = sequence_length,

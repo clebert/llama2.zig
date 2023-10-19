@@ -45,7 +45,7 @@ pub fn init(allocator: std.mem.Allocator, model_path: []const u8, vocab_size: us
 
     const sorted_vocab = try sortVocab(allocator, vocab);
 
-    return Self{
+    return .{
         .allocator = allocator,
         .max_word_length = max_word_length,
         .vocab = vocab,

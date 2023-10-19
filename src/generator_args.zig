@@ -68,7 +68,7 @@ pub fn init(allocator: std.mem.Allocator) !Self {
         try help(1);
     }
 
-    return Self{
+    return .{
         .arg_iterator = arg_iterator,
         .model_path = model_path,
         .temperature = @max(@min(temperature orelse 1, 1), 0),

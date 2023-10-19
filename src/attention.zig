@@ -53,7 +53,7 @@ pub fn init(allocator: std.mem.Allocator, checkpoint: Checkpoint, sequence_lengt
 
     errdefer allocator.free(scores);
 
-    return Self{
+    return .{
         .allocator = allocator,
         .checkpoint = checkpoint,
         .head_size = head_size,

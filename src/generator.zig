@@ -30,7 +30,7 @@ pub fn init(allocator: std.mem.Allocator, args: GeneratorArgs) !Self {
 
     const prompt_tokens = try tokenizer.encode(allocator, args.prompt);
 
-    return Self{
+    return .{
         .allocator = allocator,
         .transformer = transformer,
         .tokenizer = tokenizer,
