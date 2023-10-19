@@ -4,9 +4,11 @@
 
 ![Logo](logo.png)
 
-This project started as a Zig port of [llama2.c](https://github.com/karpathy/llama2.c).
+This project is a port of Andrej Karpathy's [llama2.c](https://github.com/karpathy/llama2.c) into Zig, aimed at enhancing understanding of transformer models through clean, well-structured code. Utilizing a multi-file approach and descriptive variable names, it relies exclusively on the Zig standard library, without the need for external dependencies.
 
 ## Usage
+
+Build and run the `llama2-generator` for text generation:
 
 ```sh
 zig build -Doptimize=ReleaseFast
@@ -26,16 +28,22 @@ achieved: 726.974 tok/s
 
 ## Run Llama 2 from Hugging Face
 
+Install `git-lfs` and clone the Llama 2 model from Hugging Face:
+
 ```sh
 # Make sure you have git-lfs installed (https://git-lfs.com)
 git lfs install
 git clone https://huggingface.co/meta-llama/Llama-2-7b-hf
 ```
 
+Install the necessary Python packages and convert the Hugging Face model:
+
 ```sh
 pip3 install -r requirements.txt
 python3 convert_hf_model.py /path/to/Llama-2-7b-hf models/llama2_7b_hf
 ```
+
+Build and run the `llama2-generator` for text generation:
 
 ```sh
 zig build -Doptimize=ReleaseFast
