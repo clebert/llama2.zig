@@ -122,7 +122,7 @@ fn _computeScalarProduct(
     var output_values: @Vector(vector_size, f32) = @splat(0.0);
     var index: usize = 0;
 
-    while (index <= input_1.values.len - vector_size) : (index += vector_size) {
+    while (index < input_1.values.len) : (index += vector_size) {
         output_values +=
             @as(@Vector(vector_size, f32), input_1.values[index..][0..vector_size].*) *
             @as(@Vector(vector_size, f32), input_2.values[index..][0..vector_size].*);
