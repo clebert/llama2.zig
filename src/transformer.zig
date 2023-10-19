@@ -55,7 +55,7 @@ pub fn init(
     };
 }
 
-pub fn deinit(self: *const Self) void {
+pub fn deinit(self: Self) void {
     self.checkpoint.deinit();
     self.attention.deinit();
     self.ffn.deinit();
@@ -63,7 +63,7 @@ pub fn deinit(self: *const Self) void {
     self.output_buffer.deinit();
 }
 
-pub fn forward(self: *const Self, token: usize, position: usize) void {
+pub fn forward(self: Self, token: usize, position: usize) void {
     const weights = self.checkpoint.weights;
 
     @memcpy(self.hidden_buffer.values, weights.token_embedding_vectors.slice(token).values);

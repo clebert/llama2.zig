@@ -30,14 +30,14 @@ pub fn QuantizedTensor(comptime n_dims: comptime_int) type {
             };
         }
 
-        pub fn deinit(self: *const Self) void {
+        pub fn deinit(self: Self) void {
             if (self.allocator) |allocator| {
                 allocator.free(self.values);
                 allocator.free(self.scaling_factors);
             }
         }
 
-        pub fn slice(self: *const Self, index: usize) !QuantizedTensor(n_dims - 1) {
+        pub fn slice(self: Self, index: usize) !QuantizedTensor(n_dims - 1) {
             comptime if (n_dims < 2) @compileError("n_dims < 2");
 
             const n_sub_values = @reduce(.Mul, @as(@Vector(n_dims - 1, usize), self.sub_dims));
@@ -58,7 +58,7 @@ pub fn QuantizedTensor(comptime n_dims: comptime_int) type {
         }
 
         pub fn computeMatrixVectorMultiplication(
-            self: *const Self,
+            self: Self,
             input: anytype,
             output: anytype,
         ) !void {
@@ -67,7 +67,7 @@ pub fn QuantizedTensor(comptime n_dims: comptime_int) type {
             }
         }
 
-        fn computeScalarProduct(self: *const Self, other: anytype) !f32 {
+        fn computeScalarProduct(self: Self, other: anytype) !f32 {
             // https://github.com/karpathy/llama2.c/pull/312#issuecomment-1684140683
             if (self.group_size == 32) {
                 return _computeScalarProduct(32, self, other);

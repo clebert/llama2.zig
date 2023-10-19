@@ -38,7 +38,7 @@ pub fn init(allocator: std.mem.Allocator, checkpoint: Checkpoint) !Self {
     };
 }
 
-pub fn deinit(self: *const Self) void {
+pub fn deinit(self: Self) void {
     self.input_buffer.deinit();
     self.gate_buffer.deinit();
     self.hidden_buffer.deinit();
@@ -46,7 +46,7 @@ pub fn deinit(self: *const Self) void {
 }
 
 // SwiGLU activation function: https://arxiv.org/abs/2002.05202
-pub fn forward(self: *const Self, layer: usize) void {
+pub fn forward(self: Self, layer: usize) void {
     @setFloatMode(.Optimized);
 
     const weights = self.checkpoint.weights;

@@ -67,7 +67,7 @@ pub fn init(allocator: std.mem.Allocator, checkpoint: Checkpoint, sequence_lengt
     };
 }
 
-pub fn deinit(self: *const Self) void {
+pub fn deinit(self: Self) void {
     self.input_buffer.deinit();
     self.output_buffer.deinit();
     self.query_buffer.deinit();
@@ -76,7 +76,7 @@ pub fn deinit(self: *const Self) void {
     self.allocator.free(self.scores);
 }
 
-pub fn forward(self: *const Self, layer: usize, position: usize) void {
+pub fn forward(self: Self, layer: usize, position: usize) void {
     const weights = self.checkpoint.weights;
     const query_matrix = weights.attention_query_matrices.slice(layer);
     const key_matrix = weights.attention_key_matrices.slice(layer);
@@ -99,7 +99,7 @@ pub fn forward(self: *const Self, layer: usize, position: usize) void {
 }
 
 // Rotary positional embeddings: https://arxiv.org/abs/2104.09864
-fn computeRoPE(self: *const Self, position: usize, key_buffer: Tensor(2)) void {
+fn computeRoPE(self: Self, position: usize, key_buffer: Tensor(2)) void {
     @setFloatMode(.Optimized);
 
     std.debug.assert(self.query_buffer.values.len % key_buffer.values.len == 0);
@@ -133,7 +133,7 @@ fn computeRoPE(self: *const Self, position: usize, key_buffer: Tensor(2)) void {
 }
 
 // Grouped-query attention: https://arxiv.org/abs/2305.13245v1
-fn computeGQA(self: *const Self, layer: usize, current_position: usize, head: usize) void {
+fn computeGQA(self: Self, layer: usize, current_position: usize, head: usize) void {
     @setFloatMode(.Optimized);
 
     const query_vector = self.query_buffer.slice(head);

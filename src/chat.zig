@@ -38,7 +38,7 @@ pub fn init(allocator: std.mem.Allocator, args: ChatArgs) !Self {
     };
 }
 
-pub fn deinit(self: *const Self) void {
+pub fn deinit(self: Self) void {
     self.transformer.deinit();
     self.tokenizer.deinit();
     self.sampler.deinit();

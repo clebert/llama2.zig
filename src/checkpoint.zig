@@ -59,7 +59,7 @@ pub fn init(allocator: std.mem.Allocator, model_path: []const u8) !Self {
 }
 
 // https://github.com/karpathy/llama2.c/blob/d9862069e7ef665fe6309e3c17398ded2f121bf5/export.py#L132
-pub fn writeV1(self: *const Self, allocator: std.mem.Allocator, model_path: []const u8) !void {
+pub fn writeV1(self: Self, allocator: std.mem.Allocator, model_path: []const u8) !void {
     const path = try std.fs.path.join(
         allocator,
         &[_][]const u8{ model_path, "checkpoint_v1.bin" },
@@ -403,7 +403,7 @@ fn readLegacy(allocator: std.mem.Allocator, file: std.fs.File) !Self {
     };
 }
 
-pub fn deinit(self: *const Self) void {
+pub fn deinit(self: Self) void {
     self.weights.token_embedding_vectors.deinit();
     self.weights.attention_norm_vectors.deinit();
     self.weights.attention_query_matrices.deinit();

@@ -19,7 +19,7 @@ Lily wanted to play with the ball, but it was too high up in the sky. She tried 
 Lily found a stick and tried to hit the ball. But the stick was too short. She tried again and again, but she couldn't reach it. She felt sad.
 Suddenly, a kind man came by and saw Lily. He asked her what was wrong. Lily told him about the ball. The man smiled and said, "I have a useful idea!" He took out a long stick and used it to knock the ball down. Lily was so happy! She thanked the man and they played together in the sunshine.
 
-achieved: 701.587 tok/s
+achieved: 712.903 tok/s
 ```
 
 ## Run Llama 2 from Hugging Face

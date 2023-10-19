@@ -20,25 +20,25 @@ pub fn Tensor(comptime n_dims: comptime_int) type {
             };
         }
 
-        pub fn deinit(self: *const Self) void {
+        pub fn deinit(self: Self) void {
             if (self.allocator) |allocator| {
                 allocator.free(self.values);
             }
         }
 
-        pub fn read(self: *const Self, file: std.fs.File) !void {
+        pub fn read(self: Self, file: std.fs.File) !void {
             const values: [*]u8 = @ptrCast(self.values);
 
             try file.reader().readNoEof(values[0 .. self.values.len * @sizeOf(f32)]);
         }
 
-        pub fn write(self: *const Self, file: std.fs.File) !void {
+        pub fn write(self: Self, file: std.fs.File) !void {
             const values: [*]u8 = @ptrCast(self.values);
 
             try file.writer().writeAll(values[0 .. self.values.len * @sizeOf(f32)]);
         }
 
-        pub fn slice(self: *const Self, index: usize) Tensor(n_dims - 1) {
+        pub fn slice(self: Self, index: usize) Tensor(n_dims - 1) {
             comptime if (n_dims < 2) @compileError("n_dims < 2");
 
             const n_sub_values = @reduce(.Mul, @as(@Vector(n_dims - 1, usize), self.sub_dims));
@@ -50,7 +50,7 @@ pub fn Tensor(comptime n_dims: comptime_int) type {
             };
         }
 
-        pub fn add(self: *const Self, other: anytype) void {
+        pub fn add(self: Self, other: anytype) void {
             @setFloatMode(.Optimized);
 
             std.debug.assert(self.values.len == other.values.len);
@@ -60,17 +60,13 @@ pub fn Tensor(comptime n_dims: comptime_int) type {
             }
         }
 
-        pub fn computeMatrixVectorMultiplication(
-            self: *const Self,
-            input: anytype,
-            output: anytype,
-        ) void {
+        pub fn computeMatrixVectorMultiplication(self: Self, input: anytype, output: anytype) void {
             for (output.values, 0..) |*value, index| {
-                value.* = self.slice(index).computeScalarProduct(&input);
+                value.* = self.slice(index).computeScalarProduct(input);
             }
         }
 
-        pub fn computeScalarProduct(self: *const Self, other: anytype) f32 {
+        pub fn computeScalarProduct(self: Self, other: anytype) f32 {
             if (self.values.len % 32 == 0) {
                 return _computeScalarProduct(32, self, other);
             }
@@ -87,7 +83,7 @@ pub fn Tensor(comptime n_dims: comptime_int) type {
         }
 
         // Pre-normalization using RMSNorm: https://arxiv.org/abs/1910.07467
-        pub fn computeRMSNorm(self: *const Self, weight: anytype, output: anytype) void {
+        pub fn computeRMSNorm(self: Self, weight: anytype, output: anytype) void {
             @setFloatMode(.Optimized);
 
             std.debug.assert(output.values.len == self.values.len);

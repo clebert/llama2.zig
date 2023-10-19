@@ -54,7 +54,7 @@ pub fn init(allocator: std.mem.Allocator, model_path: []const u8, vocab_size: us
     };
 }
 
-pub fn deinit(self: *const Self) void {
+pub fn deinit(self: Self) void {
     for (self.vocab) |word| {
         self.allocator.free(word);
     }
@@ -64,11 +64,7 @@ pub fn deinit(self: *const Self) void {
     self.allocator.free(self.sorted_vocab);
 }
 
-pub fn encode(
-    self: *const Self,
-    allocator: std.mem.Allocator,
-    text: []const u8,
-) ![]usize {
+pub fn encode(self: Self, allocator: std.mem.Allocator, text: []const u8) ![]usize {
     var double_word_buffer = try allocator.alloc(u8, self.max_word_length * 2);
 
     defer allocator.free(double_word_buffer);
@@ -90,14 +86,14 @@ pub fn encode(
     return merged_tokens_copy;
 }
 
-pub fn decode(self: *const Self, token: usize, bos: bool) []const u8 {
+pub fn decode(self: Self, token: usize, bos: bool) []const u8 {
     const word = self.vocab[token];
 
     // https://github.com/karpathy/llama2.c/blob/7ac65cb2c2b169050747be92011b7bebdd1b4544/run.c#L425
     return if (bos and std.ascii.isWhitespace(word[0])) word[1..] else word;
 }
 
-fn encodeCodepoints(self: *const Self, allocator: std.mem.Allocator, text: []const u8) ![]usize {
+fn encodeCodepoints(self: Self, allocator: std.mem.Allocator, text: []const u8) ![]usize {
     var tokens = std.ArrayList(usize).init(allocator);
 
     errdefer tokens.deinit();
@@ -125,7 +121,7 @@ fn encodeCodepoints(self: *const Self, allocator: std.mem.Allocator, text: []con
     return tokens.toOwnedSlice();
 }
 
-fn mergeBestWordPair(self: *const Self, tokens: []usize, double_word_buffer: []u8) bool {
+fn mergeBestWordPair(self: Self, tokens: []usize, double_word_buffer: []u8) bool {
     if (tokens.len < 1) {
         return false;
     }
@@ -168,7 +164,7 @@ fn mergeBestWordPair(self: *const Self, tokens: []usize, double_word_buffer: []u
     return false;
 }
 
-fn lookupToken(self: *const Self, word: []const u8) ?usize {
+fn lookupToken(self: Self, word: []const u8) ?usize {
     var left: usize = 0;
     var right = self.sorted_vocab.len;
 

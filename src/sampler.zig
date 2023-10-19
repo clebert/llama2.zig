@@ -23,7 +23,7 @@ pub fn init(allocator: std.mem.Allocator, args: anytype, vocab_size: usize) !Sel
     };
 }
 
-pub fn deinit(self: *const Self) void {
+pub fn deinit(self: Self) void {
     self.allocator.free(self.probability_index_pairs_buffer);
 }
 
