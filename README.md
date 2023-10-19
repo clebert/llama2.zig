@@ -37,7 +37,15 @@ python3 convert_hf_model.py /path/to/Llama-2-7b-hf models/llama2_7b_hf
 
 ```sh
 zig build -Doptimize=ReleaseFast
-./zig-out/bin/llama2-generator models/llama2_7b_hf --prompt "Once Upon a Time"
+./zig-out/bin/llama2-generator models/llama2_7b_hf --temperature 0 --sequence_length 28 --prompt "Once Upon a Time" --verbose
+```
+
+The output on an Apple M1 Pro with 32 GB of memory:
+
+```
+Once Upon a Time in Hollywood is a 2019 American comedy-drama film written and directed by Quentin Tarantino
+
+achieved: 1.797 tok/s
 ```
 
 ## Help
