@@ -32,14 +32,12 @@ git clone https://huggingface.co/meta-llama/Llama-2-7b-hf
 
 ```sh
 pip3 install -r requirements.txt
-```
-
-```sh
 python3 convert_hf_model.py /path/to/Llama-2-7b-hf models/llama2_7b_hf
 ```
 
 ```sh
-zig build -Doptimize=ReleaseFast run-generator -- models/llama2_7b_hf --prompt "Once Upon a Time"
+zig build -Doptimize=ReleaseFast
+./zig-out/bin/llama2-generator models/llama2_7b_hf --prompt "Once Upon a Time"
 ```
 
 ## Help
