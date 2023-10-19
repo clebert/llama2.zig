@@ -11,8 +11,8 @@ allocator: std.mem.Allocator,
 transformer: Transformer,
 tokenizer: Tokenizer,
 sampler: Sampler,
-user_prompt: []const u8,
 system_prompt: []const u8,
+user_prompt: []const u8,
 
 pub fn init(allocator: std.mem.Allocator, args: ChatArgs) !Self {
     const transformer = try Transformer.init(allocator, args.model_path, args.n_steps);
@@ -33,8 +33,8 @@ pub fn init(allocator: std.mem.Allocator, args: ChatArgs) !Self {
         .transformer = transformer,
         .tokenizer = tokenizer,
         .sampler = sampler,
-        .user_prompt = args.prompt,
         .system_prompt = args.system_prompt,
+        .user_prompt = args.user_prompt,
     };
 }
 
@@ -44,10 +44,10 @@ pub fn deinit(self: *const Self) void {
     self.sampler.deinit();
 }
 
-const user_prompt_template_start = "[INST] ";
-const user_prompt_template_close = " [/INST]";
 const system_prompt_template_start = "<<SYS>>\n";
 const system_prompt_template_close = "\n<</SYS>>\n\n";
+const user_prompt_template_start = "[INST] ";
+const user_prompt_template_close = " [/INST]";
 
 const bos_token = 1; // beginning of sequence
 const eos_token = 2; // end of sequence
