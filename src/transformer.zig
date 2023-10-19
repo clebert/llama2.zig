@@ -61,16 +61,16 @@ pub fn forward(self: *const Self, token: usize, position: usize) void {
     @memcpy(self.hidden_buffer.values, weights.token_embedding_vectors.slice(token).values);
 
     for (0..self.checkpoint.n_layers) |layer| {
-        weights.attention_norm_vectors.slice(layer).computeRMSNorm(
-            self.hidden_buffer,
+        self.hidden_buffer.computeRMSNorm(
+            weights.attention_norm_vectors.slice(layer),
             self.attention.input_buffer,
         );
 
         self.attention.forward(layer, position);
         self.hidden_buffer.add(self.attention.output_buffer);
 
-        weights.ffn_norm_vectors.slice(layer).computeRMSNorm(
-            self.hidden_buffer,
+        self.hidden_buffer.computeRMSNorm(
+            weights.ffn_norm_vectors.slice(layer),
             self.ffn.input_buffer,
         );
 
@@ -78,6 +78,6 @@ pub fn forward(self: *const Self, token: usize, position: usize) void {
         self.hidden_buffer.add(self.ffn.output_buffer);
     }
 
-    weights.output_norm_vector.computeRMSNorm(self.hidden_buffer, self.hidden_buffer);
+    self.hidden_buffer.computeRMSNorm(weights.output_norm_vector, self.hidden_buffer);
     weights.output_matrix.computeMatrixVectorMultiplication(self.hidden_buffer, self.output_buffer);
 }

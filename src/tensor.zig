@@ -50,6 +50,16 @@ pub fn Tensor(comptime n_dims: comptime_int) type {
             };
         }
 
+        pub fn add(self: *const Self, other: anytype) void {
+            @setFloatMode(.Optimized);
+
+            std.debug.assert(self.values.len == other.values.len);
+
+            for (self.values, 0..) |*value, index| {
+                value.* += other.values[index];
+            }
+        }
+
         pub fn computeMatrixVectorMultiplication(
             self: *const Self,
             input: anytype,
@@ -76,35 +86,25 @@ pub fn Tensor(comptime n_dims: comptime_int) type {
             return _computeScalarProduct(4, self, other);
         }
 
-        pub fn add(self: *const Self, other: anytype) void {
-            @setFloatMode(.Optimized);
-
-            std.debug.assert(self.values.len == other.values.len);
-
-            for (self.values, 0..) |*value, index| {
-                value.* += other.values[index];
-            }
-        }
-
         // Pre-normalization using RMSNorm: https://arxiv.org/abs/1910.07467
-        pub fn computeRMSNorm(self: *const Self, input: anytype, output: anytype) void {
+        pub fn computeRMSNorm(self: *const Self, weights: anytype, output: anytype) void {
             @setFloatMode(.Optimized);
 
             std.debug.assert(output.values.len == self.values.len);
-            std.debug.assert(output.values.len == input.values.len);
+            std.debug.assert(output.values.len == weights.values.len);
 
             var rms_scaling_factor: f32 = 0;
 
-            for (input.values) |value| {
+            for (self.values) |value| {
                 rms_scaling_factor += value * value;
             }
 
-            rms_scaling_factor /= @floatFromInt(input.values.len);
+            rms_scaling_factor /= @floatFromInt(self.values.len);
             rms_scaling_factor += 1e-5;
             rms_scaling_factor = 1 / std.math.sqrt(rms_scaling_factor);
 
             for (output.values, 0..) |*value, index| {
-                value.* = self.values[index] * rms_scaling_factor * input.values[index];
+                value.* = weights.values[index] * rms_scaling_factor * self.values[index];
             }
         }
     };
