@@ -2,8 +2,8 @@ const Self = @This();
 
 const std = @import("std");
 const Checkpoint = @import("checkpoint.zig");
+const math = @import("./math.zig");
 const Tensor = @import("./tensor.zig").Tensor;
-const vector = @import("./vector.zig");
 
 allocator: std.mem.Allocator,
 checkpoint: Checkpoint,
@@ -76,7 +76,7 @@ pub fn deinit(self: *const Self) void {
     self.allocator.free(self.scores);
 }
 
-pub fn forward(self: *const Self, layer: usize, position: usize) !void {
+pub fn forward(self: *const Self, layer: usize, position: usize) void {
     const weights = self.checkpoint.weights;
     const query_matrix = weights.attention_query_matrices.slice(layer);
     const key_matrix = weights.attention_key_matrices.slice(layer);
@@ -85,9 +85,9 @@ pub fn forward(self: *const Self, layer: usize, position: usize) !void {
     const key_buffer = self.key_cache.slice(layer).slice(position);
     const value_buffer = self.value_cache.slice(layer).slice(position);
 
-    query_matrix.multiplyVector(self.input_buffer, self.query_buffer);
-    key_matrix.multiplyVector(self.input_buffer, key_buffer);
-    value_matrix.multiplyVector(self.input_buffer, value_buffer);
+    query_matrix.computeMatrixVectorMultiplication(self.input_buffer, self.query_buffer);
+    key_matrix.computeMatrixVectorMultiplication(self.input_buffer, key_buffer);
+    value_matrix.computeMatrixVectorMultiplication(self.input_buffer, value_buffer);
 
     self.rope(position, key_buffer);
 
@@ -95,18 +95,18 @@ pub fn forward(self: *const Self, layer: usize, position: usize) !void {
         self.gqa(layer, position, head);
     }
 
-    output_matrix.multiplyVector(self.input_buffer, self.output_buffer);
+    output_matrix.computeMatrixVectorMultiplication(self.input_buffer, self.output_buffer);
 }
 
 // Rotary positional embeddings: https://arxiv.org/abs/2104.09864
 fn rope(self: *const Self, position: usize, key_buffer: Tensor(2)) void {
     @setFloatMode(.Optimized);
 
-    std.debug.assert(self.query_buffer.data.len % key_buffer.data.len == 0);
+    std.debug.assert(self.query_buffer.values.len % key_buffer.values.len == 0);
 
     var index: usize = 0;
 
-    while (index < self.query_buffer.data.len) : (index += 2) {
+    while (index < self.query_buffer.values.len) : (index += 2) {
         const head: f32 = @floatFromInt(index % self.head_size);
 
         const frequency =
@@ -116,18 +116,18 @@ fn rope(self: *const Self, position: usize, key_buffer: Tensor(2)) void {
         const real_rotation_value: f32 = std.math.cos(rotation_scaling_factor);
         const imag_rotation_value: f32 = std.math.sin(rotation_scaling_factor);
 
-        const q_0 = self.query_buffer.data[index];
-        const q_1 = self.query_buffer.data[index + 1];
+        const q_0 = self.query_buffer.values[index];
+        const q_1 = self.query_buffer.values[index + 1];
 
-        self.query_buffer.data[index] = q_0 * real_rotation_value - q_1 * imag_rotation_value;
-        self.query_buffer.data[index + 1] = q_0 * imag_rotation_value + q_1 * real_rotation_value;
+        self.query_buffer.values[index] = q_0 * real_rotation_value - q_1 * imag_rotation_value;
+        self.query_buffer.values[index + 1] = q_0 * imag_rotation_value + q_1 * real_rotation_value;
 
-        if (index < key_buffer.data.len) {
-            const k_0 = key_buffer.data[index];
-            const k_1 = key_buffer.data[index + 1];
+        if (index < key_buffer.values.len) {
+            const k_0 = key_buffer.values[index];
+            const k_1 = key_buffer.values[index + 1];
 
-            key_buffer.data[index] = k_0 * real_rotation_value - k_1 * imag_rotation_value;
-            key_buffer.data[index + 1] = k_0 * imag_rotation_value + k_1 * real_rotation_value;
+            key_buffer.values[index] = k_0 * real_rotation_value - k_1 * imag_rotation_value;
+            key_buffer.values[index + 1] = k_0 * imag_rotation_value + k_1 * real_rotation_value;
         }
     }
 }
@@ -146,22 +146,21 @@ fn gqa(self: *const Self, layer: usize, current_position: usize, head: usize) vo
     for (0..next_position) |position| {
         const key_vector = self.key_cache.slice(layer).slice(position).slice(query_group);
 
-        self.scores[position] =
-            vector.dot(query_vector.data, key_vector.data) / self.head_size_sqrt;
+        self.scores[position] = query_vector.computeScalarProduct(key_vector) / self.head_size_sqrt;
     }
 
-    vector.softmax(self.scores[0..next_position]);
+    math.softmax(self.scores[0..next_position]);
 
     const attention_buffer = self.input_buffer.slice(head);
 
-    @memset(attention_buffer.data, 0);
+    @memset(attention_buffer.values, 0);
 
     for (0..next_position) |position| {
         const value_vector = self.value_cache.slice(layer).slice(position).slice(query_group);
         const weight = self.scores[position];
 
         for (0..self.head_size) |index| {
-            attention_buffer.data[index] += value_vector.data[index] * weight;
+            attention_buffer.values[index] += value_vector.values[index] * weight;
         }
     }
 }

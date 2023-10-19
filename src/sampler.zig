@@ -2,7 +2,7 @@ const Self = @This();
 
 const builtin = @import("builtin");
 const std = @import("std");
-const vector = @import("vector.zig");
+const math = @import("math.zig");
 
 allocator: std.mem.Allocator,
 probability_index_pairs_buffer: []ProbabilityIndexPair,
@@ -29,14 +29,14 @@ pub fn deinit(self: *const Self) void {
 
 pub fn sample(self: *Self, probability_distribution: []f32) usize {
     if (self.temperature == 0) {
-        return vector.argmax(probability_distribution);
+        return math.argmax(probability_distribution);
     }
 
     for (probability_distribution) |*probability| {
         probability.* /= self.temperature;
     }
 
-    vector.softmax(probability_distribution);
+    math.softmax(probability_distribution);
 
     if (self.top_p <= 0 or self.top_p >= 1) {
         return self.sampleMultinomial(probability_distribution);

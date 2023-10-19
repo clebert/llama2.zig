@@ -1,5 +1,4 @@
 const std = @import("std");
-const vector = @import("./vector.zig");
 
 pub fn Tensor(comptime n_dims: comptime_int) type {
     comptime if (n_dims < 1) @compileError("n_dims < 1");
@@ -9,62 +8,125 @@ pub fn Tensor(comptime n_dims: comptime_int) type {
 
         allocator: ?std.mem.Allocator,
         sub_dims: [n_dims - 1]usize,
-        data: []f32,
+        values: []f32,
 
         pub fn init(allocator: std.mem.Allocator, dims: [n_dims]usize) !Self {
-            const data_size = @reduce(.Mul, @as(@Vector(n_dims, usize), dims));
+            const n_values = @reduce(.Mul, @as(@Vector(n_dims, usize), dims));
 
             return .{
                 .allocator = allocator,
                 .sub_dims = dims[1..].*,
-                .data = try allocator.alloc(f32, data_size),
+                .values = try allocator.alloc(f32, n_values),
             };
         }
 
         pub fn deinit(self: *const Self) void {
             if (self.allocator) |allocator| {
-                allocator.free(self.data);
+                allocator.free(self.values);
             }
         }
 
         pub fn read(self: *const Self, file: std.fs.File) !void {
-            const buffer: [*]u8 = @ptrCast(self.data);
+            const values: [*]u8 = @ptrCast(self.values);
 
-            try file.reader().readNoEof(buffer[0 .. self.data.len * @sizeOf(f32)]);
+            try file.reader().readNoEof(values[0 .. self.values.len * @sizeOf(f32)]);
         }
 
         pub fn write(self: *const Self, file: std.fs.File) !void {
-            const buffer: [*]u8 = @ptrCast(self.data);
+            const values: [*]u8 = @ptrCast(self.values);
 
-            try file.writer().writeAll(buffer[0 .. self.data.len * @sizeOf(f32)]);
+            try file.writer().writeAll(values[0 .. self.values.len * @sizeOf(f32)]);
         }
 
         pub fn slice(self: *const Self, index: usize) Tensor(n_dims - 1) {
             comptime if (n_dims < 2) @compileError("n_dims < 2");
 
-            const sub_data_size = @reduce(.Mul, @as(@Vector(n_dims - 1, usize), self.sub_dims));
+            const n_sub_values = @reduce(.Mul, @as(@Vector(n_dims - 1, usize), self.sub_dims));
 
             return .{
                 .allocator = null,
                 .sub_dims = self.sub_dims[1..].*,
-                .data = self.data[index * sub_data_size ..][0..sub_data_size],
+                .values = self.values[index * n_sub_values ..][0..n_sub_values],
             };
         }
 
-        pub fn multiplyVector(self: *const Self, input: anytype, output: anytype) void {
-            comptime if (n_dims < 2) @compileError("n_dims < 2");
+        pub fn computeMatrixVectorMultiplication(
+            self: *const Self,
+            input: anytype,
+            output: anytype,
+        ) void {
+            for (output.values, 0..) |*value, index| {
+                value.* = self.slice(index).computeScalarProduct(&input);
+            }
+        }
 
-            const sub_data_size = @reduce(.Mul, @as(@Vector(n_dims - 1, usize), self.sub_dims));
+        pub fn computeScalarProduct(self: *const Self, other: anytype) f32 {
+            if (self.values.len % 32 == 0) {
+                return _computeScalarProduct(32, self, other);
+            }
 
-            std.debug.assert(input.data.len == sub_data_size);
-            std.debug.assert(output.data.len == self.data.len / sub_data_size);
+            if (self.values.len % 16 == 0) {
+                return _computeScalarProduct(16, self, other);
+            }
 
-            for (output.data, 0..) |*value, index| {
-                value.* = vector.dot(
-                    self.data[index * sub_data_size ..][0..sub_data_size],
-                    input.data,
-                );
+            if (self.values.len % 8 == 0) {
+                return _computeScalarProduct(8, self, other);
+            }
+
+            return _computeScalarProduct(4, self, other);
+        }
+
+        pub fn add(self: *const Self, other: anytype) void {
+            @setFloatMode(.Optimized);
+
+            std.debug.assert(self.values.len == other.values.len);
+
+            for (self.values, 0..) |*value, index| {
+                value.* += other.values[index];
+            }
+        }
+
+        // Pre-normalization using RMSNorm: https://arxiv.org/abs/1910.07467
+        pub fn computeRMSNorm(self: *const Self, input: anytype, output: anytype) void {
+            @setFloatMode(.Optimized);
+
+            std.debug.assert(output.values.len == self.values.len);
+            std.debug.assert(output.values.len == input.values.len);
+
+            var rms_scaling_factor: f32 = 0;
+
+            for (input.values) |value| {
+                rms_scaling_factor += value * value;
+            }
+
+            rms_scaling_factor /= @floatFromInt(input.values.len);
+            rms_scaling_factor += 1e-5;
+            rms_scaling_factor = 1 / std.math.sqrt(rms_scaling_factor);
+
+            for (output.values, 0..) |*value, index| {
+                value.* = self.values[index] * rms_scaling_factor * input.values[index];
             }
         }
     };
+}
+
+fn _computeScalarProduct(
+    comptime vector_size: comptime_int,
+    input_1: anytype,
+    input_2: anytype,
+) f32 {
+    @setFloatMode(.Optimized);
+
+    std.debug.assert(input_1.values.len == input_2.values.len);
+
+    var output_values: @Vector(vector_size, f32) = @splat(0.0);
+    var index: usize = 0;
+
+    while (index <= input_1.values.len - vector_size) : (index += vector_size) {
+        output_values +=
+            @as(@Vector(vector_size, f32), input_1.values[index..][0..vector_size].*) *
+            @as(@Vector(vector_size, f32), input_2.values[index..][0..vector_size].*);
+    }
+
+    return @reduce(.Add, output_values);
 }

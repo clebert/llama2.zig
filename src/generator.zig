@@ -64,7 +64,7 @@ pub fn generate(self: *Self, writer: anytype) !void {
             start_time = std.time.milliTimestamp();
         }
 
-        try self.transformer.forward(token, position);
+        self.transformer.forward(token, position);
 
         if (start_time > 0) {
             total_time += std.time.milliTimestamp() - start_time;
@@ -74,7 +74,7 @@ pub fn generate(self: *Self, writer: anytype) !void {
             next_token = self.prompt_tokens[prompt_tokens_index];
             prompt_tokens_index += 1;
         } else {
-            next_token = self.sampler.sample(self.transformer.output_buffer.data);
+            next_token = self.sampler.sample(self.transformer.output_buffer.values);
         }
 
         if (next_token == bos_token or next_token == eos_token) {

@@ -68,7 +68,7 @@ pub fn start(self: *Self, allocator: std.mem.Allocator) !void {
     };
 
     for (0..self.transformer.sequence_length) |position| {
-        try self.transformer.forward(token, position);
+        self.transformer.forward(token, position);
 
         if (token == bos_token and user_turn) {
             var user_prompt = std.ArrayList(u8).init(allocator);
@@ -129,7 +129,7 @@ pub fn start(self: *Self, allocator: std.mem.Allocator) !void {
         user_prompt_tokens_index += 1;
 
         if (next_token == 0) {
-            next_token = self.sampler.sample(self.transformer.output_buffer.data);
+            next_token = self.sampler.sample(self.transformer.output_buffer.values);
         }
 
         if (next_token == eos_token) {

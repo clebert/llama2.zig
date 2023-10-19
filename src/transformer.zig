@@ -5,7 +5,6 @@ const Attention = @import("attention.zig");
 const Checkpoint = @import("checkpoint.zig");
 const FFN = @import("ffn.zig");
 const Tensor = @import("./tensor.zig").Tensor;
-const vector = @import("vector.zig");
 
 allocator: std.mem.Allocator,
 checkpoint: Checkpoint,
@@ -56,36 +55,29 @@ pub fn deinit(self: *const Self) void {
     self.output_buffer.deinit();
 }
 
-pub fn forward(self: *const Self, token: usize, position: usize) !void {
+pub fn forward(self: *const Self, token: usize, position: usize) void {
     const weights = self.checkpoint.weights;
 
-    @memcpy(self.hidden_buffer.data, weights.token_embedding_vectors.slice(token).data);
+    @memcpy(self.hidden_buffer.values, weights.token_embedding_vectors.slice(token).values);
 
     for (0..self.checkpoint.n_layers) |layer| {
-        const attention_norm_vector = weights.attention_norm_vectors.slice(layer);
-        const ffn_norm_vector = weights.ffn_norm_vectors.slice(layer);
-
-        vector.rmsnorm(
-            self.hidden_buffer.data,
-            attention_norm_vector.data,
-            self.attention.input_buffer.data,
+        weights.attention_norm_vectors.slice(layer).computeRMSNorm(
+            self.hidden_buffer,
+            self.attention.input_buffer,
         );
 
-        try self.attention.forward(layer, position);
+        self.attention.forward(layer, position);
+        self.hidden_buffer.add(self.attention.output_buffer);
 
-        vector.add(self.hidden_buffer.data, self.attention.output_buffer.data);
-        vector.rmsnorm(self.hidden_buffer.data, ffn_norm_vector.data, self.ffn.input_buffer.data);
+        weights.ffn_norm_vectors.slice(layer).computeRMSNorm(
+            self.hidden_buffer,
+            self.ffn.input_buffer,
+        );
 
-        try self.ffn.forward(layer);
-
-        vector.add(self.hidden_buffer.data, self.ffn.output_buffer.data);
+        self.ffn.forward(layer);
+        self.hidden_buffer.add(self.ffn.output_buffer);
     }
 
-    vector.rmsnorm(
-        self.hidden_buffer.data,
-        weights.output_norm_vector.data,
-        self.hidden_buffer.data,
-    );
-
-    weights.output_matrix.multiplyVector(self.hidden_buffer, self.output_buffer);
+    weights.output_norm_vector.computeRMSNorm(self.hidden_buffer, self.hidden_buffer);
+    weights.output_matrix.computeMatrixVectorMultiplication(self.hidden_buffer, self.output_buffer);
 }

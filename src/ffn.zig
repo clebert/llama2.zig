@@ -46,7 +46,7 @@ pub fn deinit(self: *const Self) void {
 }
 
 // SwiGLU activation function: https://arxiv.org/abs/2002.05202
-pub fn forward(self: *const Self, layer: usize) !void {
+pub fn forward(self: *const Self, layer: usize) void {
     @setFloatMode(.Optimized);
 
     const weights = self.checkpoint.weights;
@@ -54,14 +54,14 @@ pub fn forward(self: *const Self, layer: usize) !void {
     const up_matrix = weights.ffn_up_matrices.slice(layer);
     const down_matrix = weights.ffn_down_matrices.slice(layer);
 
-    gate_matrix.multiplyVector(self.input_buffer, self.gate_buffer);
-    up_matrix.multiplyVector(self.input_buffer, self.hidden_buffer);
+    gate_matrix.computeMatrixVectorMultiplication(self.input_buffer, self.gate_buffer);
+    up_matrix.computeMatrixVectorMultiplication(self.input_buffer, self.hidden_buffer);
 
     for (0..self.checkpoint.ffn_hidden_size) |index| {
-        self.hidden_buffer.data[index] *= swish(self.gate_buffer.data[index]);
+        self.hidden_buffer.values[index] *= swish(self.gate_buffer.values[index]);
     }
 
-    down_matrix.multiplyVector(self.hidden_buffer, self.output_buffer);
+    down_matrix.computeMatrixVectorMultiplication(self.hidden_buffer, self.output_buffer);
 }
 
 // Swish activation function: https://arxiv.org/abs/1710.05941

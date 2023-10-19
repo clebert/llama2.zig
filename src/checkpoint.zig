@@ -2,7 +2,6 @@ const Self = @This();
 
 const std = @import("std");
 const Tensor = @import("./tensor.zig").Tensor;
-const vector = @import("./vector.zig");
 
 allocator: std.mem.Allocator,
 embedding_size: usize,
