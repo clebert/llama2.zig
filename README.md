@@ -28,7 +28,7 @@ achieved: 726.974 tok/s
 
 ## Run Llama 2 from Hugging Face
 
-Install `git-lfs` and clone the Llama 2 model from Hugging Face:
+Install `git-lfs` and clone the [Llama 2 7B](https://huggingface.co/meta-llama/Llama-2-7b-hf) model from Hugging Face:
 
 ```sh
 # Make sure you have git-lfs installed (https://git-lfs.com)
