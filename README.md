@@ -57,8 +57,8 @@ Options:
   --top_p         <float>  = 0.9
   --random_seed   <int>    = <milli_timestamp>
   --n_steps       <int>    = <max_sequence_length>
-  --prompt        <string> = ""
   --system_prompt <string> = ""
+  --user_prompt   <string> = ""
   --help
 ```
 
