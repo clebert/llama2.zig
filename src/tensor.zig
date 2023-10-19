@@ -87,11 +87,11 @@ pub fn Tensor(comptime n_dims: comptime_int) type {
         }
 
         // Pre-normalization using RMSNorm: https://arxiv.org/abs/1910.07467
-        pub fn computeRMSNorm(self: *const Self, weights: anytype, output: anytype) void {
+        pub fn computeRMSNorm(self: *const Self, weight: anytype, output: anytype) void {
             @setFloatMode(.Optimized);
 
             std.debug.assert(output.values.len == self.values.len);
-            std.debug.assert(output.values.len == weights.values.len);
+            std.debug.assert(output.values.len == weight.values.len);
 
             var rms_scaling_factor: f32 = 0;
 
@@ -104,7 +104,7 @@ pub fn Tensor(comptime n_dims: comptime_int) type {
             rms_scaling_factor = 1 / std.math.sqrt(rms_scaling_factor);
 
             for (output.values, 0..) |*value, index| {
-                value.* = weights.values[index] * rms_scaling_factor * self.values[index];
+                value.* = weight.values[index] * rms_scaling_factor * self.values[index];
             }
         }
     };
