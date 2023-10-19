@@ -7,7 +7,19 @@ This project started as a Zig port of [llama2.c](https://github.com/karpathy/lla
 ## Usage
 
 ```sh
-zig build -Doptimize=ReleaseFast run-generator -- models/tinystories_15m --temperature 0 --verbose
+zig build -Doptimize=ReleaseFast
+./zig-out/bin/llama2-generator models/tinystories_15m --temperature 0 --verbose
+```
+
+The output on an Apple M1 Pro with 32 GB of memory:
+
+```
+Once upon a time, there was a little girl named Lily. She loved to play outside in the sunshine. One day, she saw a big, red ball in the sky. It was the sun! She thought it was so pretty.
+Lily wanted to play with the ball, but it was too high up in the sky. She tried to jump and reach it, but she couldn't. Then, she had an idea. She would use a stick to knock the ball down.
+Lily found a stick and tried to hit the ball. But the stick was too short. She tried again and again, but she couldn't reach it. She felt sad.
+Suddenly, a kind man came by and saw Lily. He asked her what was wrong. Lily told him about the ball. The man smiled and said, "I have a useful idea!" He took out a long stick and used it to knock the ball down. Lily was so happy! She thanked the man and they played together in the sunshine.
+
+achieved: 701.587 tok/s
 ```
 
 ## Run Llama 2 from Hugging Face
