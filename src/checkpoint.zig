@@ -267,7 +267,7 @@ fn readLegacy(allocator: std.mem.Allocator, file: std.fs.File) !Self {
     const signed_vocab_size = try file.reader().readIntLittle(i32);
     const shared_output_matrix = signed_vocab_size > 0;
 
-    const vocab_size: usize = std.math.absCast(signed_vocab_size);
+    const vocab_size: usize = @abs(signed_vocab_size);
     const max_sequence_length: usize = @intCast(try file.reader().readIntLittle(i32));
 
     const token_embedding_vectors = try Tensor(2).init(

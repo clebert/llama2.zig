@@ -53,6 +53,8 @@
       "url": "https://raw.githubusercontent.com/clebert/onecfg-rust/main/schema.json"
     }
   ],
-  "python.formatting.provider": "none",
+  "zig.buildOnSave": true,
+  "zig.initialSetupDone": true,
+  "zig.zls.enableBuildOnSave": true,
   "zig.zls.enableInlayHints": false
 }
