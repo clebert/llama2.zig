@@ -55,7 +55,7 @@ The output on an Apple M1 Pro with 32 GB of memory:
 ```
 Once Upon a Time in Hollywood is a 2019 American comedy-drama film written and directed by Quentin Tarantino
 
-achieved: 1.797 tok/s
+achieved: 1.821 tok/s
 ```
 
 ## Help
