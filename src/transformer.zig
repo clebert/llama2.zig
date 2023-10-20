@@ -75,7 +75,7 @@ pub fn forward(self: Self, token: usize, position: usize) void {
         );
 
         self.attention.forward(layer, position);
-        self.hidden_buffer.add(self.attention.output_buffer);
+        self.hidden_buffer.computeVectorAddition(self.attention.output_buffer);
 
         self.hidden_buffer.computeRMSNorm(
             weights.ffn_norm_vectors.slice(layer),
@@ -83,7 +83,7 @@ pub fn forward(self: Self, token: usize, position: usize) void {
         );
 
         self.ffn.forward(layer);
-        self.hidden_buffer.add(self.ffn.output_buffer);
+        self.hidden_buffer.computeVectorAddition(self.ffn.output_buffer);
     }
 
     self.hidden_buffer.computeRMSNorm(weights.output_norm_vector, self.hidden_buffer);

@@ -1,4 +1,5 @@
 const std = @import("std");
+const simd = @import("simd.zig");
 
 pub fn Tensor(comptime n_dims: comptime_int) type {
     comptime if (n_dims < 1) @compileError("n_dims < 1");
@@ -50,79 +51,43 @@ pub fn Tensor(comptime n_dims: comptime_int) type {
             };
         }
 
-        pub fn add(self: Self, other: anytype) void {
-            @setFloatMode(.Optimized);
-
-            std.debug.assert(self.values.len == other.values.len);
-
-            for (self.values, 0..) |*value, index| {
-                value.* += other.values[index];
-            }
-        }
-
         pub fn computeMatrixVectorMultiplication(self: Self, input: anytype, output: anytype) void {
             for (output.values, 0..) |*value, index| {
                 value.* = self.slice(index).computeScalarProduct(input);
             }
         }
 
-        pub fn computeScalarProduct(self: Self, other: anytype) f32 {
-            if (self.values.len % 32 == 0) {
-                return _computeScalarProduct(32, self, other);
-            }
-
-            if (self.values.len % 16 == 0) {
-                return _computeScalarProduct(16, self, other);
-            }
-
-            if (self.values.len % 8 == 0) {
-                return _computeScalarProduct(8, self, other);
-            }
-
-            return _computeScalarProduct(4, self, other);
+        pub fn computeRMSNorm(self: Self, weight: anytype, output: anytype) void {
+            if (self.values.len % 32 == 0)
+                simd.computeRMSNorm(f32, 32, self.values, weight.values, output.values)
+            else if (self.values.len % 16 == 0)
+                simd.computeRMSNorm(f32, 16, self.values, weight.values, output.values)
+            else if (self.values.len % 8 == 0)
+                simd.computeRMSNorm(f32, 8, self.values, weight.values, output.values)
+            else
+                simd.computeRMSNorm(f32, 4, self.values, weight.values, output.values);
         }
 
-        // Pre-normalization using RMSNorm: https://arxiv.org/abs/1910.07467
-        pub fn computeRMSNorm(self: Self, weight: anytype, output: anytype) void {
-            @setFloatMode(.Optimized);
+        pub fn computeScalarProduct(self: Self, other: anytype) f32 {
+            return if (self.values.len % 32 == 0)
+                simd.computeScalarProduct(f32, 32, self.values, other.values)
+            else if (self.values.len % 16 == 0)
+                simd.computeScalarProduct(f32, 16, self.values, other.values)
+            else if (self.values.len % 8 == 0)
+                simd.computeScalarProduct(f32, 8, self.values, other.values)
+            else
+                simd.computeScalarProduct(f32, 4, self.values, other.values);
+        }
 
-            std.debug.assert(output.values.len == self.values.len);
-            std.debug.assert(output.values.len == weight.values.len);
-
-            var rms_scaling_factor: f32 = 0;
-
-            for (self.values) |value| {
-                rms_scaling_factor += value * value;
-            }
-
-            rms_scaling_factor /= @floatFromInt(self.values.len);
-            rms_scaling_factor += 1e-5;
-            rms_scaling_factor = 1 / std.math.sqrt(rms_scaling_factor);
-
-            for (output.values, 0..) |*value, index| {
-                value.* = weight.values[index] * rms_scaling_factor * self.values[index];
-            }
+        pub fn computeVectorAddition(self: Self, other: anytype) void {
+            if (self.values.len % 32 == 0)
+                simd.computeVectorAddition(f32, 32, self.values, other.values, self.values)
+            else if (self.values.len % 16 == 0)
+                simd.computeVectorAddition(f32, 16, self.values, other.values, self.values)
+            else if (self.values.len % 8 == 0)
+                simd.computeVectorAddition(f32, 8, self.values, other.values, self.values)
+            else
+                simd.computeVectorAddition(f32, 4, self.values, other.values, self.values);
         }
     };
-}
-
-fn _computeScalarProduct(
-    comptime vector_size: comptime_int,
-    input_1: anytype,
-    input_2: anytype,
-) f32 {
-    @setFloatMode(.Optimized);
-
-    std.debug.assert(input_1.values.len == input_2.values.len);
-
-    var output_values: @Vector(vector_size, f32) = @splat(0.0);
-    var index: usize = 0;
-
-    while (index < input_1.values.len) : (index += vector_size) {
-        output_values +=
-            @as(@Vector(vector_size, f32), input_1.values[index..][0..vector_size].*) *
-            @as(@Vector(vector_size, f32), input_2.values[index..][0..vector_size].*);
-    }
-
-    return @reduce(.Add, output_values);
 }
