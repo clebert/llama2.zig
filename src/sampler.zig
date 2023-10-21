@@ -4,27 +4,18 @@ const builtin = @import("builtin");
 const std = @import("std");
 const math = @import("math.zig");
 
-allocator: std.mem.Allocator,
-probability_index_pairs_buffer: []ProbabilityIndexPair,
+probability_index_pairs: []ProbabilityIndexPair,
+rng_state: u64,
 temperature: f32,
 top_p: f32,
-rng_state: u64,
 
-pub fn init(allocator: std.mem.Allocator, args: anytype, vocab_size: usize) !Self {
-    const probability_index_pairs_buffer =
-        try allocator.alloc(ProbabilityIndexPair, vocab_size);
-
+pub fn createLeaky(allocator: std.mem.Allocator, args: anytype, vocab_size: usize) !Self {
     return .{
-        .allocator = allocator,
-        .probability_index_pairs_buffer = probability_index_pairs_buffer,
+        .probability_index_pairs = try allocator.alloc(ProbabilityIndexPair, vocab_size),
+        .rng_state = args.random_seed,
         .temperature = args.temperature,
         .top_p = args.top_p,
-        .rng_state = args.random_seed,
     };
-}
-
-pub fn deinit(self: Self) void {
-    self.allocator.free(self.probability_index_pairs_buffer);
 }
 
 pub fn sample(self: *Self, probability_distribution: []f32) usize {
@@ -42,11 +33,7 @@ pub fn sample(self: *Self, probability_distribution: []f32) usize {
         return self.sampleMultinomial(probability_distribution);
     }
 
-    return self.sampleNucleus(
-        probability_distribution,
-        self.top_p,
-        self.probability_index_pairs_buffer,
-    );
+    return self.sampleNucleus(probability_distribution);
 }
 
 const tolerance: comptime_float = std.math.sqrt(std.math.floatEps(f32));
@@ -82,31 +69,26 @@ fn sampleMultinomial(self: *Self, probability_distribution: []const f32) usize {
 const ProbabilityIndexPair = struct { probability: f32, index: usize };
 
 // Nucleus sampling: https://arxiv.org/abs/1904.09751
-fn sampleNucleus(
-    self: *Self,
-    probability_distribution: []const f32,
-    top_p: f32,
-    probability_index_pairs_buffer: []ProbabilityIndexPair,
-) usize {
+fn sampleNucleus(self: *Self, probability_distribution: []const f32) usize {
     @setFloatMode(.Optimized);
 
     std.debug.assert(probability_distribution.len > 0);
 
     // https://github.com/karpathy/llama2.c/commit/d421a95b2bfe593b2d9e5c147f3efc8d128afe0e
     var probability_threshold: f32 =
-        (1 - top_p) / @as(f32, @floatFromInt(probability_distribution.len - 1));
+        (1 - self.top_p) / @as(f32, @floatFromInt(probability_distribution.len - 1));
 
     var n_probability_index_pairs: usize = 0;
 
     for (probability_distribution, 0..) |probability, index| {
-        if (probability_threshold < probability) {
-            probability_index_pairs_buffer[n_probability_index_pairs].probability = probability;
-            probability_index_pairs_buffer[n_probability_index_pairs].index = index;
+        if (probability >= probability_threshold) {
+            self.probability_index_pairs[n_probability_index_pairs].probability = probability;
+            self.probability_index_pairs[n_probability_index_pairs].index = index;
             n_probability_index_pairs += 1;
         }
     }
 
-    var probability_index_pairs = probability_index_pairs_buffer[0..n_probability_index_pairs];
+    var probability_index_pairs = self.probability_index_pairs[0..n_probability_index_pairs];
 
     std.sort.block(ProbabilityIndexPair, probability_index_pairs, {}, lessThan);
 
@@ -115,7 +97,7 @@ fn sampleNucleus(
     for (probability_index_pairs, 0..) |probability_index_pair, index| {
         cumulative_probability += probability_index_pair.probability;
 
-        if (cumulative_probability > top_p) {
+        if (cumulative_probability > self.top_p) {
             probability_index_pairs = probability_index_pairs[0 .. index + 1];
 
             break;

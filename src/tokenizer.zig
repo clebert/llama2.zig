@@ -2,25 +2,12 @@ const Self = @This();
 
 const std = @import("std");
 
-allocator: std.mem.Allocator,
 max_word_length: usize,
 vocab: []const []const u8,
 word_scores: []const f32,
 sorted_vocab: []const VocabEntry,
 
-pub fn init(allocator: std.mem.Allocator, model_path: []const u8, vocab_size: usize) !Self {
-    var vocab = try allocator.alloc([]u8, vocab_size);
-
-    errdefer for (vocab) |word| {
-        allocator.free(word);
-    };
-
-    errdefer allocator.free(vocab);
-
-    var word_scores = try allocator.alloc(f32, vocab_size);
-
-    errdefer allocator.free(word_scores);
-
+pub fn readLeaky(allocator: std.mem.Allocator, model_path: []const u8, vocab_size: usize) !Self {
     const path = try std.fs.path.join(allocator, &[_][]const u8{ model_path, "tokenizer.bin" });
 
     defer allocator.free(path);
@@ -29,39 +16,28 @@ pub fn init(allocator: std.mem.Allocator, model_path: []const u8, vocab_size: us
 
     defer file.close();
 
-    const reader = file.reader();
-    const max_word_length = try reader.readIntLittle(u32);
+    const max_word_length = try file.reader().readIntLittle(u32);
 
-    for (word_scores, 0..) |*word_score, word_index| {
-        word_score.* = @bitCast(try reader.readIntLittle(u32));
+    var vocab = try allocator.alloc([]u8, vocab_size);
+    var word_scores = try allocator.alloc(f32, vocab_size);
 
-        const word_length = try reader.readIntLittle(u32);
+    for (word_scores, 0..) |*word_score, index| {
+        word_score.* = @bitCast(try file.reader().readIntLittle(u32));
+
+        const word_length = try file.reader().readIntLittle(u32);
         const word = try allocator.alloc(u8, word_length);
 
-        try reader.readNoEof(word);
+        try file.reader().readNoEof(word);
 
-        vocab[word_index] = word;
+        vocab[index] = word;
     }
 
-    const sorted_vocab = try sortVocab(allocator, vocab);
-
     return .{
-        .allocator = allocator,
         .max_word_length = max_word_length,
         .vocab = vocab,
         .word_scores = word_scores,
-        .sorted_vocab = sorted_vocab,
+        .sorted_vocab = try sortVocab(allocator, vocab),
     };
-}
-
-pub fn deinit(self: Self) void {
-    for (self.vocab) |word| {
-        self.allocator.free(word);
-    }
-
-    self.allocator.free(self.vocab);
-    self.allocator.free(self.word_scores);
-    self.allocator.free(self.sorted_vocab);
 }
 
 pub fn encode(self: Self, allocator: std.mem.Allocator, text: []const u8) ![]usize {
@@ -100,10 +76,10 @@ fn encodeCodepoints(self: Self, allocator: std.mem.Allocator, text: []const u8) 
 
     var text_view = try std.unicode.Utf8View.init(text);
     var text_iterator = text_view.iterator();
-    var token_index: usize = 0;
+    var index: usize = 0;
 
-    while (text_iterator.nextCodepointSlice()) |codepoints| : (token_index += 1) {
-        if (token_index == 0) {
+    while (text_iterator.nextCodepointSlice()) |codepoints| : (index += 1) {
+        if (index == 0) {
             // https://github.com/karpathy/llama2.c/blob/7ac65cb2c2b169050747be92011b7bebdd1b4544/run.c#L483
             try tokens.append(self.lookupToken(" ") orelse return error.BadVocab);
         }
@@ -127,12 +103,12 @@ fn mergeBestWordPair(self: Self, tokens: []usize, double_word_buffer: []u8) bool
     }
 
     var best_token: ?usize = null;
-    var best_token_index: ?usize = null;
+    var best_index: ?usize = null;
     var best_word_score = -std.math.floatMax(f32);
 
-    for (0..tokens.len - 1) |token_index| {
-        const word1 = self.vocab[tokens[token_index]];
-        const word2 = self.vocab[tokens[token_index + 1]];
+    for (0..tokens.len - 1) |index| {
+        const word1 = self.vocab[tokens[index]];
+        const word2 = self.vocab[tokens[index + 1]];
 
         @memcpy(double_word_buffer[0..word1.len], word1);
         @memcpy(double_word_buffer[word1.len .. word1.len + word2.len], word2);
@@ -144,19 +120,19 @@ fn mergeBestWordPair(self: Self, tokens: []usize, double_word_buffer: []u8) bool
 
         if (word_score > best_word_score) {
             best_token = token;
-            best_token_index = token_index;
+            best_index = index;
             best_word_score = word_score;
         }
     }
 
-    if (best_token_index) |token_index| {
+    if (best_index) |index| {
         std.mem.copyForwards(
             usize,
-            tokens[token_index + 1 .. tokens.len - 1],
-            tokens[token_index + 2 ..],
+            tokens[index + 1 .. tokens.len - 1],
+            tokens[index + 2 ..],
         );
 
-        tokens[token_index] = best_token.?;
+        tokens[index] = best_token.?;
 
         return true;
     }
@@ -217,118 +193,110 @@ const tinystories_260k_path = "models/tinystories_260k";
 // https://github.com/karpathy/llama2.c/pull/226
 // https://github.com/karpathy/llama2.c/pull/297
 test "encode utf-8" {
-    const tokenizer = try Self.init(std.testing.allocator, tinystories_15m_path, 32000);
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
 
-    defer tokenizer.deinit();
+    defer arena.deinit();
 
+    const tokenizer = try Self.readLeaky(arena.allocator(), tinystories_15m_path, 32000);
     const expected = [_]usize{ 365, 1691, 1018, 3963, 669, 29871, 31409, 30607, 30437, 30564 };
-    const actual = try tokenizer.encode(std.testing.allocator, "Lets try ö & 株式会社");
-
-    defer std.testing.allocator.free(actual);
+    const actual = try tokenizer.encode(arena.allocator(), "Lets try ö & 株式会社");
 
     try std.testing.expectEqualSlices(usize, expected[0..], actual);
 }
 
 test "encode empty string" {
-    const tokenizer = try Self.init(std.testing.allocator, tinystories_15m_path, 32000);
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
 
-    defer tokenizer.deinit();
+    defer arena.deinit();
 
+    const tokenizer = try Self.readLeaky(arena.allocator(), tinystories_15m_path, 32000);
     const expected = [_]usize{};
-    const actual = try tokenizer.encode(std.testing.allocator, "");
-
-    defer std.testing.allocator.free(actual);
+    const actual = try tokenizer.encode(arena.allocator(), "");
 
     try std.testing.expectEqualSlices(usize, expected[0..], actual);
 }
 
 test "encode unknown codepoint" {
-    const tokenizer = try Self.init(std.testing.allocator, tinystories_15m_path, 32000);
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
 
-    defer tokenizer.deinit();
+    defer arena.deinit();
 
+    const tokenizer = try Self.readLeaky(arena.allocator(), tinystories_15m_path, 32000);
     const expected = [_]usize{ 29871, 243, 149, 145, 154, 243, 150, 147, 144 };
-    const actual = try tokenizer.encode(std.testing.allocator, "𒎗𓐍");
-
-    defer std.testing.allocator.free(actual);
+    const actual = try tokenizer.encode(arena.allocator(), "𒎗𓐍");
 
     try std.testing.expectEqualSlices(usize, expected[0..], actual);
 }
 
 test "encode single chars" {
-    const tokenizer = try Self.init(std.testing.allocator, tinystories_260k_path, 512);
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
 
-    defer tokenizer.deinit();
+    defer arena.deinit();
 
+    const tokenizer = try Self.readLeaky(arena.allocator(), tinystories_260k_path, 512);
     const expected = [_]usize{ 261, 430, 429, 418, 411, 431, 428, 415 };
-    const actual = try tokenizer.encode(std.testing.allocator, "abcdefgh");
-
-    defer std.testing.allocator.free(actual);
+    const actual = try tokenizer.encode(arena.allocator(), "abcdefgh");
 
     try std.testing.expectEqualSlices(usize, expected[0..], actual);
 }
 
 // https://github.com/facebookresearch/llama/blob/ea9f33d6d3ea8ed7d560d270986407fd6c2e52b7/example_text_completion.py
 test "meta encoding example 1" {
-    const tokenizer = try Self.init(std.testing.allocator, tinystories_15m_path, 32000);
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
 
-    defer tokenizer.deinit();
+    defer arena.deinit();
 
+    const tokenizer = try Self.readLeaky(arena.allocator(), tinystories_15m_path, 32000);
     const expected = [_]usize{ 306, 4658, 278, 6593, 310, 2834, 338 };
-    const actual = try tokenizer.encode(std.testing.allocator, "I believe the meaning of life is");
-
-    defer std.testing.allocator.free(actual);
+    const actual = try tokenizer.encode(arena.allocator(), "I believe the meaning of life is");
 
     try std.testing.expectEqualSlices(usize, expected[0..], actual);
 }
 
 test "meta encoding example 2" {
-    const tokenizer = try Self.init(std.testing.allocator, tinystories_15m_path, 32000);
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
 
-    defer tokenizer.deinit();
+    defer arena.deinit();
 
+    const tokenizer = try Self.readLeaky(arena.allocator(), tinystories_15m_path, 32000);
     const expected = [_]usize{ 3439, 17632, 1925, 29892, 278, 6368, 310, 14215, 537, 5922, 393, 29871 };
 
     const actual = try tokenizer.encode(
-        std.testing.allocator,
+        arena.allocator(),
         "Simply put, the theory of relativity states that ",
     );
-
-    defer std.testing.allocator.free(actual);
 
     try std.testing.expectEqualSlices(usize, expected[0..], actual);
 }
 
 test "meta encoding example 3" {
-    const tokenizer = try Self.init(std.testing.allocator, tinystories_15m_path, 32000);
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
 
-    defer tokenizer.deinit();
+    defer arena.deinit();
 
+    const tokenizer = try Self.readLeaky(arena.allocator(), tinystories_15m_path, 32000);
     const expected = [_]usize{ 319, 11473, 2643, 378, 629, 271, 18099, 278, 3815, 373, 278, 6826, 29901, 13, 13, 4706, 6324, 14332, 29892, 13, 13, 4706, 306, 925, 29871 };
 
     const actual = try tokenizer.encode(
-        std.testing.allocator,
+        arena.allocator(),
         "A brief message congratulating the team on the launch:\n\n        Hi everyone,\n\n        I just ",
     );
-
-    defer std.testing.allocator.free(actual);
 
     try std.testing.expectEqualSlices(usize, expected[0..], actual);
 }
 
 test "meta encoding example 4" {
-    const tokenizer = try Self.init(std.testing.allocator, tinystories_15m_path, 32000);
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
 
-    defer tokenizer.deinit();
+    defer arena.deinit();
 
+    const tokenizer = try Self.readLeaky(arena.allocator(), tinystories_15m_path, 32000);
     const expected = [_]usize{ 4103, 9632, 4223, 304, 5176, 29901, 13, 13, 4706, 7205, 4932, 357, 1149, 301, 449, 276, 316, 2778, 13, 4706, 1236, 407, 837, 524, 1149, 6042, 354, 772, 440, 29878, 1318, 13, 4706, 715, 1878, 330, 3055, 1725, 1149, 330, 3055, 1725, 4639, 28754, 13, 4706, 923, 968, 1149 };
 
     const actual = try tokenizer.encode(
-        std.testing.allocator,
+        arena.allocator(),
         "Translate English to French:\n\n        sea otter => loutre de mer\n        peppermint => menthe poivrée\n        plush girafe => girafe peluche\n        cheese =>",
     );
-
-    defer std.testing.allocator.free(actual);
 
     try std.testing.expectEqualSlices(usize, expected[0..], actual);
 }

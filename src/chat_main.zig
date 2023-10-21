@@ -3,15 +3,13 @@ const Chat = @import("chat.zig");
 const ChatArgs = @import("chat_args.zig");
 
 pub fn main() !void {
-    const allocator = std.heap.page_allocator;
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
 
-    var args = try ChatArgs.init(allocator);
+    defer arena.deinit();
 
-    defer args.deinit();
+    const args = try ChatArgs.createLeaky(arena.allocator());
 
-    var chat = try Chat.init(allocator, args);
+    var chat = try Chat.createLeaky(arena.allocator(), args);
 
-    defer chat.deinit();
-
-    try chat.start(allocator);
+    try chat.start(arena.allocator());
 }

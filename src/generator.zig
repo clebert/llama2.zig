@@ -7,44 +7,29 @@ const Sampler = @import("sampler.zig");
 const Tokenizer = @import("tokenizer.zig");
 const Transformer = @import("transformer.zig");
 
-allocator: std.mem.Allocator,
 transformer: Transformer,
 tokenizer: Tokenizer,
 sampler: Sampler,
 prompt_tokens: []usize,
 verbose: bool,
 
-pub fn init(allocator: std.mem.Allocator, args: GeneratorArgs) !Self {
-    const transformer = try Transformer.init(allocator, args.model_path, args.sequence_length);
-
-    errdefer transformer.deinit();
+pub fn createLeaky(allocator: std.mem.Allocator, args: GeneratorArgs) !Self {
+    const transformer = try Transformer.createLeaky(
+        allocator,
+        args.model_path,
+        args.sequence_length,
+    );
 
     const vocab_size = transformer.checkpoint.vocab_size;
-    const tokenizer = try Tokenizer.init(allocator, args.model_path, vocab_size);
-
-    errdefer tokenizer.deinit();
-
-    const sampler = try Sampler.init(allocator, args, vocab_size);
-
-    errdefer sampler.deinit();
-
-    const prompt_tokens = try tokenizer.encode(allocator, args.prompt);
+    const tokenizer = try Tokenizer.readLeaky(allocator, args.model_path, vocab_size);
 
     return .{
-        .allocator = allocator,
         .transformer = transformer,
         .tokenizer = tokenizer,
-        .sampler = sampler,
-        .prompt_tokens = prompt_tokens,
+        .sampler = try Sampler.createLeaky(allocator, args, vocab_size),
+        .prompt_tokens = try tokenizer.encode(allocator, args.prompt),
         .verbose = args.verbose,
     };
-}
-
-pub fn deinit(self: Self) void {
-    self.transformer.deinit();
-    self.tokenizer.deinit();
-    self.sampler.deinit();
-    self.allocator.free(self.prompt_tokens);
 }
 
 const bos_token = 1; // beginning of sequence
@@ -64,7 +49,7 @@ pub fn generate(self: *Self, writer: anytype) !void {
             start_time = std.time.milliTimestamp();
         }
 
-        self.transformer.forward(token, position);
+        try self.transformer.forward(token, position);
 
         if (start_time > 0) {
             total_time += std.time.milliTimestamp() - start_time;
@@ -74,7 +59,7 @@ pub fn generate(self: *Self, writer: anytype) !void {
             next_token = self.prompt_tokens[prompt_tokens_index];
             prompt_tokens_index += 1;
         } else {
-            next_token = self.sampler.sample(self.transformer.output_buffer.values);
+            next_token = self.sampler.sample(self.transformer.output.values);
         }
 
         if (next_token == bos_token or next_token == eos_token) {
@@ -99,16 +84,13 @@ pub fn generate(self: *Self, writer: anytype) !void {
 }
 
 test "generate tiny story" {
-    var output = std.ArrayList(u8).init(std.testing.allocator);
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
 
-    defer output.deinit();
+    defer arena.deinit();
 
-    var arg_iterator = try std.process.argsWithAllocator(std.testing.allocator);
-
-    defer arg_iterator.deinit();
+    var output = std.ArrayList(u8).init(arena.allocator());
 
     const args = GeneratorArgs{
-        .arg_iterator = arg_iterator,
         .model_path = "models/tinystories_260k",
         .temperature = 1,
         .top_p = 0.9,
@@ -118,9 +100,7 @@ test "generate tiny story" {
         .verbose = false,
     };
 
-    var generator = try Self.init(std.testing.allocator, args);
-
-    defer generator.deinit();
+    var generator = try Self.createLeaky(arena.allocator(), args);
 
     try generator.generate(output.writer());
 

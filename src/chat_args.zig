@@ -2,7 +2,6 @@ const Self = @This();
 
 const std = @import("std");
 
-arg_iterator: std.process.ArgIterator,
 model_path: []const u8,
 temperature: f32,
 top_p: f32,
@@ -20,10 +19,8 @@ const Option = enum {
     user_prompt,
 };
 
-pub fn init(allocator: std.mem.Allocator) !Self {
+pub fn createLeaky(allocator: std.mem.Allocator) !Self {
     var arg_iterator = try std.process.argsWithAllocator(allocator);
-
-    errdefer arg_iterator.deinit();
 
     _ = arg_iterator.next().?;
 
@@ -78,7 +75,6 @@ pub fn init(allocator: std.mem.Allocator) !Self {
     }
 
     return .{
-        .arg_iterator = arg_iterator,
         .model_path = model_path,
         .temperature = @max(@min(temperature orelse 1, 1), 0),
         .top_p = @max(@min(top_p orelse 0.9, 1), 0),
@@ -87,10 +83,6 @@ pub fn init(allocator: std.mem.Allocator) !Self {
         .system_prompt = system_prompt orelse "",
         .user_prompt = user_prompt orelse "",
     };
-}
-
-pub fn deinit(self: *Self) void {
-    self.arg_iterator.deinit();
 }
 
 fn help(exit_status: u8) !noreturn {

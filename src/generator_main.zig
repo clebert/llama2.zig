@@ -3,15 +3,13 @@ const Generator = @import("generator.zig");
 const GeneratorArgs = @import("generator_args.zig");
 
 pub fn main() !void {
-    const allocator = std.heap.page_allocator;
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
 
-    var args = try GeneratorArgs.init(allocator);
+    defer arena.deinit();
 
-    defer args.deinit();
+    const args = try GeneratorArgs.createLeaky(arena.allocator());
 
-    var generator = try Generator.init(allocator, args);
-
-    defer generator.deinit();
+    var generator = try Generator.createLeaky(arena.allocator(), args);
 
     try generator.generate(std.io.getStdOut().writer());
 }

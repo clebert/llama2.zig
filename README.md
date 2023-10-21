@@ -8,7 +8,7 @@ This project is a port of Andrej Karpathy's [llama2.c](https://github.com/karpat
 
 ## Usage
 
-Build and run the `llama2-generator` for text generation:
+Build and run `llama2-generator`:
 
 ```sh
 zig build -Doptimize=ReleaseFast
@@ -23,10 +23,10 @@ Lily wanted to play with the ball, but it was too high up in the sky. She tried 
 Lily found a stick and tried to hit the ball. But the stick was too short. She tried again and again, but she couldn't reach it. She felt sad.
 Suddenly, a kind man came by and saw Lily. He asked her what was wrong. Lily told him about the ball. The man smiled and said, "I have a useful idea!" He took out a long stick and used it to knock the ball down. Lily was so happy! She thanked the man and they played together in the sunshine.
 
-achieved: 726.974 tok/s
+achieved: 719.870 tok/s
 ```
 
-## Run Llama 2 from Hugging Face
+## Run Llama 2 7B from Hugging Face
 
 Install `git-lfs` and clone the [Llama 2 7B](https://huggingface.co/meta-llama/Llama-2-7b-hf) model from Hugging Face:
 
@@ -43,7 +43,7 @@ pip3 install -r requirements.txt
 python3 convert_hf_model.py /path/to/Llama-2-7b-hf models/llama2_7b_hf
 ```
 
-Build and run the `llama2-generator` for text generation:
+Build and run `llama2-generator`:
 
 ```sh
 zig build -Doptimize=ReleaseFast
@@ -55,7 +55,40 @@ The output on an Apple M1 Pro with 32 GB of memory:
 ```
 Once Upon a Time in Hollywood is a 2019 American comedy-drama film written and directed by Quentin Tarantino
 
-achieved: 1.821 tok/s
+achieved: 1.800 tok/s
+```
+
+## Run Llama 2 7B Chat from Hugging Face
+
+Install `git-lfs` and clone the [Llama 2 7B Chat](https://huggingface.co/meta-llama/Llama-2-7b-chat-hf) model from Hugging Face:
+
+```sh
+# Make sure you have git-lfs installed (https://git-lfs.com)
+git lfs install
+git clone https://huggingface.co/meta-llama/Llama-2-7b-chat-hf
+```
+
+Install the necessary Python packages and convert the Hugging Face model:
+
+```sh
+pip3 install -r requirements.txt
+python3 convert_hf_model.py /path/to/Llama-2-7b-chat-hf models/llama2_7b_chat_hf
+```
+
+Build and run `llama2-chat`:
+
+```sh
+zig build -Doptimize=ReleaseFast
+./zig-out/bin/llama2-chat models/llama2_7b_chat_hf
+```
+
+The output on an Apple M1 Pro with 32 GB of memory:
+
+```
+Enter system prompt (optional):
+User: Hello
+Assistant: Hello! It's nice to meet you. Is there something I can help you with or would you like to chat?
+User: ...
 ```
 
 ## Help

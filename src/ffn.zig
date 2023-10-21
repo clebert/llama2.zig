@@ -2,66 +2,40 @@ const Self = @This();
 
 const std = @import("std");
 const Checkpoint = @import("checkpoint.zig");
-const Tensor = @import("./tensor.zig").Tensor;
+const Vector = @import("vector.zig");
 
-allocator: std.mem.Allocator,
 checkpoint: Checkpoint,
-input_buffer: Tensor(1),
-gate_buffer: Tensor(1),
-hidden_buffer: Tensor(1),
-output_buffer: Tensor(1),
+input: Vector,
+gate: Vector,
+hidden: Vector,
+output: Vector,
 
-pub fn init(allocator: std.mem.Allocator, checkpoint: Checkpoint) !Self {
-    const input_buffer = try Tensor(1).init(allocator, [_]usize{checkpoint.embedding_size});
-
-    errdefer input_buffer.deinit();
-
-    const gate_buffer = try Tensor(1).init(allocator, [_]usize{checkpoint.ffn_hidden_size});
-
-    errdefer gate_buffer.deinit();
-
-    const hidden_buffer = try Tensor(1).init(allocator, [_]usize{checkpoint.ffn_hidden_size});
-
-    errdefer hidden_buffer.deinit();
-
-    const output_buffer = try Tensor(1).init(allocator, [_]usize{checkpoint.embedding_size});
-
-    errdefer output_buffer.deinit();
-
+pub fn createLeaky(allocator: std.mem.Allocator, checkpoint: Checkpoint) !Self {
     return .{
-        .allocator = allocator,
         .checkpoint = checkpoint,
-        .input_buffer = input_buffer,
-        .gate_buffer = gate_buffer,
-        .hidden_buffer = hidden_buffer,
-        .output_buffer = output_buffer,
+        .input = try Vector.createLeaky(allocator, checkpoint.embedding_size),
+        .gate = try Vector.createLeaky(allocator, checkpoint.ffn_hidden_size),
+        .hidden = try Vector.createLeaky(allocator, checkpoint.ffn_hidden_size),
+        .output = try Vector.createLeaky(allocator, checkpoint.embedding_size),
     };
 }
 
-pub fn deinit(self: Self) void {
-    self.input_buffer.deinit();
-    self.gate_buffer.deinit();
-    self.hidden_buffer.deinit();
-    self.output_buffer.deinit();
-}
-
 // SwiGLU activation function: https://arxiv.org/abs/2002.05202
-pub fn forward(self: Self, layer: usize) void {
+pub fn forward(self: Self, layer: usize) !void {
     @setFloatMode(.Optimized);
 
-    const weights = self.checkpoint.weights;
-    const gate_matrix = weights.ffn_gate_matrices.slice(layer);
-    const up_matrix = weights.ffn_up_matrices.slice(layer);
-    const down_matrix = weights.ffn_down_matrices.slice(layer);
+    const gate_weight = self.checkpoint.ffn_gate_weights[layer];
+    const up_weight = self.checkpoint.ffn_up_weights[layer];
+    const down_weight = self.checkpoint.ffn_down_weights[layer];
 
-    gate_matrix.computeMatrixVectorMultiplication(self.input_buffer, self.gate_buffer);
-    up_matrix.computeMatrixVectorMultiplication(self.input_buffer, self.hidden_buffer);
+    try gate_weight.multiplyVector(self.input, self.gate);
+    try up_weight.multiplyVector(self.input, self.hidden);
 
     for (0..self.checkpoint.ffn_hidden_size) |index| {
-        self.hidden_buffer.values[index] *= swish(self.gate_buffer.values[index]);
+        self.hidden.values[index] *= swish(self.gate.values[index]);
     }
 
-    down_matrix.computeMatrixVectorMultiplication(self.hidden_buffer, self.output_buffer);
+    try down_weight.multiplyVector(self.hidden, self.output);
 }
 
 // Swish activation function: https://arxiv.org/abs/1710.05941

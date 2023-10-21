@@ -7,41 +7,23 @@ const Sampler = @import("sampler.zig");
 const Tokenizer = @import("tokenizer.zig");
 const Transformer = @import("transformer.zig");
 
-allocator: std.mem.Allocator,
 transformer: Transformer,
 tokenizer: Tokenizer,
 sampler: Sampler,
 system_prompt: []const u8,
 user_prompt: []const u8,
 
-pub fn init(allocator: std.mem.Allocator, args: ChatArgs) !Self {
-    const transformer = try Transformer.init(allocator, args.model_path, args.sequence_length);
-
-    errdefer transformer.deinit();
-
+pub fn createLeaky(allocator: std.mem.Allocator, args: ChatArgs) !Self {
+    const transformer = try Transformer.createLeaky(allocator, args.model_path, args.sequence_length);
     const vocab_size = transformer.checkpoint.vocab_size;
-    const tokenizer = try Tokenizer.init(allocator, args.model_path, vocab_size);
-
-    errdefer tokenizer.deinit();
-
-    const sampler = try Sampler.init(allocator, args, vocab_size);
-
-    errdefer sampler.deinit();
 
     return .{
-        .allocator = allocator,
         .transformer = transformer,
-        .tokenizer = tokenizer,
-        .sampler = sampler,
+        .tokenizer = try Tokenizer.readLeaky(allocator, args.model_path, vocab_size),
+        .sampler = try Sampler.createLeaky(allocator, args, vocab_size),
         .system_prompt = args.system_prompt,
         .user_prompt = args.user_prompt,
     };
-}
-
-pub fn deinit(self: Self) void {
-    self.transformer.deinit();
-    self.tokenizer.deinit();
-    self.sampler.deinit();
 }
 
 const system_prompt_template_start = "<<SYS>>\n";
@@ -68,7 +50,7 @@ pub fn start(self: *Self, allocator: std.mem.Allocator) !void {
     };
 
     for (0..self.transformer.sequence_length) |position| {
-        self.transformer.forward(token, position);
+        try self.transformer.forward(token, position);
 
         if (token == bos_token and user_turn) {
             var user_prompt = std.ArrayList(u8).init(allocator);
@@ -129,7 +111,7 @@ pub fn start(self: *Self, allocator: std.mem.Allocator) !void {
         user_prompt_tokens_index += 1;
 
         if (next_token == 0) {
-            next_token = self.sampler.sample(self.transformer.output_buffer.values);
+            next_token = self.sampler.sample(self.transformer.output.values);
         }
 
         if (next_token == eos_token) {

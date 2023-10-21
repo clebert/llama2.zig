@@ -2,111 +2,91 @@ const Self = @This();
 
 const std = @import("std");
 const Checkpoint = @import("checkpoint.zig");
-const math = @import("./math.zig");
-const Tensor = @import("./tensor.zig").Tensor;
+const math = @import("math.zig");
+const simd = @import("simd.zig");
+const Vector = @import("vector.zig");
 
-allocator: std.mem.Allocator,
 checkpoint: Checkpoint,
 head_size: usize,
 head_size_sqrt: f32,
-input_buffer: Tensor(2),
-output_buffer: Tensor(1),
-query_buffer: Tensor(2),
-key_cache: Tensor(4),
-value_cache: Tensor(4),
+input: Vector,
+output: Vector,
+multi_query: Vector,
+key_cache: []const []const Vector,
+value_cache: []const []const Vector,
 scores: []f32,
 
-pub fn init(allocator: std.mem.Allocator, checkpoint: Checkpoint, sequence_length: usize) !Self {
-    const embedding_size = checkpoint.embedding_size;
-    const n_attention_heads = checkpoint.n_attention_heads;
-    const head_size: usize = embedding_size / n_attention_heads;
-    const input_buffer = try Tensor(2).init(allocator, [_]usize{ n_attention_heads, head_size });
+pub fn createLeaky(
+    allocator: std.mem.Allocator,
+    checkpoint: Checkpoint,
+    sequence_length: usize,
+) !Self {
+    const head_size = checkpoint.embedding_size / checkpoint.n_attention_heads;
+    const key_cache = try allocator.alloc([]Vector, checkpoint.n_layers);
 
-    errdefer input_buffer.deinit();
+    for (key_cache) |*layer| {
+        layer.* = try Vector.createMultipleLeaky(
+            allocator,
+            sequence_length,
+            checkpoint.n_attention_query_groups * head_size,
+        );
+    }
 
-    const output_buffer = try Tensor(1).init(allocator, [_]usize{embedding_size});
+    const value_cache = try allocator.alloc([]Vector, checkpoint.n_layers);
 
-    errdefer output_buffer.deinit();
-
-    const query_buffer = try Tensor(2).init(allocator, [_]usize{ n_attention_heads, head_size });
-
-    errdefer query_buffer.deinit();
-
-    const n_layers = checkpoint.n_layers;
-    const n_attention_query_groups = checkpoint.n_attention_query_groups;
-
-    const key_cache = try Tensor(4).init(
-        allocator,
-        [_]usize{ n_layers, sequence_length, n_attention_query_groups, head_size },
-    );
-
-    errdefer key_cache.deinit();
-
-    const value_cache = try Tensor(4).init(
-        allocator,
-        [_]usize{ n_layers, sequence_length, n_attention_query_groups, head_size },
-    );
-
-    errdefer value_cache.deinit();
-
-    const scores = try allocator.alloc(f32, sequence_length);
-
-    errdefer allocator.free(scores);
+    for (value_cache) |*layer| {
+        layer.* = try Vector.createMultipleLeaky(
+            allocator,
+            sequence_length,
+            checkpoint.n_attention_query_groups * head_size,
+        );
+    }
 
     return .{
-        .allocator = allocator,
         .checkpoint = checkpoint,
         .head_size = head_size,
         .head_size_sqrt = std.math.sqrt(@as(f32, @floatFromInt(head_size))),
-        .input_buffer = input_buffer,
-        .output_buffer = output_buffer,
-        .query_buffer = query_buffer,
+        .input = try Vector.createLeaky(allocator, checkpoint.embedding_size),
+        .output = try Vector.createLeaky(allocator, checkpoint.embedding_size),
+        .multi_query = try Vector.createLeaky(allocator, checkpoint.embedding_size),
         .key_cache = key_cache,
         .value_cache = value_cache,
-        .scores = scores,
+        .scores = try allocator.alloc(f32, sequence_length),
     };
 }
 
-pub fn deinit(self: Self) void {
-    self.input_buffer.deinit();
-    self.output_buffer.deinit();
-    self.query_buffer.deinit();
-    self.key_cache.deinit();
-    self.value_cache.deinit();
-    self.allocator.free(self.scores);
-}
+pub fn forward(self: Self, layer: usize, position: usize) !void {
+    const query_weight = self.checkpoint.attention_query_weights[layer];
+    const key_weight = self.checkpoint.attention_key_weights[layer];
+    const value_weight = self.checkpoint.attention_value_weights[layer];
+    const output_weight = self.checkpoint.attention_output_weights[layer];
+    const multi_key = self.key_cache[layer][position];
+    const multi_value = self.value_cache[layer][position];
 
-pub fn forward(self: Self, layer: usize, position: usize) void {
-    const weights = self.checkpoint.weights;
-    const query_matrix = weights.attention_query_matrices.slice(layer);
-    const key_matrix = weights.attention_key_matrices.slice(layer);
-    const value_matrix = weights.attention_value_matrices.slice(layer);
-    const output_matrix = weights.attention_output_matrices.slice(layer);
-    const key_buffer = self.key_cache.slice(layer).slice(position);
-    const value_buffer = self.value_cache.slice(layer).slice(position);
+    try query_weight.multiplyVector(self.input, self.multi_query);
+    try key_weight.multiplyVector(self.input, multi_key);
+    try value_weight.multiplyVector(self.input, multi_value);
 
-    query_matrix.computeMatrixVectorMultiplication(self.input_buffer, self.query_buffer);
-    key_matrix.computeMatrixVectorMultiplication(self.input_buffer, key_buffer);
-    value_matrix.computeMatrixVectorMultiplication(self.input_buffer, value_buffer);
-
-    self.computeRoPE(position, key_buffer);
+    self.computeRoPE(position, multi_key.values);
 
     for (0..self.checkpoint.n_attention_heads) |head| {
-        self.computeGQA(layer, position, head);
+        try self.computeGQA(layer, position, head);
     }
 
-    output_matrix.computeMatrixVectorMultiplication(self.input_buffer, self.output_buffer);
+    try output_weight.multiplyVector(self.input, self.output);
 }
 
 // Rotary positional embeddings: https://arxiv.org/abs/2104.09864
-fn computeRoPE(self: Self, position: usize, key_buffer: Tensor(2)) void {
+fn computeRoPE(self: Self, position: usize, multi_key_values: []f32) void {
     @setFloatMode(.Optimized);
 
-    std.debug.assert(self.query_buffer.values.len % key_buffer.values.len == 0);
+    const multi_query_values = self.multi_query.values;
+
+    std.debug.assert(multi_query_values.len % multi_key_values.len == 0);
 
     var index: usize = 0;
 
-    while (index < self.query_buffer.values.len) : (index += 2) {
+    while (index < multi_query_values.len) : (index += 2) {
         const head: f32 = @floatFromInt(index % self.head_size);
 
         const frequency =
@@ -116,27 +96,27 @@ fn computeRoPE(self: Self, position: usize, key_buffer: Tensor(2)) void {
         const real_rotation_value: f32 = std.math.cos(rotation_scaling_factor);
         const imag_rotation_value: f32 = std.math.sin(rotation_scaling_factor);
 
-        const q_0 = self.query_buffer.values[index];
-        const q_1 = self.query_buffer.values[index + 1];
+        const q_0 = multi_query_values[index];
+        const q_1 = multi_query_values[index + 1];
 
-        self.query_buffer.values[index] = q_0 * real_rotation_value - q_1 * imag_rotation_value;
-        self.query_buffer.values[index + 1] = q_0 * imag_rotation_value + q_1 * real_rotation_value;
+        multi_query_values[index] = q_0 * real_rotation_value - q_1 * imag_rotation_value;
+        multi_query_values[index + 1] = q_0 * imag_rotation_value + q_1 * real_rotation_value;
 
-        if (index < key_buffer.values.len) {
-            const k_0 = key_buffer.values[index];
-            const k_1 = key_buffer.values[index + 1];
+        if (index < multi_key_values.len) {
+            const k_0 = multi_key_values[index];
+            const k_1 = multi_key_values[index + 1];
 
-            key_buffer.values[index] = k_0 * real_rotation_value - k_1 * imag_rotation_value;
-            key_buffer.values[index + 1] = k_0 * imag_rotation_value + k_1 * real_rotation_value;
+            multi_key_values[index] = k_0 * real_rotation_value - k_1 * imag_rotation_value;
+            multi_key_values[index + 1] = k_0 * imag_rotation_value + k_1 * real_rotation_value;
         }
     }
 }
 
 // Grouped-query attention: https://arxiv.org/abs/2305.13245v1
-fn computeGQA(self: Self, layer: usize, current_position: usize, head: usize) void {
+fn computeGQA(self: Self, layer: usize, current_position: usize, head: usize) !void {
     @setFloatMode(.Optimized);
 
-    const query_vector = self.query_buffer.slice(head);
+    const query_values = self.multi_query.values[head * self.head_size ..][0..self.head_size];
 
     const query_group =
         head / (self.checkpoint.n_attention_heads / self.checkpoint.n_attention_query_groups);
@@ -144,23 +124,26 @@ fn computeGQA(self: Self, layer: usize, current_position: usize, head: usize) vo
     const next_position = current_position + 1;
 
     for (0..next_position) |position| {
-        const key_vector = self.key_cache.slice(layer).slice(position).slice(query_group);
+        const multi_key = self.key_cache[layer][position];
+        const key_values = multi_key.values[query_group * self.head_size ..][0..self.head_size];
 
-        self.scores[position] = query_vector.computeScalarProduct(key_vector) / self.head_size_sqrt;
+        self.scores[position] =
+            try simd.computeScalarProduct(query_values, key_values) / self.head_size_sqrt;
     }
 
     math.softmax(self.scores[0..next_position]);
 
-    const attention_buffer = self.input_buffer.slice(head);
+    const attention_values = self.input.values[head * self.head_size ..][0..self.head_size];
 
-    @memset(attention_buffer.values, 0);
+    @memset(attention_values, 0);
 
     for (0..next_position) |position| {
-        const value_vector = self.value_cache.slice(layer).slice(position).slice(query_group);
+        const multi_value = self.value_cache[layer][position];
+        const value_values = multi_value.values[query_group * self.head_size ..][0..self.head_size];
         const weight = self.scores[position];
 
         for (0..self.head_size) |index| {
-            attention_buffer.values[index] += value_vector.values[index] * weight;
+            attention_values[index] += value_values[index] * weight;
         }
     }
 }
