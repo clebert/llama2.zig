@@ -149,19 +149,19 @@ def write_checkpoint_file():
 
 
 def write_tokenizer_file():
-    sp_model = SentencePieceProcessor(
+    model = SentencePieceProcessor(
         model_file=os.path.join(args.input_model_path, "tokenizer.model")
     )
 
     words, scores = [], []
 
-    for token in range(sp_model.vocab_size()):
-        word = sp_model.id_to_piece(token)
-        score = sp_model.get_score(token)
+    for token in range(model.vocab_size()):
+        word = model.id_to_piece(token)
+        score = model.get_score(token)
 
-        if token == sp_model.bos_id():
+        if token == model.bos_id():
             word = "\n<s>\n"
-        elif token == sp_model.eos_id():
+        elif token == model.eos_id():
             word = "\n</s>\n"
 
         words.append(word.replace("▁", " ").encode("utf-8"))
