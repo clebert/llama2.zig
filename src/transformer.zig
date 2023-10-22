@@ -36,9 +36,9 @@ pub fn createLeaky(
 }
 
 pub fn forward(self: Self, token: usize, position: usize) !void {
-    const token_embedding_weight = self.checkpoint.token_embedding_weights[token];
+    const embedding_weight = self.checkpoint.embedding_weights[token];
 
-    @memcpy(self.hidden.values, token_embedding_weight.values);
+    @memcpy(self.hidden.values, embedding_weight.values);
 
     for (0..self.checkpoint.n_layers) |layer| {
         const attention_norm_weight = self.checkpoint.attention_norm_weights[layer];

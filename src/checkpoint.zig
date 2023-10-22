@@ -12,7 +12,7 @@ n_attention_query_groups: usize,
 vocab_size: usize,
 max_sequence_length: usize,
 
-token_embedding_weights: []const Vector,
+embedding_weights: []const Vector,
 attention_norm_weights: []const Vector,
 attention_query_weights: []const Matrix,
 attention_key_weights: []const Matrix,
@@ -52,7 +52,7 @@ pub fn readLeaky(allocator: std.mem.Allocator, model_path: []const u8) !Self {
     const n_attention_query_groups: usize = @intCast(try file.reader().readIntLittle(i32));
     const vocab_size: usize = @intCast(try file.reader().readIntLittle(i32));
     const max_sequence_length: usize = @intCast(try file.reader().readIntLittle(i32));
-    const shared_output_matrix = try file.reader().readIntLittle(u8) == 1;
+    const shared_output_weight = try file.reader().readIntLittle(u8) == 1;
 
     try file.seekTo(256);
 
@@ -72,7 +72,7 @@ pub fn readLeaky(allocator: std.mem.Allocator, model_path: []const u8) !Self {
 
     const output_norm_weight = try Vector.readLeaky(allocator, file, embedding_size);
 
-    const token_embedding_weights = try Vector.readMultipleLeaky(
+    const embedding_weights = try Vector.readMultipleLeaky(
         allocator,
         file,
         vocab_size,
@@ -137,8 +137,8 @@ pub fn readLeaky(allocator: std.mem.Allocator, model_path: []const u8) !Self {
         embedding_size,
     );
 
-    const output_weight = if (shared_output_matrix)
-        Matrix{ .rows = token_embedding_weights }
+    const output_weight = if (shared_output_weight)
+        Matrix{ .rows = embedding_weights }
     else
         try Matrix.readLeaky(allocator, file, vocab_size, embedding_size);
 
@@ -151,7 +151,7 @@ pub fn readLeaky(allocator: std.mem.Allocator, model_path: []const u8) !Self {
         .vocab_size = vocab_size,
         .max_sequence_length = max_sequence_length,
 
-        .token_embedding_weights = token_embedding_weights,
+        .embedding_weights = embedding_weights,
         .attention_norm_weights = attention_norm_weights,
         .attention_query_weights = attention_query_weights,
         .attention_key_weights = attention_key_weights,
