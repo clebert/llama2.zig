@@ -12,6 +12,9 @@ Build and run `llama2-generator`:
 
 ```sh
 zig build -Doptimize=ReleaseFast
+```
+
+```sh
 ./zig-out/bin/llama2-generator models/tinystories_15m --temperature 0 --verbose
 ```
 
@@ -33,6 +36,9 @@ Install `git-lfs` and clone the [Llama 2 7B](https://huggingface.co/meta-llama/L
 ```sh
 # Make sure you have git-lfs installed (https://git-lfs.com)
 git lfs install
+```
+
+```sh
 git clone https://huggingface.co/meta-llama/Llama-2-7b-hf
 ```
 
@@ -40,6 +46,9 @@ Install the necessary Python packages and convert the Hugging Face model:
 
 ```sh
 pip3 install -r requirements.txt
+```
+
+```sh
 python3 convert_hf_model.py /path/to/Llama-2-7b-hf models/llama2_7b_hf
 ```
 
@@ -47,12 +56,15 @@ Build and run `llama2-generator`:
 
 ```sh
 zig build -Doptimize=ReleaseFast
+```
+
+```sh
 ./zig-out/bin/llama2-generator models/llama2_7b_hf \
---prompt "Once Upon a Time" \
---sequence_length 28 \
---temperature 0 \
---thread_count 8 \
---verbose
+  --prompt "Once Upon a Time" \
+  --sequence_length 28 \
+  --temperature 0 \
+  --thread_count 8 \
+  --verbose
 ```
 
 The output on an Apple M1 Pro with 32 GB of memory:
@@ -60,7 +72,7 @@ The output on an Apple M1 Pro with 32 GB of memory:
 ```
 Once Upon a Time in Hollywood is a 2019 American comedy-drama film written and directed by Quentin Tarantino
 
-achieved: 3.482 tok/s
+achieved: 3.749 tok/s
 ```
 
 ## Run Llama 2 7B Chat from Hugging Face
@@ -70,6 +82,9 @@ Install `git-lfs` and clone the [Llama 2 7B Chat](https://huggingface.co/meta-ll
 ```sh
 # Make sure you have git-lfs installed (https://git-lfs.com)
 git lfs install
+```
+
+```sh
 git clone https://huggingface.co/meta-llama/Llama-2-7b-chat-hf
 ```
 
@@ -77,6 +92,9 @@ Install the necessary Python packages and convert the Hugging Face model:
 
 ```sh
 pip3 install -r requirements.txt
+```
+
+```sh
 python3 convert_hf_model.py /path/to/Llama-2-7b-chat-hf models/llama2_7b_chat_hf
 ```
 
@@ -84,6 +102,9 @@ Build and run `llama2-chat`:
 
 ```sh
 zig build -Doptimize=ReleaseFast
+```
+
+```sh
 ./zig-out/bin/llama2-chat models/llama2_7b_chat_hf --temperature 0 --thread_count 8
 ```
 
