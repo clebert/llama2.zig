@@ -3,7 +3,7 @@ const Self = @This();
 const std = @import("std");
 const simd = @import("simd.zig");
 
-values: []f32,
+values: []align(std.atomic.cache_line) f32,
 
 pub fn createLeaky(allocator: std.mem.Allocator, n_values: usize) !Self {
     return .{ .values = try allocator.alignedAlloc(f32, std.atomic.cache_line, n_values) };
