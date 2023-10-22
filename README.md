@@ -2,7 +2,7 @@
 
 > Inference Llama 2 in pure Zig
 
-![Logo](logo.png)
+<img src="logo.png" width="50%" height="50%">
 
 This project is a port of Andrej Karpathy's [llama2.c](https://github.com/karpathy/llama2.c) into Zig, aimed at enhancing understanding of transformer models through clean, well-structured code. Utilizing a multi-file approach and descriptive variable names, it relies exclusively on the Zig standard library, without the need for external dependencies.
 
