@@ -14,13 +14,7 @@ prompt_tokens: []usize,
 verbose: bool,
 
 pub fn createLeaky(allocator: std.mem.Allocator, args: GeneratorArgs) !Self {
-    const transformer = try Transformer.createLeaky(
-        allocator,
-        args.model_path,
-        args.sequence_length,
-        args.thread_count,
-    );
-
+    const transformer = try Transformer.createLeaky(allocator, args);
     const vocab_size = transformer.checkpoint.vocab_size;
     const tokenizer = try Tokenizer.readLeaky(allocator, args.model_path, vocab_size);
 

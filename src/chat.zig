@@ -14,13 +14,7 @@ system_prompt: []const u8,
 user_prompt: []const u8,
 
 pub fn createLeaky(allocator: std.mem.Allocator, args: ChatArgs) !Self {
-    const transformer = try Transformer.createLeaky(
-        allocator,
-        args.model_path,
-        args.sequence_length,
-        args.thread_count,
-    );
-
+    const transformer = try Transformer.createLeaky(allocator, args);
     const vocab_size = transformer.checkpoint.vocab_size;
 
     return .{

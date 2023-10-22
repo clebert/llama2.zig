@@ -13,18 +13,13 @@ ffn: FFN,
 hidden: Vector,
 output: Vector,
 
-pub fn createLeaky(
-    allocator: std.mem.Allocator,
-    model_path: []const u8,
-    custom_sequence_length: usize,
-    thread_count: usize,
-) !Self {
-    const checkpoint = try Checkpoint.readLeaky(allocator, model_path, thread_count);
+pub fn createLeaky(allocator: std.mem.Allocator, args: anytype) !Self {
+    const checkpoint = try Checkpoint.readLeaky(allocator, args);
 
-    const sequence_length = if (custom_sequence_length == 0)
+    const sequence_length = if (args.sequence_length == 0)
         checkpoint.max_sequence_length
     else
-        @min(custom_sequence_length, checkpoint.max_sequence_length);
+        @min(checkpoint.max_sequence_length, args.sequence_length);
 
     return .{
         .checkpoint = checkpoint,
