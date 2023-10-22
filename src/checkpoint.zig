@@ -25,7 +25,7 @@ ffn_up_weights: []const Matrix,
 output_norm_weight: Vector,
 output_weight: Matrix,
 
-pub fn readLeaky(allocator: std.mem.Allocator, model_path: []const u8) !Self {
+pub fn readLeaky(allocator: std.mem.Allocator, model_path: []const u8, thread_count: usize) !Self {
     const path = try std.fs.path.join(
         allocator,
         &[_][]const u8{ model_path, "checkpoint_v1.bin" },
@@ -85,6 +85,7 @@ pub fn readLeaky(allocator: std.mem.Allocator, model_path: []const u8) !Self {
         n_layers,
         embedding_size,
         embedding_size,
+        thread_count,
     );
 
     const attention_head_size: usize = embedding_size / n_attention_heads;
@@ -95,6 +96,7 @@ pub fn readLeaky(allocator: std.mem.Allocator, model_path: []const u8) !Self {
         n_layers,
         n_attention_query_groups * attention_head_size,
         embedding_size,
+        thread_count,
     );
 
     const attention_value_weights = try Matrix.readMultipleLeaky(
@@ -103,6 +105,7 @@ pub fn readLeaky(allocator: std.mem.Allocator, model_path: []const u8) !Self {
         n_layers,
         n_attention_query_groups * attention_head_size,
         embedding_size,
+        thread_count,
     );
 
     const attention_output_weights = try Matrix.readMultipleLeaky(
@@ -111,6 +114,7 @@ pub fn readLeaky(allocator: std.mem.Allocator, model_path: []const u8) !Self {
         n_layers,
         embedding_size,
         embedding_size,
+        thread_count,
     );
 
     const ffn_gate_weights = try Matrix.readMultipleLeaky(
@@ -119,6 +123,7 @@ pub fn readLeaky(allocator: std.mem.Allocator, model_path: []const u8) !Self {
         n_layers,
         ffn_hidden_size,
         embedding_size,
+        thread_count,
     );
 
     const ffn_down_weights = try Matrix.readMultipleLeaky(
@@ -127,6 +132,7 @@ pub fn readLeaky(allocator: std.mem.Allocator, model_path: []const u8) !Self {
         n_layers,
         embedding_size,
         ffn_hidden_size,
+        thread_count,
     );
 
     const ffn_up_weights = try Matrix.readMultipleLeaky(
@@ -135,12 +141,13 @@ pub fn readLeaky(allocator: std.mem.Allocator, model_path: []const u8) !Self {
         n_layers,
         ffn_hidden_size,
         embedding_size,
+        thread_count,
     );
 
     const output_weight = if (shared_output_weight)
-        Matrix{ .rows = embedding_weights }
+        Matrix{ .rows = embedding_weights, .thread_count = thread_count }
     else
-        try Matrix.readLeaky(allocator, file, vocab_size, embedding_size);
+        try Matrix.readLeaky(allocator, file, vocab_size, embedding_size, thread_count);
 
     return .{
         .embedding_size = embedding_size,

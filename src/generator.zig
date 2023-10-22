@@ -18,6 +18,7 @@ pub fn createLeaky(allocator: std.mem.Allocator, args: GeneratorArgs) !Self {
         allocator,
         args.model_path,
         args.sequence_length,
+        args.thread_count,
     );
 
     const vocab_size = transformer.checkpoint.vocab_size;
@@ -92,11 +93,12 @@ test "generate tiny story" {
 
     const args = GeneratorArgs{
         .model_path = "models/tinystories_260k",
-        .temperature = 1,
-        .top_p = 0.9,
+        .prompt = "There was",
         .random_seed = 42,
         .sequence_length = 10,
-        .prompt = "There was",
+        .temperature = 1,
+        .thread_count = 0,
+        .top_p = 0.9,
         .verbose = false,
     };
 

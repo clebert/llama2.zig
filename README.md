@@ -23,7 +23,7 @@ Lily wanted to play with the ball, but it was too high up in the sky. She tried 
 Lily found a stick and tried to hit the ball. But the stick was too short. She tried again and again, but she couldn't reach it. She felt sad.
 Suddenly, a kind man came by and saw Lily. He asked her what was wrong. Lily told him about the ball. The man smiled and said, "I have a useful idea!" He took out a long stick and used it to knock the ball down. Lily was so happy! She thanked the man and they played together in the sunshine.
 
-achieved: 719.870 tok/s
+achieved: 724.590 tok/s
 ```
 
 ## Run Llama 2 7B from Hugging Face
@@ -47,7 +47,12 @@ Build and run `llama2-generator`:
 
 ```sh
 zig build -Doptimize=ReleaseFast
-./zig-out/bin/llama2-generator models/llama2_7b_hf --temperature 0 --sequence_length 28 --prompt "Once Upon a Time" --verbose
+./zig-out/bin/llama2-generator models/llama2_7b_hf \
+--prompt "Once Upon a Time" \
+--sequence_length 28 \
+--temperature 0 \
+--thread_count 8 \
+--verbose
 ```
 
 The output on an Apple M1 Pro with 32 GB of memory:
@@ -55,7 +60,7 @@ The output on an Apple M1 Pro with 32 GB of memory:
 ```
 Once Upon a Time in Hollywood is a 2019 American comedy-drama film written and directed by Quentin Tarantino
 
-achieved: 1.800 tok/s
+achieved: 3.482 tok/s
 ```
 
 ## Run Llama 2 7B Chat from Hugging Face
@@ -79,7 +84,7 @@ Build and run `llama2-chat`:
 
 ```sh
 zig build -Doptimize=ReleaseFast
-./zig-out/bin/llama2-chat models/llama2_7b_chat_hf
+./zig-out/bin/llama2-chat models/llama2_7b_chat_hf --temperature 0 --thread_count 8
 ```
 
 The output on an Apple M1 Pro with 32 GB of memory:
@@ -99,11 +104,12 @@ User: ...
 Usage: llama2-generator <model_path> [options]
 
 Options:
-  --temperature     <float>  = 1.0
-  --top_p           <float>  = 0.9
+  --prompt          <string> = ""
   --random_seed     <int>    = <milli_timestamp>
   --sequence_length <int>    = <max_sequence_length>
-  --prompt          <string> = ""
+  --temperature     <float>  = 1.0
+  --thread_count    <int>    = 0
+  --top_p           <float>  = 0.9
   --verbose
   --help
 ```
@@ -114,11 +120,12 @@ Options:
 Usage: llama2-chat <model_path> [options]
 
 Options:
-  --temperature     <float>  = 1.0
-  --top_p           <float>  = 0.9
   --random_seed     <int>    = <milli_timestamp>
   --sequence_length <int>    = <max_sequence_length>
   --system_prompt   <string> = ""
+  --temperature     <float>  = 1.0
+  --thread_count    <int>    = 0
+  --top_p           <float>  = 0.9
   --user_prompt     <string> = ""
   --help
 ```

@@ -17,8 +17,9 @@ pub fn createLeaky(
     allocator: std.mem.Allocator,
     model_path: []const u8,
     custom_sequence_length: usize,
+    thread_count: usize,
 ) !Self {
-    const checkpoint = try Checkpoint.readLeaky(allocator, model_path);
+    const checkpoint = try Checkpoint.readLeaky(allocator, model_path, thread_count);
 
     const sequence_length = if (custom_sequence_length == 0)
         checkpoint.max_sequence_length
