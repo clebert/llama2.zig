@@ -34,7 +34,7 @@ pub fn createLeaky(allocator: std.mem.Allocator, args: anytype) !Self {
 pub fn forward(self: Self, token: usize, position: usize) !void {
     const embedding_weight = self.checkpoint.embedding_weights[token];
 
-    @memcpy(self.hidden.values, embedding_weight.values);
+    @memcpy(self.hidden.data, embedding_weight.data);
 
     for (0..self.checkpoint.n_layers) |layer| {
         const attention_norm_weight = self.checkpoint.attention_norm_weights[layer];

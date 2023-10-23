@@ -40,21 +40,21 @@ const max_thread_count = 24;
 
 pub fn multiplyVector(self: Self, input: Vector, output: Vector) !void {
     if (self.thread_count == 0) {
-        try computeMatrixVectorMultiplication(self.rows, input, output.values);
+        try computeMatrixVectorMultiplication(self.rows, input, output.data);
 
         return;
     }
 
     const n_threads = @min(max_thread_count, self.thread_count);
-    const thread_chunk_size = output.values.len / n_threads;
+    const chunk_size = output.data.len / n_threads;
 
     var threads: [max_thread_count]std.Thread = undefined;
 
     for (threads[0..n_threads], 0..) |*thread, index| {
         thread.* = try std.Thread.spawn(.{}, computeMatrixVectorMultiplication, .{
-            self.rows[index * thread_chunk_size ..][0..thread_chunk_size],
+            self.rows[index * chunk_size ..][0..chunk_size],
             input,
-            output.values[index * thread_chunk_size ..][0..thread_chunk_size],
+            output.data[index * chunk_size ..][0..chunk_size],
         });
     }
 
@@ -62,11 +62,11 @@ pub fn multiplyVector(self: Self, input: Vector, output: Vector) !void {
         thread.join();
     }
 
-    if (output.values.len % n_threads > 0) {
+    if (output.data.len % n_threads > 0) {
         try computeMatrixVectorMultiplication(
-            self.rows[n_threads * thread_chunk_size ..],
+            self.rows[n_threads * chunk_size ..],
             input,
-            output.values[n_threads * thread_chunk_size ..],
+            output.data[n_threads * chunk_size ..],
         );
     }
 }
@@ -74,11 +74,11 @@ pub fn multiplyVector(self: Self, input: Vector, output: Vector) !void {
 fn computeMatrixVectorMultiplication(
     rows: []const Vector,
     input: Vector,
-    output_values: []f32,
+    output_data: []f32,
 ) !void {
-    std.debug.assert(rows.len == output_values.len);
+    std.debug.assert(rows.len == output_data.len);
 
-    for (output_values, 0..) |*value, index| {
-        value.* = try rows[index].computeScalarProduct(input);
+    for (output_data, 0..) |*element, index| {
+        element.* = try rows[index].computeScalarProduct(input);
     }
 }

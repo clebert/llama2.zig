@@ -67,7 +67,7 @@ pub fn forward(self: Self, layer: usize, position: usize) !void {
     try key_weight.multiplyVector(self.input, multi_key);
     try value_weight.multiplyVector(self.input, multi_value);
 
-    self.computeRoPE(position, multi_key.values);
+    self.computeRoPE(position, multi_key.data);
 
     for (0..self.checkpoint.n_attention_heads) |head| {
         try self.computeGQA(layer, position, head);
@@ -77,37 +77,37 @@ pub fn forward(self: Self, layer: usize, position: usize) !void {
 }
 
 // Rotary positional embeddings: https://arxiv.org/abs/2104.09864
-fn computeRoPE(self: Self, position: usize, multi_key_values: []f32) void {
+fn computeRoPE(self: Self, position: usize, multi_key_data: []f32) void {
     @setFloatMode(.Optimized);
 
-    const multi_query_values = self.multi_query.values;
+    const multi_query_data = self.multi_query.data;
 
-    std.debug.assert(multi_query_values.len % multi_key_values.len == 0);
+    std.debug.assert(multi_query_data.len % multi_key_data.len == 0);
 
     var index: usize = 0;
 
-    while (index < multi_query_values.len) : (index += 2) {
+    while (index < multi_query_data.len) : (index += 2) {
         const head: f32 = @floatFromInt(index % self.head_size);
 
         const frequency =
             1 / std.math.pow(f32, 10000, head / @as(f32, @floatFromInt(self.head_size)));
 
         const rotation_scaling_factor: f32 = @as(f32, @floatFromInt(position)) * frequency;
-        const real_rotation_value: f32 = std.math.cos(rotation_scaling_factor);
-        const imag_rotation_value: f32 = std.math.sin(rotation_scaling_factor);
+        const real_rotation: f32 = std.math.cos(rotation_scaling_factor);
+        const imag_rotation: f32 = std.math.sin(rotation_scaling_factor);
 
-        const q_0 = multi_query_values[index];
-        const q_1 = multi_query_values[index + 1];
+        const q_0 = multi_query_data[index];
+        const q_1 = multi_query_data[index + 1];
 
-        multi_query_values[index] = q_0 * real_rotation_value - q_1 * imag_rotation_value;
-        multi_query_values[index + 1] = q_0 * imag_rotation_value + q_1 * real_rotation_value;
+        multi_query_data[index] = q_0 * real_rotation - q_1 * imag_rotation;
+        multi_query_data[index + 1] = q_0 * imag_rotation + q_1 * real_rotation;
 
-        if (index < multi_key_values.len) {
-            const k_0 = multi_key_values[index];
-            const k_1 = multi_key_values[index + 1];
+        if (index < multi_key_data.len) {
+            const k_0 = multi_key_data[index];
+            const k_1 = multi_key_data[index + 1];
 
-            multi_key_values[index] = k_0 * real_rotation_value - k_1 * imag_rotation_value;
-            multi_key_values[index + 1] = k_0 * imag_rotation_value + k_1 * real_rotation_value;
+            multi_key_data[index] = k_0 * real_rotation - k_1 * imag_rotation;
+            multi_key_data[index + 1] = k_0 * imag_rotation + k_1 * real_rotation;
         }
     }
 }
@@ -116,7 +116,7 @@ fn computeRoPE(self: Self, position: usize, multi_key_values: []f32) void {
 fn computeGQA(self: Self, layer: usize, current_position: usize, head: usize) !void {
     @setFloatMode(.Optimized);
 
-    const query_values = self.multi_query.values[head * self.head_size ..][0..self.head_size];
+    const query_data = self.multi_query.data[head * self.head_size ..][0..self.head_size];
 
     const query_group =
         head / (self.checkpoint.n_attention_heads / self.checkpoint.n_attention_query_groups);
@@ -125,25 +125,25 @@ fn computeGQA(self: Self, layer: usize, current_position: usize, head: usize) !v
 
     for (0..next_position) |position| {
         const multi_key = self.key_cache[layer][position];
-        const key_values = multi_key.values[query_group * self.head_size ..][0..self.head_size];
+        const key_data = multi_key.data[query_group * self.head_size ..][0..self.head_size];
 
         self.scores[position] =
-            try simd.computeScalarProduct(query_values, key_values) / self.head_size_sqrt;
+            try simd.computeScalarProduct(query_data, key_data) / self.head_size_sqrt;
     }
 
     math.softmax(self.scores[0..next_position]);
 
-    const attention_values = self.input.values[head * self.head_size ..][0..self.head_size];
+    const attention_data = self.input.data[head * self.head_size ..][0..self.head_size];
 
-    @memset(attention_values, 0);
+    @memset(attention_data, 0);
 
     for (0..next_position) |position| {
         const multi_value = self.value_cache[layer][position];
-        const value_values = multi_value.values[query_group * self.head_size ..][0..self.head_size];
+        const value_data = multi_value.data[query_group * self.head_size ..][0..self.head_size];
         const weight = self.scores[position];
 
         for (0..self.head_size) |index| {
-            attention_values[index] += value_values[index] * weight;
+            attention_data[index] += value_data[index] * weight;
         }
     }
 }

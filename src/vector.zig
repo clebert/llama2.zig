@@ -3,31 +3,31 @@ const Self = @This();
 const std = @import("std");
 const simd = @import("simd.zig");
 
-values: []align(std.atomic.cache_line) f32,
+data: []align(std.atomic.cache_line) f32,
 
-pub fn createLeaky(allocator: std.mem.Allocator, n_values: usize) !Self {
-    return .{ .values = try allocator.alignedAlloc(f32, std.atomic.cache_line, n_values) };
+pub fn createLeaky(allocator: std.mem.Allocator, data_size: usize) !Self {
+    return .{ .data = try allocator.alignedAlloc(f32, std.atomic.cache_line, data_size) };
 }
 
 pub fn createMultipleLeaky(
     allocator: std.mem.Allocator,
     n_vectors: usize,
-    n_values: usize,
+    data_size: usize,
 ) ![]Self {
     const vectors = try allocator.alloc(Self, n_vectors);
 
     for (vectors) |*vector| {
-        vector.* = try createLeaky(allocator, n_values);
+        vector.* = try createLeaky(allocator, data_size);
     }
 
     return vectors;
 }
 
-pub fn readLeaky(allocator: std.mem.Allocator, file: std.fs.File, n_values: usize) !Self {
-    const vector = try createLeaky(allocator, n_values);
-    const bytes: [*]u8 = @ptrCast(vector.values);
+pub fn readLeaky(allocator: std.mem.Allocator, file: std.fs.File, data_size: usize) !Self {
+    const vector = try createLeaky(allocator, data_size);
+    const data: [*]u8 = @ptrCast(vector.data);
 
-    try file.reader().readNoEof(bytes[0 .. vector.values.len * @sizeOf(f32)]);
+    try file.reader().readNoEof(data[0 .. vector.data.len * @sizeOf(f32)]);
 
     return vector;
 }
@@ -36,25 +36,25 @@ pub fn readMultipleLeaky(
     allocator: std.mem.Allocator,
     file: std.fs.File,
     n_vectors: usize,
-    n_values: usize,
+    data_size: usize,
 ) ![]Self {
     const vectors = try allocator.alloc(Self, n_vectors);
 
     for (vectors) |*vector| {
-        vector.* = try readLeaky(allocator, file, n_values);
+        vector.* = try readLeaky(allocator, file, data_size);
     }
 
     return vectors;
 }
 
 pub fn addVector(self: Self, other: Self) !void {
-    try simd.computeVectorAddition(self.values, other.values, self.values);
+    try simd.computeVectorAddition(self.data, other.data, self.data);
 }
 
 pub fn computeRMSNorm(self: Self, weight: Self, output: Self) !void {
-    try simd.computeRMSNorm(self.values, weight.values, output.values);
+    try simd.computeRMSNorm(self.data, weight.data, output.data);
 }
 
 pub fn computeScalarProduct(self: Self, other: Self) !f32 {
-    return simd.computeScalarProduct(self.values, other.values);
+    return simd.computeScalarProduct(self.data, other.data);
 }

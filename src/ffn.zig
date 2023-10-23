@@ -32,7 +32,7 @@ pub fn forward(self: Self, layer: usize) !void {
     try up_weight.multiplyVector(self.input, self.hidden);
 
     for (0..self.checkpoint.ffn_hidden_size) |index| {
-        self.hidden.values[index] *= swish(self.gate.values[index]);
+        self.hidden.data[index] *= swish(self.gate.data[index]);
     }
 
     try down_weight.multiplyVector(self.hidden, self.output);

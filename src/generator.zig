@@ -54,7 +54,7 @@ pub fn generate(self: *Self, writer: anytype) !void {
             next_token = self.prompt_tokens[prompt_tokens_index];
             prompt_tokens_index += 1;
         } else {
-            next_token = self.sampler.sample(self.transformer.output.values);
+            next_token = self.sampler.sample(self.transformer.output.data);
         }
 
         if (next_token == bos_token or next_token == eos_token) {

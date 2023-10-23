@@ -1,33 +1,33 @@
 const std = @import("std");
 
-pub fn argmax(values: []f32) usize {
+pub fn argmax(data: []f32) usize {
     var max_index: usize = 0;
-    var max_value: f32 = values[max_index];
+    var max_element: f32 = data[max_index];
 
-    for (1..values.len) |index| {
-        const value = values[index];
+    for (1..data.len) |index| {
+        const element = data[index];
 
-        if (value > max_value) {
+        if (element > max_element) {
             max_index = index;
-            max_value = value;
+            max_element = element;
         }
     }
 
     return max_index;
 }
 
-pub fn softmax(values: []f32) void {
+pub fn softmax(data: []f32) void {
     @setFloatMode(.Optimized);
 
-    var max_value: f32 = std.mem.max(f32, values);
+    var max_element: f32 = std.mem.max(f32, data);
     var sum: f32 = 0;
 
-    for (values) |*value| {
-        value.* = std.math.exp(value.* - max_value);
-        sum += value.*;
+    for (data) |*element| {
+        element.* = std.math.exp(element.* - max_element);
+        sum += element.*;
     }
 
-    for (values) |*value| {
-        value.* /= sum;
+    for (data) |*element| {
+        element.* /= sum;
     }
 }
