@@ -29,6 +29,10 @@ Suddenly, a kind man came by and saw Lily. He asked her what was wrong. Lily tol
 achieved: 724.590 tok/s
 ```
 
+## Performance
+
+Even though the emphasis is on simple, understandable, and clean implementation, the single-threaded performance is very competitive compared to top-tier implementations as per Aydyn Tairov's [benchmarks](https://engiware.com/benchmark/llama2-ports-extensive-benchmarks-mac-m1-max.html). The multi-threaded variant currently suffers from thread spawning overhead, with new threads being created for each matrix-vector multiplication. The overhead of thread creation, as currently implemented, seems to negate the potential performance gains. Moreover, I have aligned all vectors to the cache line without seeing much impact. I utilize SIMD for most of the vector operations and apply `@setFloatMode(.Optimized)` for all functions dealing with floating-point arithmetic.
+
 ## Run Llama 2 7B from Hugging Face
 
 Install `git-lfs` and clone the [Llama 2 7B](https://huggingface.co/meta-llama/Llama-2-7b-hf) model from Hugging Face:
