@@ -15,23 +15,15 @@ zig build -Doptimize=ReleaseFast
 ```
 
 ```sh
-./zig-out/bin/llama2-generator models/tinystories_15m --temperature 0 --verbose
+./zig-out/bin/llama2-generator models/tinystories_15m --temperature 0
 ```
-
-The output on an Apple M1 Pro with 32 GB of memory:
 
 ```
 Once upon a time, there was a little girl named Lily. She loved to play outside in the sunshine. One day, she saw a big, red ball in the sky. It was the sun! She thought it was so pretty.
 Lily wanted to play with the ball, but it was too high up in the sky. She tried to jump and reach it, but she couldn't. Then, she had an idea. She would use a stick to knock the ball down.
 Lily found a stick and tried to hit the ball. But the stick was too short. She tried again and again, but she couldn't reach it. She felt sad.
 Suddenly, a kind man came by and saw Lily. He asked her what was wrong. Lily told him about the ball. The man smiled and said, "I have a useful idea!" He took out a long stick and used it to knock the ball down. Lily was so happy! She thanked the man and they played together in the sunshine.
-
-achieved: 724.590 tok/s
 ```
-
-## Performance
-
-Even though the emphasis is on simple, understandable, and clean implementation, the single-threaded performance is very competitive compared to top-tier implementations as per Aydyn Tairov's [benchmarks](https://engiware.com/benchmark/llama2-ports-extensive-benchmarks-mac-m1-max.html). The multi-threaded variant currently suffers from thread spawning overhead, with new threads being created for each matrix-vector multiplication. The overhead of thread creation, as currently implemented, seems to negate the potential performance gains. Moreover, I have aligned all vectors to the cache line without seeing much impact. I utilize SIMD for most of the vector operations and apply `@setFloatMode(.Optimized)` for all functions dealing with floating-point arithmetic.
 
 ## Run Llama 2 7B from Hugging Face
 
@@ -67,16 +59,11 @@ zig build -Doptimize=ReleaseFast
   --prompt "Once Upon a Time" \
   --sequence_length 28 \
   --temperature 0 \
-  --thread_count 8 \
-  --verbose
+  --worker_count 10
 ```
-
-The output on an Apple M1 Pro with 32 GB of memory:
 
 ```
 Once Upon a Time in Hollywood is a 2019 American comedy-drama film written and directed by Quentin Tarantino
-
-achieved: 3.749 tok/s
 ```
 
 ## Run Llama 2 7B Chat from Hugging Face
@@ -109,7 +96,7 @@ zig build -Doptimize=ReleaseFast
 ```
 
 ```sh
-./zig-out/bin/llama2-chat models/llama2_7b_chat_hf --temperature 0 --thread_count 8
+./zig-out/bin/llama2-chat models/llama2_7b_chat_hf --temperature 0 --worker_count 10
 ```
 
 The output on an Apple M1 Pro with 32 GB of memory:
@@ -129,14 +116,14 @@ User: ...
 Usage: llama2-generator <model_path> [options]
 
 Options:
+  --help
   --prompt          <string> = ""
   --random_seed     <int>    = <milli_timestamp>
   --sequence_length <int>    = <max_sequence_length>
   --temperature     <float>  = 1.0
-  --thread_count    <int>    = 0
   --top_p           <float>  = 0.9
   --verbose
-  --help
+  --worker_count    <int>    = 0
 ```
 
 ### llama2-chat
@@ -145,14 +132,14 @@ Options:
 Usage: llama2-chat <model_path> [options]
 
 Options:
+  --help
   --random_seed     <int>    = <milli_timestamp>
   --sequence_length <int>    = <max_sequence_length>
   --system_prompt   <string> = ""
   --temperature     <float>  = 1.0
-  --thread_count    <int>    = 0
   --top_p           <float>  = 0.9
   --user_prompt     <string> = ""
-  --help
+  --worker_count    <int>    = 0
 ```
 
 ## Papers

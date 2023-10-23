@@ -58,7 +58,7 @@ if [ "$actual_output" != "$expected_output" ]; then
     exit 1
 fi
 
-actual_output=$(./zig-out/bin/llama2-generator $model_path --temperature 0 --sequence_length 200 --thread_count 3)
+actual_output=$(./zig-out/bin/llama2-generator $model_path --temperature 0 --sequence_length 200 --worker_count 3)
 
 # Generated with llama2.c (https://github.com/karpathy/llama2.c/tree/7ac65cb2c2b169050747be92011b7bebdd1b4544)
 expected_output="Once upon a time, there was a little girl named Lily. She loved to play outside in the park. One day, she saw a big, red ball. She wanted to play with it, but it was too high.

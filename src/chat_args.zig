@@ -7,21 +7,21 @@ random_seed: u64,
 sequence_length: usize,
 system_prompt: []const u8,
 temperature: f32,
-thread_count: usize,
 top_p: f32,
 user_prompt: []const u8,
+worker_count: usize,
 
 const Option = enum {
     random_seed,
     sequence_length,
     system_prompt,
     temperature,
-    thread_count,
     top_p,
     user_prompt,
+    worker_count,
 };
 
-pub fn createLeaky(allocator: std.mem.Allocator) !Self {
+pub fn initLeaky(allocator: std.mem.Allocator) !Self {
     var arg_iterator = try std.process.argsWithAllocator(allocator);
 
     _ = arg_iterator.next().?;
@@ -33,9 +33,9 @@ pub fn createLeaky(allocator: std.mem.Allocator) !Self {
     var sequence_length: ?usize = null;
     var system_prompt: ?[]const u8 = null;
     var temperature: ?f32 = null;
-    var thread_count: ?usize = null;
     var top_p: ?f32 = null;
     var user_prompt: ?[]const u8 = null;
+    var worker_count: ?usize = null;
 
     while (arg_iterator.next()) |arg| {
         if (current_option) |option| {
@@ -47,12 +47,12 @@ pub fn createLeaky(allocator: std.mem.Allocator) !Self {
                 system_prompt = arg;
             } else if (option == .temperature and temperature == null) {
                 temperature = try std.fmt.parseFloat(f32, arg);
-            } else if (option == .thread_count and thread_count == null) {
-                thread_count = try std.fmt.parseInt(usize, arg, 10);
             } else if (option == .top_p and top_p == null) {
                 top_p = try std.fmt.parseFloat(f32, arg);
             } else if (option == .user_prompt and user_prompt == null) {
                 user_prompt = arg;
+            } else if (option == .worker_count and worker_count == null) {
+                worker_count = try std.fmt.parseInt(usize, arg, 10);
             } else {
                 try help(1);
             }
@@ -66,12 +66,12 @@ pub fn createLeaky(allocator: std.mem.Allocator) !Self {
             current_option = .system_prompt;
         } else if (std.mem.eql(u8, arg, "--temperature")) {
             current_option = .temperature;
-        } else if (std.mem.eql(u8, arg, "--thread_count")) {
-            current_option = .thread_count;
         } else if (std.mem.eql(u8, arg, "--top_p")) {
             current_option = .top_p;
         } else if (std.mem.eql(u8, arg, "--user_prompt")) {
             current_option = .user_prompt;
+        } else if (std.mem.eql(u8, arg, "--worker_count")) {
+            current_option = .worker_count;
         } else {
             try help(if (std.mem.eql(u8, arg, "--help")) 0 else 1);
         }
@@ -87,9 +87,9 @@ pub fn createLeaky(allocator: std.mem.Allocator) !Self {
         .sequence_length = sequence_length orelse 0,
         .system_prompt = system_prompt orelse "",
         .temperature = @max(@min(temperature orelse 1, 1), 0),
-        .thread_count = thread_count orelse 0,
         .top_p = @max(@min(top_p orelse 0.9, 1), 0),
         .user_prompt = user_prompt orelse "",
+        .worker_count = worker_count orelse 0,
     };
 }
 
@@ -102,14 +102,14 @@ fn help(exit_status: u8) !noreturn {
     try console.print("Usage: llama2-chat <model_path> [options]\n\n", .{});
 
     try console.print("Options:\n", .{});
+    try console.print("  --help\n", .{});
     try console.print("  --random_seed     <int>    = <milli_timestamp>\n", .{});
     try console.print("  --sequence_length <int>    = <max_sequence_length>\n", .{});
     try console.print("  --system_prompt   <string> = \"\"\n", .{});
     try console.print("  --temperature     <float>  = 1.0\n", .{});
-    try console.print("  --thread_count    <int>    = 0\n", .{});
     try console.print("  --top_p           <float>  = 0.9\n", .{});
     try console.print("  --user_prompt     <string> = \"\"\n", .{});
-    try console.print("  --help\n", .{});
+    try console.print("  --worker_count    <int>    = 0\n", .{});
 
     std.process.exit(exit_status);
 }

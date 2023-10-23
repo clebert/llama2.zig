@@ -7,7 +7,7 @@ vocab: []const []const u8,
 word_scores: []const f32,
 sorted_vocab: []const VocabEntry,
 
-pub fn readLeaky(allocator: std.mem.Allocator, model_path: []const u8, vocab_size: usize) !Self {
+pub fn initLeaky(allocator: std.mem.Allocator, model_path: []const u8, vocab_size: usize) !Self {
     const path = try std.fs.path.join(allocator, &[_][]const u8{ model_path, "tokenizer.bin" });
 
     defer allocator.free(path);
@@ -197,7 +197,7 @@ test "encode utf-8" {
 
     defer arena.deinit();
 
-    const tokenizer = try Self.readLeaky(arena.allocator(), tinystories_15m_path, 32000);
+    const tokenizer = try Self.initLeaky(arena.allocator(), tinystories_15m_path, 32000);
     const expected = [_]usize{ 365, 1691, 1018, 3963, 669, 29871, 31409, 30607, 30437, 30564 };
     const actual = try tokenizer.encode(arena.allocator(), "Lets try ö & 株式会社");
 
@@ -209,7 +209,7 @@ test "encode empty string" {
 
     defer arena.deinit();
 
-    const tokenizer = try Self.readLeaky(arena.allocator(), tinystories_15m_path, 32000);
+    const tokenizer = try Self.initLeaky(arena.allocator(), tinystories_15m_path, 32000);
     const expected = [_]usize{};
     const actual = try tokenizer.encode(arena.allocator(), "");
 
@@ -221,7 +221,7 @@ test "encode unknown codepoint" {
 
     defer arena.deinit();
 
-    const tokenizer = try Self.readLeaky(arena.allocator(), tinystories_15m_path, 32000);
+    const tokenizer = try Self.initLeaky(arena.allocator(), tinystories_15m_path, 32000);
     const expected = [_]usize{ 29871, 243, 149, 145, 154, 243, 150, 147, 144 };
     const actual = try tokenizer.encode(arena.allocator(), "𒎗𓐍");
 
@@ -233,7 +233,7 @@ test "encode single chars" {
 
     defer arena.deinit();
 
-    const tokenizer = try Self.readLeaky(arena.allocator(), tinystories_260k_path, 512);
+    const tokenizer = try Self.initLeaky(arena.allocator(), tinystories_260k_path, 512);
     const expected = [_]usize{ 261, 430, 429, 418, 411, 431, 428, 415 };
     const actual = try tokenizer.encode(arena.allocator(), "abcdefgh");
 
@@ -246,7 +246,7 @@ test "meta encoding example 1" {
 
     defer arena.deinit();
 
-    const tokenizer = try Self.readLeaky(arena.allocator(), tinystories_15m_path, 32000);
+    const tokenizer = try Self.initLeaky(arena.allocator(), tinystories_15m_path, 32000);
     const expected = [_]usize{ 306, 4658, 278, 6593, 310, 2834, 338 };
     const actual = try tokenizer.encode(arena.allocator(), "I believe the meaning of life is");
 
@@ -258,7 +258,7 @@ test "meta encoding example 2" {
 
     defer arena.deinit();
 
-    const tokenizer = try Self.readLeaky(arena.allocator(), tinystories_15m_path, 32000);
+    const tokenizer = try Self.initLeaky(arena.allocator(), tinystories_15m_path, 32000);
     const expected = [_]usize{ 3439, 17632, 1925, 29892, 278, 6368, 310, 14215, 537, 5922, 393, 29871 };
 
     const actual = try tokenizer.encode(
@@ -274,7 +274,7 @@ test "meta encoding example 3" {
 
     defer arena.deinit();
 
-    const tokenizer = try Self.readLeaky(arena.allocator(), tinystories_15m_path, 32000);
+    const tokenizer = try Self.initLeaky(arena.allocator(), tinystories_15m_path, 32000);
     const expected = [_]usize{ 319, 11473, 2643, 378, 629, 271, 18099, 278, 3815, 373, 278, 6826, 29901, 13, 13, 4706, 6324, 14332, 29892, 13, 13, 4706, 306, 925, 29871 };
 
     const actual = try tokenizer.encode(
@@ -290,7 +290,7 @@ test "meta encoding example 4" {
 
     defer arena.deinit();
 
-    const tokenizer = try Self.readLeaky(arena.allocator(), tinystories_15m_path, 32000);
+    const tokenizer = try Self.initLeaky(arena.allocator(), tinystories_15m_path, 32000);
     const expected = [_]usize{ 4103, 9632, 4223, 304, 5176, 29901, 13, 13, 4706, 7205, 4932, 357, 1149, 301, 449, 276, 316, 2778, 13, 4706, 1236, 407, 837, 524, 1149, 6042, 354, 772, 440, 29878, 1318, 13, 4706, 715, 1878, 330, 3055, 1725, 1149, 330, 3055, 1725, 4639, 28754, 13, 4706, 923, 968, 1149 };
 
     const actual = try tokenizer.encode(

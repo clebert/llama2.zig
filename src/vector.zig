@@ -5,46 +5,30 @@ const simd = @import("simd.zig");
 
 data: []align(std.atomic.cache_line) f32,
 
-pub fn createLeaky(allocator: std.mem.Allocator, data_size: usize) !Self {
+pub fn initLeaky(allocator: std.mem.Allocator, data_size: usize) !Self {
     return .{ .data = try allocator.alignedAlloc(f32, std.atomic.cache_line, data_size) };
 }
 
-pub fn createMultipleLeaky(
-    allocator: std.mem.Allocator,
-    n_vectors: usize,
-    data_size: usize,
-) ![]Self {
+pub fn initAllLeaky(allocator: std.mem.Allocator, n_vectors: usize, data_size: usize) ![]Self {
     const vectors = try allocator.alloc(Self, n_vectors);
 
     for (vectors) |*vector| {
-        vector.* = try createLeaky(allocator, data_size);
+        vector.* = try initLeaky(allocator, data_size);
     }
 
     return vectors;
 }
 
-pub fn readLeaky(allocator: std.mem.Allocator, file: std.fs.File, data_size: usize) !Self {
-    const vector = try createLeaky(allocator, data_size);
-    const data: [*]u8 = @ptrCast(vector.data);
+pub fn read(self: Self, file: std.fs.File) !void {
+    const data: [*]u8 = @ptrCast(self.data);
 
-    try file.reader().readNoEof(data[0 .. vector.data.len * @sizeOf(f32)]);
-
-    return vector;
+    try file.reader().readNoEof(data[0 .. self.data.len * @sizeOf(f32)]);
 }
 
-pub fn readMultipleLeaky(
-    allocator: std.mem.Allocator,
-    file: std.fs.File,
-    n_vectors: usize,
-    data_size: usize,
-) ![]Self {
-    const vectors = try allocator.alloc(Self, n_vectors);
-
-    for (vectors) |*vector| {
-        vector.* = try readLeaky(allocator, file, data_size);
+pub fn readAll(file: std.fs.File, vectors: []const Self) !void {
+    for (vectors) |vector| {
+        try vector.read(file);
     }
-
-    return vectors;
 }
 
 pub fn addVector(self: Self, other: Self) !void {

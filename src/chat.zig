@@ -6,6 +6,7 @@ const print = @import("print.zig").print;
 const Sampler = @import("sampler.zig");
 const Tokenizer = @import("tokenizer.zig");
 const Transformer = @import("transformer.zig");
+const Worker = @import("worker.zig");
 
 transformer: Transformer,
 tokenizer: Tokenizer,
@@ -13,14 +14,14 @@ sampler: Sampler,
 system_prompt: []const u8,
 user_prompt: []const u8,
 
-pub fn createLeaky(allocator: std.mem.Allocator, args: ChatArgs) !Self {
-    const transformer = try Transformer.createLeaky(allocator, args);
+pub fn initLeaky(allocator: std.mem.Allocator, args: ChatArgs) !Self {
+    const transformer = try Transformer.initLeaky(allocator, args);
     const vocab_size = transformer.checkpoint.vocab_size;
 
     return .{
         .transformer = transformer,
-        .tokenizer = try Tokenizer.readLeaky(allocator, args.model_path, vocab_size),
-        .sampler = try Sampler.createLeaky(allocator, args, vocab_size),
+        .tokenizer = try Tokenizer.initLeaky(allocator, args.model_path, vocab_size),
+        .sampler = try Sampler.initLeaky(allocator, args, vocab_size),
         .system_prompt = args.system_prompt,
         .user_prompt = args.user_prompt,
     };
@@ -34,7 +35,7 @@ const user_prompt_template_close = " [/INST]";
 const bos_token = 1; // beginning of sequence
 const eos_token = 2; // end of sequence
 
-pub fn start(self: *Self, allocator: std.mem.Allocator) !void {
+pub fn start(self: *Self, allocator: std.mem.Allocator, workers: []Worker) !void {
     var stdin = std.io.getStdIn().reader();
     var stdout = std.io.getStdOut().writer();
 
@@ -45,12 +46,10 @@ pub fn start(self: *Self, allocator: std.mem.Allocator) !void {
 
     var user_prompt_tokens: ?[]const usize = null;
 
-    defer if (user_prompt_tokens) |prompt_tokens| {
-        allocator.free(prompt_tokens);
-    };
+    defer if (user_prompt_tokens) |prompt_tokens| allocator.free(prompt_tokens);
 
     for (0..self.transformer.sequence_length) |position| {
-        try self.transformer.forward(token, position);
+        try self.transformer.forward(token, position, workers);
 
         if (token == bos_token and user_turn) {
             var user_prompt = std.ArrayList(u8).init(allocator);

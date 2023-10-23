@@ -6,6 +6,7 @@ const print = @import("print.zig").print;
 const Sampler = @import("sampler.zig");
 const Tokenizer = @import("tokenizer.zig");
 const Transformer = @import("transformer.zig");
+const Worker = @import("worker.zig");
 
 transformer: Transformer,
 tokenizer: Tokenizer,
@@ -13,15 +14,15 @@ sampler: Sampler,
 prompt_tokens: []usize,
 verbose: bool,
 
-pub fn createLeaky(allocator: std.mem.Allocator, args: GeneratorArgs) !Self {
-    const transformer = try Transformer.createLeaky(allocator, args);
+pub fn initLeaky(allocator: std.mem.Allocator, args: GeneratorArgs) !Self {
+    const transformer = try Transformer.initLeaky(allocator, args);
     const vocab_size = transformer.checkpoint.vocab_size;
-    const tokenizer = try Tokenizer.readLeaky(allocator, args.model_path, vocab_size);
+    const tokenizer = try Tokenizer.initLeaky(allocator, args.model_path, vocab_size);
 
     return .{
         .transformer = transformer,
         .tokenizer = tokenizer,
-        .sampler = try Sampler.createLeaky(allocator, args, vocab_size),
+        .sampler = try Sampler.initLeaky(allocator, args, vocab_size),
         .prompt_tokens = try tokenizer.encode(allocator, args.prompt),
         .verbose = args.verbose,
     };
@@ -30,7 +31,7 @@ pub fn createLeaky(allocator: std.mem.Allocator, args: GeneratorArgs) !Self {
 const bos_token = 1; // beginning of sequence
 const eos_token = 2; // end of sequence
 
-pub fn generate(self: *Self, writer: anytype) !void {
+pub fn generate(self: *Self, writer: anytype, workers: []Worker) !void {
     var token: usize = bos_token;
     var next_token: usize = 0;
     var prompt_tokens_index: usize = 0;
@@ -44,7 +45,7 @@ pub fn generate(self: *Self, writer: anytype) !void {
             start_time = std.time.milliTimestamp();
         }
 
-        try self.transformer.forward(token, position);
+        try self.transformer.forward(token, position, workers);
 
         if (start_time > 0) {
             total_time += std.time.milliTimestamp() - start_time;
@@ -91,14 +92,14 @@ test "generate tiny story" {
         .random_seed = 42,
         .sequence_length = 10,
         .temperature = 1,
-        .thread_count = 0,
         .top_p = 0.9,
         .verbose = false,
+        .worker_count = 0,
     };
 
-    var generator = try Self.createLeaky(arena.allocator(), args);
+    var generator = try Self.initLeaky(arena.allocator(), args);
 
-    try generator.generate(output.writer());
+    try generator.generate(output.writer(), &[_]Worker{});
 
     try std.testing.expectEqualStrings("There was a good room\n", output.items);
 }

@@ -9,7 +9,7 @@ rng_state: u64,
 temperature: f32,
 top_p: f32,
 
-pub fn createLeaky(allocator: std.mem.Allocator, args: anytype, vocab_size: usize) !Self {
+pub fn initLeaky(allocator: std.mem.Allocator, args: anytype, vocab_size: usize) !Self {
     return .{
         .probability_index_pairs = try allocator.alloc(ProbabilityIndexPair, vocab_size),
         .rng_state = args.random_seed,

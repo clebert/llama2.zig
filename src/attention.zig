@@ -5,6 +5,7 @@ const Checkpoint = @import("checkpoint.zig");
 const math = @import("math.zig");
 const simd = @import("simd.zig");
 const Vector = @import("vector.zig");
+const Worker = @import("worker.zig");
 
 checkpoint: Checkpoint,
 head_size: usize,
@@ -16,7 +17,7 @@ key_cache: []const []const Vector,
 value_cache: []const []const Vector,
 scores: []f32,
 
-pub fn createLeaky(
+pub fn initLeaky(
     allocator: std.mem.Allocator,
     checkpoint: Checkpoint,
     sequence_length: usize,
@@ -25,7 +26,7 @@ pub fn createLeaky(
     const key_cache = try allocator.alloc([]Vector, checkpoint.n_layers);
 
     for (key_cache) |*layer| {
-        layer.* = try Vector.createMultipleLeaky(
+        layer.* = try Vector.initAllLeaky(
             allocator,
             sequence_length,
             checkpoint.n_attention_query_groups * head_size,
@@ -35,7 +36,7 @@ pub fn createLeaky(
     const value_cache = try allocator.alloc([]Vector, checkpoint.n_layers);
 
     for (value_cache) |*layer| {
-        layer.* = try Vector.createMultipleLeaky(
+        layer.* = try Vector.initAllLeaky(
             allocator,
             sequence_length,
             checkpoint.n_attention_query_groups * head_size,
@@ -46,16 +47,16 @@ pub fn createLeaky(
         .checkpoint = checkpoint,
         .head_size = head_size,
         .head_size_sqrt = std.math.sqrt(@as(f32, @floatFromInt(head_size))),
-        .input = try Vector.createLeaky(allocator, checkpoint.embedding_size),
-        .output = try Vector.createLeaky(allocator, checkpoint.embedding_size),
-        .multi_query = try Vector.createLeaky(allocator, checkpoint.embedding_size),
+        .input = try Vector.initLeaky(allocator, checkpoint.embedding_size),
+        .output = try Vector.initLeaky(allocator, checkpoint.embedding_size),
+        .multi_query = try Vector.initLeaky(allocator, checkpoint.embedding_size),
         .key_cache = key_cache,
         .value_cache = value_cache,
         .scores = try allocator.alloc(f32, sequence_length),
     };
 }
 
-pub fn forward(self: Self, layer: usize, position: usize) !void {
+pub fn forward(self: Self, layer: usize, position: usize, workers: []Worker) !void {
     const query_weight = self.checkpoint.attention_query_weights[layer];
     const key_weight = self.checkpoint.attention_key_weights[layer];
     const value_weight = self.checkpoint.attention_value_weights[layer];
@@ -63,9 +64,9 @@ pub fn forward(self: Self, layer: usize, position: usize) !void {
     const multi_key = self.key_cache[layer][position];
     const multi_value = self.value_cache[layer][position];
 
-    try query_weight.multiplyVector(self.input, self.multi_query);
-    try key_weight.multiplyVector(self.input, multi_key);
-    try value_weight.multiplyVector(self.input, multi_value);
+    try query_weight.multiplyVector(self.input, self.multi_query, workers);
+    try key_weight.multiplyVector(self.input, multi_key, workers);
+    try value_weight.multiplyVector(self.input, multi_value, workers);
 
     self.computeRoPE(position, multi_key.data);
 
@@ -73,7 +74,7 @@ pub fn forward(self: Self, layer: usize, position: usize) !void {
         try self.computeGQA(layer, position, head);
     }
 
-    try output_weight.multiplyVector(self.input, self.output);
+    try output_weight.multiplyVector(self.input, self.output, workers);
 }
 
 // Rotary positional embeddings: https://arxiv.org/abs/2104.09864
