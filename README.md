@@ -174,9 +174,9 @@ becomes beneficial. Prior to that, the performance gain doesn't surpass the over
 
 ### TL;DR
 
-The 15M model presents the fastest performance in single-threaded mode. For the 42M/110M models,
-they demonstrate quicker speed on the M2 Pro with the use of 7 extra threads, and on the M1 Pro with
-the use of 5 extra threads.
+The 15M model presents its fastest performance in single-threaded mode. For the 42M/110M models,
+they both present their fastest performance on the M2 Pro with the use of 7 extra threads, and on
+the M1 Pro with the use of 5 extra threads.
 
 ### Apple M2 Pro 8/4 32 GB
 
