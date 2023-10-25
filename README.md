@@ -15,7 +15,10 @@ zig build -Doptimize=ReleaseFast
 ```
 
 ```sh
-./zig-out/bin/llama2-generator models/tinystories_15m --temperature 0
+./zig-out/bin/llama2-generator models/tinystories_15m \
+  --temperature 0 \
+  --verbose \
+  --worker_count 0
 ```
 
 Output:
@@ -25,6 +28,8 @@ Once upon a time, there was a little girl named Lily. She loved to play outside 
 Lily wanted to play with the ball, but it was too high up in the sky. She tried to jump and reach it, but she couldn't. Then, she had an idea. She would use a stick to knock the ball down.
 Lily found a stick and tried to hit the ball. But the stick was too short. She tried again and again, but she couldn't reach it. She felt sad.
 Suddenly, a kind man came by and saw Lily. He asked her what was wrong. Lily told him about the ball. The man smiled and said, "I have a useful idea!" He took out a long stick and used it to knock the ball down. Lily was so happy! She thanked the man and they played together in the sunshine.
+
+achieved: 701.587 tok/s
 ```
 
 ## Run Llama 2 7B from Hugging Face
@@ -60,8 +65,7 @@ zig build -Doptimize=ReleaseFast
 ./zig-out/bin/llama2-generator models/llama2_7b_hf \
   --prompt "Once Upon a Time" \
   --sequence_length 28 \
-  --temperature 0 \
-  --worker_count 10
+  --temperature 0
 ```
 
 Output:
@@ -100,7 +104,7 @@ zig build -Doptimize=ReleaseFast
 ```
 
 ```sh
-./zig-out/bin/llama2-chat models/llama2_7b_chat_hf --temperature 0 --worker_count 10
+./zig-out/bin/llama2-chat models/llama2_7b_chat_hf --temperature 0
 ```
 
 Output:
@@ -127,7 +131,7 @@ Options:
   --temperature     <float>  = 1.0
   --top_p           <float>  = 0.9
   --verbose
-  --worker_count    <int>    = 0
+  --worker_count    <int>    = <cpu_count>
 ```
 
 ### llama2-chat
@@ -143,7 +147,7 @@ Options:
   --temperature     <float>  = 1.0
   --top_p           <float>  = 0.9
   --user_prompt     <string> = ""
-  --worker_count    <int>    = 0
+  --worker_count    <int>    = <cpu_count>
 ```
 
 ## Papers

@@ -86,7 +86,7 @@ pub fn initLeaky(allocator: std.mem.Allocator) !Self {
         .temperature = @max(@min(temperature orelse 1, 1), 0),
         .top_p = @max(@min(top_p orelse 0.9, 1), 0),
         .verbose = verbose,
-        .worker_count = worker_count orelse 0,
+        .worker_count = worker_count orelse try std.Thread.getCpuCount(),
     };
 }
 
@@ -106,7 +106,7 @@ fn help(exit_status: u8) !noreturn {
     try console.print("  --temperature     <float>  = 1.0\n", .{});
     try console.print("  --top_p           <float>  = 0.9\n", .{});
     try console.print("  --verbose\n", .{});
-    try console.print("  --worker_count    <int>    = 0\n", .{});
+    try console.print("  --worker_count    <int>    = <cpu_count>\n", .{});
 
     std.process.exit(exit_status);
 }
