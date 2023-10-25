@@ -5,17 +5,18 @@ set -o pipefail  # Sets the exit status for pipes
 set -u           # Triggers an error when an unset variable is called
 set -o noclobber # Prevents from overwriting existing files
 
-if [ "$#" -ne 2 ]; then
-    echo "Usage: ./benchmark.sh <model> <runs>"
+if [ "$#" -ne 3 ]; then
+    echo "Usage: ./benchmark.sh <model> <max_worker_count> <runs>"
     exit 1
 fi
 
 model=$1
-runs=$2
+max_worker_count=$2
+runs=$3
 
 zig build -Doptimize=ReleaseFast
 
-for ((worker_count=0; worker_count<11; worker_count++))
+for ((worker_count=0; worker_count<=max_worker_count; worker_count++))
 do
   echo -n "Running $model with $worker_count workers:"
 
