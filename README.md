@@ -18,6 +18,8 @@ zig build -Doptimize=ReleaseFast
 ./zig-out/bin/llama2-generator models/tinystories_15m --temperature 0
 ```
 
+Output:
+
 ```
 Once upon a time, there was a little girl named Lily. She loved to play outside in the sunshine. One day, she saw a big, red ball in the sky. It was the sun! She thought it was so pretty.
 Lily wanted to play with the ball, but it was too high up in the sky. She tried to jump and reach it, but she couldn't. Then, she had an idea. She would use a stick to knock the ball down.
@@ -62,6 +64,8 @@ zig build -Doptimize=ReleaseFast
   --worker_count 10
 ```
 
+Output:
+
 ```
 Once Upon a Time in Hollywood is a 2019 American comedy-drama film written and directed by Quentin Tarantino
 ```
@@ -99,7 +103,7 @@ zig build -Doptimize=ReleaseFast
 ./zig-out/bin/llama2-chat models/llama2_7b_chat_hf --temperature 0 --worker_count 10
 ```
 
-The output on an Apple M1 Pro with 32 GB of memory:
+Output:
 
 ```
 Enter system prompt (optional):
