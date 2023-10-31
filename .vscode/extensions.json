@@ -2,8 +2,8 @@
   "recommendations": [
     "editorconfig.editorconfig",
     "esbenp.prettier-vscode",
+    "ziglang.vscode-zig",
     "ms-python.black-formatter",
-    "ms-python.python",
-    "ziglang.vscode-zig"
+    "ms-python.python"
   ]
 }

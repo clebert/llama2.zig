@@ -4,9 +4,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - uses: goto-bus-stop/setup-zig@v2
-    - run: zig fmt --check src/*.zig
-    - run: zig build test
-    - run: ./test.sh
+    - run: bash ./ci.sh
 name: CI
 on:
   pull_request: {}

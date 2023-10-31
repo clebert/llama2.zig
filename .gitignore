@@ -1,5 +1,5 @@
-/models/*
-!/models/tinystories_15m
-!/models/tinystories_260k
 /zig-cache
 /zig-out
+/models
+!/models/tinystories_15m
+!/models/tinystories_260k
