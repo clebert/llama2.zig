@@ -6,5 +6,5 @@ set -o noclobber # Prevents from overwriting existing files
 zig fmt --check ./*.zig
 zig build test
 zig build
-bash ./test.sh
 zig fmt --check ./src/*.zig
+bash ./test.sh

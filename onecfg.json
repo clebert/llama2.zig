@@ -30,7 +30,7 @@
     ],
     "ci.sh": [
       {
-        "value": ["bash ./test.sh", "zig fmt --check ./src/*.zig"]
+        "value": ["zig fmt --check ./src/*.zig", "bash ./test.sh"]
       }
     ]
   }
